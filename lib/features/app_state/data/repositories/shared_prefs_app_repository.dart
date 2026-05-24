@@ -59,6 +59,8 @@ class SharedPrefsAppRepository implements AppRepository {
       ...current.transactions,
       transaction
     ];
+    String auditTransactionId(String prefix) =>
+        '$prefix-${DateTime.now().microsecondsSinceEpoch}-${transactions.length}';
 
     // Helper to update virtual entity (Jar or Allocation)
     void updateVirtualBalance({
@@ -74,9 +76,10 @@ class SharedPrefsAppRepository implements AppRepository {
         if (physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) + delta;
-              
+
           // Update walletSources as well
-          final existingSourceIdx = jar.walletSources.indexWhere((s) => s.walletId == physicalWalletId);
+          final existingSourceIdx = jar.walletSources
+              .indexWhere((s) => s.walletId == physicalWalletId);
           double currentSourceAmount = 0;
           if (existingSourceIdx != -1) {
             currentSourceAmount = jar.walletSources[existingSourceIdx].amount;
@@ -123,6 +126,20 @@ class SharedPrefsAppRepository implements AppRepository {
           }
           return w;
         }).toList();
+      } else if (isPhysicalFrom &&
+          !isPhysicalTo &&
+          transaction.transferType == 'jar-funding-physical') {
+        wallets = wallets.map((w) {
+          if (w.id != transaction.fromWalletId) return w;
+          return w.copyWith(balance: w.balance - transaction.amount);
+        }).toList();
+        if (transaction.toWalletId != null) {
+          updateVirtualBalance(
+            id: transaction.toWalletId!,
+            delta: transaction.amount,
+            physicalWalletId: transaction.fromWalletId,
+          );
+        }
       } else {
         // 2. Virtual transfer (Internal)
         // Deduct from 'from'
@@ -160,16 +177,15 @@ class SharedPrefsAppRepository implements AppRepository {
               jar.funding.where((f) => f.incomeSourceId == sourceId).toList();
           if (matchingFunding.isEmpty || remaining <= 0) continue;
 
-          final jarPlan = matchingFunding.fold<double>(
-              0, (s, f) => s + f.plannedAmount);
+          final jarPlan =
+              matchingFunding.fold<double>(0, (s, f) => s + f.plannedAmount);
           if (jarPlan <= 0) continue;
 
           final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
           remaining -= transferAmount;
 
           // هل يوجد مصدر تمويل بـ isPhysical لهذا الدخل؟
-          final hasPhysicalFunding =
-              matchingFunding.any((f) => f.isPhysical);
+          final hasPhysicalFunding = matchingFunding.any((f) => f.isPhysical);
 
           if (jar.automationType == 'auto') {
             // توزيع فوري
@@ -188,11 +204,28 @@ class SharedPrefsAppRepository implements AppRepository {
                 );
               }
             }
+            transactions.add(
+              TransactionEntity(
+                id: auditTransactionId('txn'),
+                walletId: transaction.walletId,
+                fromWalletId: hasPhysicalFunding ? transaction.walletId : null,
+                toWalletId: jar.id,
+                budgetScope: 'within-budget',
+                incomeSourceId: sourceId,
+                amount: transferAmount,
+                type: 'transfer',
+                transferType:
+                    hasPhysicalFunding ? 'jar-funding-physical' : 'jar-funding',
+                notes: hasPhysicalFunding
+                    ? 'خصم فعلي إلى حصالة ${jar.name}'
+                    : 'حجز للحصالة ${jar.name}',
+                createdAt: transaction.createdAt,
+              ),
+            );
           } else if (jar.automationType == 'confirm') {
             // معلّق — ينتظر تأكيد اليوزر
             linkedWallets[i] = jar.copyWith(
-              pendingDistribution:
-                  jar.pendingDistribution + transferAmount,
+              pendingDistribution: jar.pendingDistribution + transferAmount,
               pendingDistributionWalletId:
                   hasPhysicalFunding ? (transaction.walletId ?? '') : '',
               pendingDistributionSourceId: sourceId,
@@ -204,22 +237,19 @@ class SharedPrefsAppRepository implements AppRepository {
         // Handle Distribution to Allocations based on automationType
         for (var i = 0; i < allocations.length; i++) {
           final alloc = allocations[i];
-          final matchingFunding = alloc.funding
-              .where((f) => f.incomeSourceId == sourceId)
-              .toList();
+          final matchingFunding =
+              alloc.funding.where((f) => f.incomeSourceId == sourceId).toList();
           if (matchingFunding.isEmpty || remaining <= 0) continue;
 
           final allocPlan =
               matchingFunding.fold<double>(0, (s, f) => s + f.plannedAmount);
           if (allocPlan <= 0) continue;
 
-          final transferAmount =
-              allocPlan <= remaining ? allocPlan : remaining;
+          final transferAmount = allocPlan <= remaining ? allocPlan : remaining;
           remaining -= transferAmount;
 
           if (alloc.automationType == 'auto') {
-            final nextBalances =
-                Map<String, double>.from(alloc.walletBalances);
+            final nextBalances = Map<String, double>.from(alloc.walletBalances);
             if (transaction.walletId != null) {
               nextBalances[transaction.walletId!] =
                   (nextBalances[transaction.walletId!] ?? 0) + transferAmount;
@@ -230,9 +260,10 @@ class SharedPrefsAppRepository implements AppRepository {
             );
           } else if (alloc.automationType == 'confirm') {
             allocations[i] = alloc.copyWith(
-              pendingDistribution:
-                  alloc.pendingDistribution + transferAmount,
-              pendingDistributionWalletId: transaction.walletId ?? '',
+              pendingDistribution: alloc.pendingDistribution + transferAmount,
+              // Allocation funding is always virtual; no physical wallet debit
+              // should happen when the user confirms the monthly distribution.
+              pendingDistributionWalletId: '',
               pendingDistributionSourceId: sourceId,
             );
           }

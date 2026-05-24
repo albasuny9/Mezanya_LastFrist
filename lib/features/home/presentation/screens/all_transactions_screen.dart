@@ -47,10 +47,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     _anchor = DateTime(widget.initialMonth.year, widget.initialMonth.month, 1);
   }
 
-  bool _isJarTx(TransactionEntity t) =>
-      t.transferType == 'jar-allocation' ||
-      t.transferType == 'jar-allocation-cancel' ||
-      t.transferType == 'jar-allocation-spend';
+  bool _isJarTx(TransactionEntity t) => false;
 
   // ── Period navigation ──────────────────────────────────────────────────────
 
@@ -123,15 +120,13 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         final s = DateTime(_anchor.year, _anchor.month, _anchor.day);
         final e = s.add(const Duration(hours: 24));
         out = out
-            .where((t) =>
-                !t.createdAt.isBefore(s) && t.createdAt.isBefore(e))
+            .where((t) => !t.createdAt.isBefore(s) && t.createdAt.isBefore(e))
             .toList();
       case _Period.week:
         final s = DateTime(_anchor.year, _anchor.month, _anchor.day);
         final e = s.add(const Duration(days: 7));
         out = out
-            .where((t) =>
-                !t.createdAt.isBefore(s) && t.createdAt.isBefore(e))
+            .where((t) => !t.createdAt.isBefore(s) && t.createdAt.isBefore(e))
             .toList();
       case _Period.month:
         out = out
@@ -141,13 +136,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             .toList();
       case _Period.custom:
         if (_customFrom != null && _customTo != null) {
-          final s = DateTime(
-              _customFrom!.year, _customFrom!.month, _customFrom!.day);
+          final s =
+              DateTime(_customFrom!.year, _customFrom!.month, _customFrom!.day);
           final e = DateTime(
               _customTo!.year, _customTo!.month, _customTo!.day, 23, 59, 59);
           out = out
-              .where((t) =>
-                  !t.createdAt.isBefore(s) && !t.createdAt.isAfter(e))
+              .where((t) => !t.createdAt.isBefore(s) && !t.createdAt.isAfter(e))
               .toList();
         }
     }
@@ -199,11 +193,9 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     tmpAnchor =
                         DateTime(tmpAnchor.year, tmpAnchor.month - 1, 1);
                   case _Period.week:
-                    tmpAnchor =
-                        tmpAnchor.subtract(const Duration(days: 7));
+                    tmpAnchor = tmpAnchor.subtract(const Duration(days: 7));
                   case _Period.day:
-                    tmpAnchor =
-                        tmpAnchor.subtract(const Duration(days: 1));
+                    tmpAnchor = tmpAnchor.subtract(const Duration(days: 1));
                   case _Period.custom:
                     break;
                 }
@@ -234,8 +226,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('فلتر المعاملات',
-                    style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w900)),
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 20),
 
                 // ── Type filter ──────────────────────────────────────────
@@ -273,20 +265,17 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   ],
                   selected: tmpPeriod.name,
                   onSelect: (v) => setSheet(() {
-                    tmpPeriod = _Period.values
-                        .firstWhere((p) => p.name == v);
+                    tmpPeriod = _Period.values.firstWhere((p) => p.name == v);
                     if (tmpPeriod == _Period.week) {
                       final wd = tmpAnchor.weekday % 7;
-                      tmpAnchor = tmpAnchor
-                          .subtract(Duration(days: wd));
+                      tmpAnchor = tmpAnchor.subtract(Duration(days: wd));
                     }
                     if (tmpPeriod == _Period.day) {
-                      tmpAnchor = DateTime(tmpAnchor.year,
-                          tmpAnchor.month, tmpAnchor.day);
+                      tmpAnchor = DateTime(
+                          tmpAnchor.year, tmpAnchor.month, tmpAnchor.day);
                     }
                     if (tmpPeriod == _Period.month) {
-                      tmpAnchor = DateTime(
-                          tmpAnchor.year, tmpAnchor.month, 1);
+                      tmpAnchor = DateTime(tmpAnchor.year, tmpAnchor.month, 1);
                     }
                   }),
                 ),
@@ -298,15 +287,13 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: _green.withValues(alpha: 0.18)),
+                      border: Border.all(color: _green.withValues(alpha: 0.18)),
                     ),
                     child: Row(
                       children: [
                         IconButton(
                           onPressed: shiftPrev,
-                          icon: const Icon(Icons.chevron_right,
-                              color: _green),
+                          icon: const Icon(Icons.chevron_right, color: _green),
                         ),
                         Expanded(
                           child: Center(
@@ -321,8 +308,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         ),
                         IconButton(
                           onPressed: shiftNext,
-                          icon: const Icon(Icons.chevron_left,
-                              color: _green),
+                          icon: const Icon(Icons.chevron_left, color: _green),
                         ),
                       ],
                     ),
@@ -418,134 +404,149 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       final key = DateFormat('yyyy-MM-dd').format(t.createdAt);
       grouped.putIfAbsent(key, () => []).add(t);
     }
-    final sortedKeys = grouped.keys.toList()..sort((a, b) => _sortAscending ? a.compareTo(b) : b.compareTo(a));
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) => _sortAscending ? a.compareTo(b) : b.compareTo(a));
 
     return Scaffold(
-        backgroundColor: _beige,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // ── Top period bar ─────────────────────────────────────────
-              _PeriodTopBar(
-                label: _periodLabel(),
-                showArrows: _period != _Period.custom,
-                onPrev: _prev,
-                onNext: _next,
-              ),
+      backgroundColor: _beige,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Top period bar ─────────────────────────────────────────
+            _PeriodTopBar(
+              label: _periodLabel(),
+              showArrows: _period != _Period.custom,
+              onPrev: _prev,
+              onNext: _next,
+            ),
 
-              // ── Content ────────────────────────────────────────────────
-              Expanded(
-                child: ListView(
-                  padding:
-                      const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                  children: [
-                    // Summary card
-                    _SummaryCard(
-                        totalIn: totalIn,
-                        totalOut: totalOut,
-                        count: filtered.length),
-                    const SizedBox(height: 12),
+            // ── Content ────────────────────────────────────────────────
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: [
+                  // Summary card
+                  _SummaryCard(
+                      totalIn: totalIn,
+                      totalOut: totalOut,
+                      count: filtered.length),
+                  const SizedBox(height: 12),
 
-                    // Sort and Filter Bar
-                    Row(
-                      children: [
-                        // Sort Button
-                        InkWell(
-                          onTap: () => setState(() => _sortAscending = !_sortAscending),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Ink(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.15)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _sortAscending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                                  size: 18,
-                                  color: const Color(0xFF165b47),
+                  // Sort and Filter Bar
+                  Row(
+                    children: [
+                      // Sort Button
+                      InkWell(
+                        onTap: () =>
+                            setState(() => _sortAscending = !_sortAscending),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Ink(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: const Color(0xFF165b47)
+                                    .withValues(alpha: 0.15)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _sortAscending
+                                    ? Icons.arrow_upward_rounded
+                                    : Icons.arrow_downward_rounded,
+                                size: 18,
+                                color: const Color(0xFF165b47),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _sortAscending ? 'تصاعدي' : 'تنازلي',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF165b47),
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _sortAscending ? 'تصاعدي' : 'تنازلي',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF165b47),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                        const Spacer(),
-                        // Filter Button
-                        InkWell(
-                          onTap: _openFilterSheet,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Ink(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _typeTab != 'all' ? const Color(0xFF165b47) : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.15)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.tune_rounded,
-                                  size: 18,
-                                  color: _typeTab != 'all' ? Colors.white : const Color(0xFF165b47),
+                      ),
+                      const Spacer(),
+                      // Filter Button
+                      InkWell(
+                        onTap: _openFilterSheet,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Ink(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _typeTab != 'all'
+                                ? const Color(0xFF165b47)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: const Color(0xFF165b47)
+                                    .withValues(alpha: 0.15)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.tune_rounded,
+                                size: 18,
+                                color: _typeTab != 'all'
+                                    ? Colors.white
+                                    : const Color(0xFF165b47),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'تصفية',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: _typeTab != 'all'
+                                      ? Colors.white
+                                      : const Color(0xFF165b47),
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'تصفية',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: _typeTab != 'all' ? Colors.white : const Color(0xFF165b47),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
 
-                    // Empty state
-                    if (filtered.isEmpty)
-                      const _EmptyState()
-                    else
-                      ...sortedKeys.map((dateKey) {
-                        final dayTx = grouped[dateKey]!;
-                        final dayDate = DateTime.parse(dateKey);
-                        final dayIncome = dayTx
-                            .where((t) => t.type == 'income')
-                            .fold<double>(0, (s, t) => s + t.amount);
-                        final dayExpense = dayTx
-                            .where((t) => t.type == 'expense')
-                            .fold<double>(0, (s, t) => s + t.amount);
+                  // Empty state
+                  if (filtered.isEmpty)
+                    const _EmptyState()
+                  else
+                    ...sortedKeys.map((dateKey) {
+                      final dayTx = grouped[dateKey]!;
+                      final dayDate = DateTime.parse(dateKey);
+                      final dayIncome = dayTx
+                          .where((t) => t.type == 'income')
+                          .fold<double>(0, (s, t) => s + t.amount);
+                      final dayExpense = dayTx
+                          .where((t) => t.type == 'expense')
+                          .fold<double>(0, (s, t) => s + t.amount);
 
-                        return _DayGroup(
-                          date: dayDate,
-                          dayIncome: dayIncome,
-                          dayExpense: dayExpense,
-                          transactions: dayTx,
-                          categories: categories,
-                          cubit: widget.cubit,
-                        );
-                      }),
-                  ],
-                ),
+                      return _DayGroup(
+                        date: dayDate,
+                        dayIncome: dayIncome,
+                        dayExpense: dayExpense,
+                        transactions: dayTx,
+                        categories: categories,
+                        cubit: widget.cubit,
+                      );
+                    }),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 }
 
@@ -642,12 +643,9 @@ class _SheetChipBar extends StatelessWidget {
           onTap: () => onSelect(opt.$1),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? opt.$3
-                  : opt.$3.withValues(alpha: 0.10),
+              color: isSelected ? opt.$3 : opt.$3.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(22),
             ),
             child: Text(
@@ -683,8 +681,7 @@ class _DatePickerBox extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -705,8 +702,7 @@ class _DatePickerBox extends StatelessWidget {
                   ? 'اختر تاريخ'
                   : DateFormat('d MMMM yyyy', 'ar').format(date!),
               style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF165b47)),
+                  fontWeight: FontWeight.w700, color: Color(0xFF165b47)),
             ),
           ],
         ),
@@ -742,9 +738,7 @@ class _SummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x301B6B25),
-              blurRadius: 18,
-              offset: Offset(0, 7))
+              color: Color(0x301B6B25), blurRadius: 18, offset: Offset(0, 7))
         ],
       ),
       child: Column(
@@ -771,17 +765,15 @@ class _SummaryCard extends StatelessWidget {
                 child: _GlassTile(
                   label: 'الصافي',
                   value: '${isPos ? '+' : ''}${net.toStringAsFixed(2)}',
-                  valueColor: isPos
-                      ? const Color(0xFF4ADE80)
-                      : const Color(0xFFF87171),
+                  valueColor:
+                      isPos ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
@@ -813,8 +805,7 @@ class _GlassTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
@@ -830,9 +821,7 @@ class _GlassTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(value,
               style: TextStyle(
-                  color: valueColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900),
+                  color: valueColor, fontSize: 13, fontWeight: FontWeight.w900),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
@@ -910,8 +899,8 @@ class _DayGroup extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF3EEDF),
                   borderRadius: BorderRadius.circular(20),
@@ -944,8 +933,7 @@ class _DayGroup extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w700)),
                     if (dayIncome > 0 && dayExpense > 0)
-                      const Text('  ',
-                          style: TextStyle(fontSize: 11)),
+                      const Text('  ', style: TextStyle(fontSize: 11)),
                     if (dayExpense > 0)
                       Text('-${dayExpense.toStringAsFixed(0)}',
                           style: const TextStyle(
@@ -979,5 +967,3 @@ class _DayGroup extends StatelessWidget {
     );
   }
 }
-
-

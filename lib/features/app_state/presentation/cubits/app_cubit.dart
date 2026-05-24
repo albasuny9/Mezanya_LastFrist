@@ -247,14 +247,15 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: type == 'transfer' ? 'transfer' : 'add',
       entityType: 'transaction',
       entityId: transaction.id,
-      details: details ?? _transactionDetails(
-        type: type,
-        amount: amount,
-        walletName: walletName,
-        incomeName: incomeName,
-        allocationName: allocationName,
-        budgetScope: budgetScope,
-      ),
+      details: details ??
+          _transactionDetails(
+            type: type,
+            amount: amount,
+            walletName: walletName,
+            incomeName: incomeName,
+            allocationName: allocationName,
+            budgetScope: budgetScope,
+          ),
       titleOverride: notes?.isNotEmpty == true
           ? notes
           : incomeName ?? walletName ?? (type == 'income' ? 'دخل' : 'مصروف'),
@@ -348,6 +349,20 @@ class AppCubit extends Cubit<AppStateEntity> {
           }
           return w;
         }).toList();
+      } else if (isPhysicalFrom &&
+          !isPhysicalTo &&
+          transaction.transferType == 'jar-funding-physical') {
+        wallets = wallets.map((w) {
+          if (w.id != transaction.fromWalletId) return w;
+          return w.copyWith(balance: w.balance + transaction.amount);
+        }).toList();
+        if (transaction.toWalletId != null) {
+          reverseVirtualBalance(
+            id: transaction.toWalletId!,
+            delta: transaction.amount,
+            physicalWalletId: transaction.fromWalletId,
+          );
+        }
       } else {
         // Reverse virtual transfer
         if (transaction.fromWalletId != null) {
@@ -587,47 +602,50 @@ class AppCubit extends Cubit<AppStateEntity> {
   /// تأكيد توزيع الراتب على حصالة "يحتاج تأكيد"
   Future<void> confirmJarDistribution(String jarId) async {
     final jars = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
-    var wallets = List<WalletEntity>.from(state.wallets);
     final idx = jars.indexWhere((j) => j.id == jarId);
     if (idx == -1) return;
     final jar = jars[idx];
     final amount = jar.pendingDistribution;
     if (amount <= 0) return;
 
-    // أضف المبلغ لرصيد الحصالة
-    final nextBalances = Map<String, double>.from(jar.walletBalances);
-    if (jar.pendingDistributionWalletId.isNotEmpty) {
-      nextBalances[jar.pendingDistributionWalletId] =
-          (nextBalances[jar.pendingDistributionWalletId] ?? 0) + amount;
-    }
-    jars[idx] = jar.copyWith(
-      balance: jar.balance + amount,
-      walletBalances: nextBalances,
-      pendingDistribution: 0,
-      pendingDistributionWalletId: '',
-      pendingDistributionSourceId: '',
+    final clearedPending = jars
+        .map((item) => item.id == jarId
+            ? item.copyWith(
+                pendingDistribution: 0,
+                pendingDistributionWalletId: '',
+                pendingDistributionSourceId: '',
+              )
+            : item)
+        .toList();
+    final stagedState = state.copyWith(
+      budgetSetup: state.budgetSetup.copyWith(linkedWallets: clearedPending),
     );
 
-    // لو كانت تخصيص فعلي: خصم من المحفظة
-    if (jar.pendingDistributionWalletId.isNotEmpty) {
-      final wIdx =
-          wallets.indexWhere((w) => w.id == jar.pendingDistributionWalletId);
-      if (wIdx != -1) {
-        wallets[wIdx] =
-            wallets[wIdx].copyWith(balance: wallets[wIdx].balance - amount);
-      }
-    }
+    emit(stagedState);
+    await _repository.saveState(stagedState);
 
-    final next = state.copyWith(
-      wallets: wallets,
-      budgetSetup: state.budgetSetup.copyWith(linkedWallets: jars),
-    );
-    await _applyAndLog(
-      action: 'edit',
-      entityType: 'jar',
-      entityId: jarId,
-      details: 'تم تأكيد تحويل ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
-      apply: () async => next,
+    await addTransaction(
+      walletId: jar.pendingDistributionWalletId.isNotEmpty
+          ? jar.pendingDistributionWalletId
+          : null,
+      fromWalletId: jar.pendingDistributionWalletId.isNotEmpty
+          ? jar.pendingDistributionWalletId
+          : null,
+      toWalletId: jar.id,
+      amount: amount,
+      type: 'transfer',
+      budgetScope: 'within-budget',
+      incomeSourceId: jar.pendingDistributionSourceId.isNotEmpty
+          ? jar.pendingDistributionSourceId
+          : null,
+      transferType: jar.pendingDistributionWalletId.isNotEmpty
+          ? 'jar-funding-physical'
+          : 'jar-funding',
+      notes: jar.pendingDistributionWalletId.isNotEmpty
+          ? 'خصم فعلي إلى حصالة ${jar.name}'
+          : 'حجز للحصالة ${jar.name}',
+      details:
+          'تم تأكيد ${jar.pendingDistributionWalletId.isNotEmpty ? 'خصم فعلي' : 'حجز'} ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
     );
   }
 
@@ -651,7 +669,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'jar',
       entityId: jarId,
-      details: 'تم تأجيل تحويل ${jar.pendingDistribution.toStringAsFixed(2)} لحصالة ${jar.name}',
+      details:
+          'تم تأجيل تحويل ${jar.pendingDistribution.toStringAsFixed(2)} لحصالة ${jar.name}',
       apply: () async => next,
     );
   }
@@ -660,7 +679,6 @@ class AppCubit extends Cubit<AppStateEntity> {
   Future<void> confirmAllocationDistribution(String allocationId) async {
     final allocations =
         List<AllocationEntity>.from(state.budgetSetup.allocations);
-    var wallets = List<WalletEntity>.from(state.wallets);
     final idx = allocations.indexWhere((a) => a.id == allocationId);
     if (idx == -1) return;
     final alloc = allocations[idx];
@@ -680,17 +698,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       pendingDistributionSourceId: '',
     );
 
-    if (alloc.pendingDistributionWalletId.isNotEmpty) {
-      final wIdx = wallets
-          .indexWhere((w) => w.id == alloc.pendingDistributionWalletId);
-      if (wIdx != -1) {
-        wallets[wIdx] =
-            wallets[wIdx].copyWith(balance: wallets[wIdx].balance - amount);
-      }
-    }
-
     final next = state.copyWith(
-      wallets: wallets,
       budgetSetup: state.budgetSetup.copyWith(allocations: allocations),
     );
     await _applyAndLog(
@@ -1073,7 +1081,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       type: 'expense',
       budgetScope: recurring.budgetScope,
       allocationId: recurring.allocationId,
-      categoryId: recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
+      categoryId:
+          recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
       notes: transactionNotes,
       createdAt: DateTime.now(),
     );
@@ -1220,7 +1229,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'add',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'سلفة لـ $personName بمبلغ ${amount.toStringAsFixed(2)} من ${walletName ?? walletId}',
+      details:
+          'سلفة لـ $personName بمبلغ ${amount.toStringAsFixed(2)} من ${walletName ?? walletId}',
       titleOverride: personName,
       apply: () async {
         final stateAfterTx = await _repository.addTransaction(txn);
@@ -1250,7 +1260,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     final allSettled = updatedEntries.every((e) => e['isSettled'] == true);
     final updatedPerson = person.copyWith(
       lentEntries: updatedEntries,
-      amount: (person.outstandingLentAmount - entryAmount).clamp(0, double.infinity),
+      amount: (person.outstandingLentAmount - entryAmount)
+          .clamp(0, double.infinity),
       isLentArchived: allSettled,
     );
 
@@ -1271,7 +1282,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'استرداد سلفة من ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
+      details:
+          'استرداد سلفة من ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async {
         final stateAfterTx = await _repository.addTransaction(txn);
@@ -1289,10 +1301,11 @@ class AppCubit extends Cubit<AppStateEntity> {
     if (person == null) return;
 
     final entryAmount = (person.lentEntries
-            .where((e) => e['id'] == entryId)
-            .cast<Map<String, dynamic>?>()
-            .firstWhere((_) => true, orElse: () => null)?['amount'] as num?)
-        ?.toDouble() ?? 0;
+                .where((e) => e['id'] == entryId)
+                .cast<Map<String, dynamic>?>()
+                .firstWhere((_) => true, orElse: () => null)?['amount'] as num?)
+            ?.toDouble() ??
+        0;
 
     final updatedEntries = person.lentEntries
         .map((e) => e['id'] == entryId ? {...e, 'isSettled': true} : e)
@@ -1300,7 +1313,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     final allSettled = updatedEntries.every((e) => e['isSettled'] == true);
     final updatedPerson = person.copyWith(
       lentEntries: updatedEntries,
-      amount: (person.outstandingLentAmount - entryAmount).clamp(0, double.infinity),
+      amount: (person.outstandingLentAmount - entryAmount)
+          .clamp(0, double.infinity),
       isLentArchived: allSettled,
     );
     final next = state.copyWith(
@@ -1312,7 +1326,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'تنازل عن سلفة ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
+      details:
+          'تنازل عن سلفة ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async => next,
     );
@@ -1341,7 +1356,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'تأجيل سلفة ${person.lentPersonName ?? person.name} إلى ${newDate.day}/${newDate.month}/${newDate.year}',
+      details:
+          'تأجيل سلفة ${person.lentPersonName ?? person.name} إلى ${newDate.day}/${newDate.month}/${newDate.year}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async => next,
     );
@@ -1376,7 +1392,6 @@ class AppCubit extends Cubit<AppStateEntity> {
   Future<void> settleLentRecord(String id) async {}
   Future<void> writeOffLentRecord(String id) async {}
   Future<void> postponeLentRecord(String id, DateTime d) async {}
-
 
   Future<void> deleteRecurringTransaction(String id) async {
     final target =

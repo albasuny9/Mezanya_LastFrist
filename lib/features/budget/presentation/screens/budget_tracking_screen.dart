@@ -1294,8 +1294,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     String? txNotes;
     if (item.categoryId != null && item.categoryId!.isNotEmpty) {
       try {
-        final cat =
-            categories.firstWhere((c) => c.id == item.categoryId);
+        final cat = categories.firstWhere((c) => c.id == item.categoryId);
         txTitle = cat.name;
         if (item.notes != null && item.notes!.isNotEmpty) {
           txNotes = item.notes;
@@ -2222,14 +2221,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               _compactActionButton(
                 label: 'تأكيد التحويل',
                 onPressed: () async {
-                  await widget.cubit.confirmAllocationDistribution(allocation.id);
+                  await widget.cubit
+                      .confirmAllocationDistribution(allocation.id);
                 },
               ),
               _compactActionButton(
                 label: 'تأجيل',
                 filled: false,
                 onPressed: () async {
-                  await widget.cubit.postponeAllocationDistribution(allocation.id);
+                  await widget.cubit
+                      .postponeAllocationDistribution(allocation.id);
                 },
               ),
             ]
@@ -2285,8 +2286,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           : jar.monthlyAmount <= 0
               ? null
               : (monthTx
-                          .where(
-                              (t) => t.type == 'expense' && t.walletId == jar.id)
+                          .where((t) =>
+                              t.type == 'expense' && t.walletId == jar.id)
                           .fold<double>(0, (s, t) => s + t.amount) /
                       jar.monthlyAmount)
                   .clamp(0.0, 1.0)
@@ -2296,8 +2297,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           : jar.monthlyAmount <= 0
               ? null
               : _usageProgressColor((monthTx
-                          .where(
-                              (t) => t.type == 'expense' && t.walletId == jar.id)
+                          .where((t) =>
+                              t.type == 'expense' && t.walletId == jar.id)
                           .fold<double>(0, (s, t) => s + t.amount) /
                       jar.monthlyAmount)
                   .clamp(0.0, 1.0)
@@ -2340,7 +2341,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             t.transferType == 'jar-to-allocation' ||
             (t.type == 'income' && t.budgetScope == 'within-budget') ||
             // مصروفات حقيقية مخصومة من الحصالة
-            (t.type == 'expense' && t.walletId == jar.id &&
+            (t.type == 'expense' &&
+                t.walletId == jar.id &&
                 t.transferType == null))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -4994,11 +4996,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   bool _isJarReserveTx(TransactionEntity t) {
-    return t.transferType == 'jar-allocation' ||
-        t.transferType == 'jar-allocation-cancel' ||
-        t.transferType == 'jar-allocation-spend' ||
-        t.transferType == 'jar-funding' ||
-        t.transferType == 'allocation-to-jar';
+    return t.transferType == 'allocation-to-jar';
   }
 }
 

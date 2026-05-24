@@ -11,6 +11,32 @@ import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
 
+class _RetroactiveBudgetAction {
+  const _RetroactiveBudgetAction({
+    required this.id,
+    required this.kind,
+    required this.name,
+    required this.amount,
+    required this.isPhysical,
+  });
+
+  final String id;
+  final String kind;
+  final String name;
+  final double amount;
+  final bool isPhysical;
+}
+
+class _RetroactiveBudgetSyncResult {
+  const _RetroactiveBudgetSyncResult({
+    required this.setup,
+    required this.actions,
+  });
+
+  final BudgetSetupEntity setup;
+  final List<_RetroactiveBudgetAction> actions;
+}
+
 Future<AllocationEditorResult?> openAllocationEditorScreen(
   BuildContext context, {
   AllocationEntity? current,
@@ -229,13 +255,296 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   Future<void> _saveBudget(BudgetSetupEntity next) async {
+    final previous = _budget;
     final normalized = next.copyWith(
       totalIncome: _totalIncomeFrom(next),
       totalAllocated: _committedFrom(next),
       unallocatedAmount: _totalIncomeFrom(next) - _committedFrom(next),
     );
-    setState(() => _budget = normalized);
-    await widget.cubit.updateBudgetSetup(normalized);
+    final syncResult = _isCurrentMonthSetup
+        ? _buildRetroactiveBudgetSync(
+            previous: previous,
+            next: normalized,
+            state: widget.cubit.state,
+          )
+        : _RetroactiveBudgetSyncResult(setup: normalized, actions: const []);
+    setState(() => _budget = syncResult.setup);
+    await widget.cubit.updateBudgetSetup(syncResult.setup);
+    if (!mounted || syncResult.actions.isEmpty) return;
+    await _showRetroactiveBudgetDialog(syncResult.actions);
+  }
+
+  _RetroactiveBudgetSyncResult _buildRetroactiveBudgetSync({
+    required BudgetSetupEntity previous,
+    required BudgetSetupEntity next,
+    required AppStateEntity state,
+  }) {
+    final cycleIncome = state.transactions
+        .where((transaction) =>
+            transaction.type == 'income' &&
+            !transaction.createdAt.isBefore(_displayCycleStart) &&
+            !transaction.createdAt.isAfter(_displayCycleEnd) &&
+            transaction.incomeSourceId != null)
+        .toList();
+    if (cycleIncome.isEmpty) {
+      return _RetroactiveBudgetSyncResult(setup: next, actions: const []);
+    }
+
+    final incomeTotals = <String, double>{};
+    final incomeWalletIds = <String, String>{};
+    for (final transaction in cycleIncome) {
+      final sourceId = transaction.incomeSourceId;
+      if (sourceId == null || sourceId.isEmpty) continue;
+      incomeTotals[sourceId] =
+          (incomeTotals[sourceId] ?? 0) + transaction.amount;
+      final walletId = transaction.walletId;
+      if (walletId != null && walletId.isNotEmpty) {
+        incomeWalletIds[sourceId] = walletId;
+      }
+    }
+
+    final incomeSourcesById = {
+      for (final source in next.incomeSources) source.id: source,
+      for (final source in previous.incomeSources) source.id: source,
+    };
+
+    final previousAllocations = {
+      for (final allocation in previous.allocations) allocation.id: allocation,
+    };
+    final updatedAllocations = next.allocations.map((allocation) {
+      final previousAllocation = previousAllocations[allocation.id];
+      final previousPlanned =
+          _allocationFundingTotals(previousAllocation?.funding ?? const []);
+      final nextPlanned = _allocationFundingTotals(allocation.funding);
+      final delta = _retroactiveDelta(
+        previousPlanned: previousPlanned,
+        nextPlanned: nextPlanned,
+        incomeTotals: incomeTotals,
+      );
+      if (delta <= 0) return allocation;
+      return allocation.copyWith(
+        pendingDistribution: allocation.pendingDistribution + delta,
+        pendingDistributionWalletId: '',
+        pendingDistributionSourceId:
+            _firstTriggeredSource(previousPlanned, nextPlanned, incomeTotals),
+      );
+    }).toList();
+
+    final previousJars = {
+      for (final jar in previous.linkedWallets) jar.id: jar,
+    };
+    final retroactiveActions = <_RetroactiveBudgetAction>[];
+    final updatedJars = next.linkedWallets.map((jar) {
+      final previousJar = previousJars[jar.id];
+      final previousPlanned =
+          _jarFundingTotals(previousJar?.funding ?? const []);
+      final nextPlanned = _jarFundingTotals(jar.funding);
+      final delta = _retroactiveDelta(
+        previousPlanned: previousPlanned.map(
+          (key, value) => MapEntry(key, value.plannedAmount),
+        ),
+        nextPlanned: nextPlanned.map(
+          (key, value) => MapEntry(key, value.plannedAmount),
+        ),
+        incomeTotals: incomeTotals,
+      );
+      if (delta <= 0) return jar;
+
+      final triggeredSource =
+          _firstTriggeredJarSource(previousPlanned, nextPlanned, incomeTotals);
+      final triggeredFunding =
+          triggeredSource == null ? null : nextPlanned[triggeredSource];
+      final fallbackWalletId = triggeredSource == null
+          ? ''
+          : (incomeWalletIds[triggeredSource] ??
+              incomeSourcesById[triggeredSource]?.targetWalletId ??
+              '');
+      final isPhysical = triggeredFunding?.isPhysical == true;
+      return jar.copyWith(
+        pendingDistribution: jar.pendingDistribution + delta,
+        pendingDistributionWalletId: isPhysical ? fallbackWalletId : '',
+        pendingDistributionSourceId: triggeredSource ?? '',
+      );
+    }).toList();
+
+    for (final allocation in updatedAllocations) {
+      final original =
+          next.allocations.firstWhere((item) => item.id == allocation.id);
+      final delta =
+          allocation.pendingDistribution - original.pendingDistribution;
+      if (delta > 0) {
+        retroactiveActions.add(
+          _RetroactiveBudgetAction(
+            id: allocation.id,
+            kind: 'allocation',
+            name: allocation.name,
+            amount: delta,
+            isPhysical: false,
+          ),
+        );
+      }
+    }
+
+    for (final jar in updatedJars) {
+      final original =
+          next.linkedWallets.firstWhere((item) => item.id == jar.id);
+      final delta = jar.pendingDistribution - original.pendingDistribution;
+      if (delta > 0) {
+        retroactiveActions.add(
+          _RetroactiveBudgetAction(
+            id: jar.id,
+            kind: 'jar',
+            name: jar.name,
+            amount: delta,
+            isPhysical: jar.pendingDistributionWalletId.isNotEmpty,
+          ),
+        );
+      }
+    }
+
+    return _RetroactiveBudgetSyncResult(
+      setup: next.copyWith(
+        allocations: updatedAllocations,
+        linkedWallets: updatedJars,
+      ),
+      actions: retroactiveActions,
+    );
+  }
+
+  Map<String, double> _allocationFundingTotals(
+    List<AllocationFundingEntity> funding,
+  ) {
+    final totals = <String, double>{};
+    for (final entry in funding) {
+      totals[entry.incomeSourceId] =
+          (totals[entry.incomeSourceId] ?? 0) + entry.plannedAmount;
+    }
+    return totals;
+  }
+
+  Map<String, LinkedWalletEntityFunding> _jarFundingTotals(
+    List<LinkedWalletEntityFunding> funding,
+  ) {
+    final totals = <String, LinkedWalletEntityFunding>{};
+    for (final entry in funding) {
+      final existing = totals[entry.incomeSourceId];
+      totals[entry.incomeSourceId] = LinkedWalletEntityFunding(
+        id: existing?.id ?? entry.id,
+        incomeSourceId: entry.incomeSourceId,
+        plannedAmount: (existing?.plannedAmount ?? 0) + entry.plannedAmount,
+        isPhysical: (existing?.isPhysical ?? false) || entry.isPhysical,
+      );
+    }
+    return totals;
+  }
+
+  double _retroactiveDelta({
+    required Map<String, double> previousPlanned,
+    required Map<String, double> nextPlanned,
+    required Map<String, double> incomeTotals,
+  }) {
+    var delta = 0.0;
+    final sourceIds = {...previousPlanned.keys, ...nextPlanned.keys};
+    for (final sourceId in sourceIds) {
+      final available = incomeTotals[sourceId] ?? 0;
+      if (available <= 0) continue;
+      final before = (available <= (previousPlanned[sourceId] ?? 0))
+          ? available
+          : (previousPlanned[sourceId] ?? 0);
+      final after = (available <= (nextPlanned[sourceId] ?? 0))
+          ? available
+          : (nextPlanned[sourceId] ?? 0);
+      if (after > before) {
+        delta += after - before;
+      }
+    }
+    return delta;
+  }
+
+  String? _firstTriggeredSource(
+    Map<String, double> previousPlanned,
+    Map<String, double> nextPlanned,
+    Map<String, double> incomeTotals,
+  ) {
+    for (final entry in nextPlanned.entries) {
+      final available = incomeTotals[entry.key] ?? 0;
+      if (available <= 0) continue;
+      final before = (available <= (previousPlanned[entry.key] ?? 0))
+          ? available
+          : (previousPlanned[entry.key] ?? 0);
+      final after = available <= entry.value ? available : entry.value;
+      if (after > before) return entry.key;
+    }
+    return null;
+  }
+
+  String? _firstTriggeredJarSource(
+    Map<String, LinkedWalletEntityFunding> previousPlanned,
+    Map<String, LinkedWalletEntityFunding> nextPlanned,
+    Map<String, double> incomeTotals,
+  ) {
+    for (final entry in nextPlanned.entries) {
+      final available = incomeTotals[entry.key] ?? 0;
+      if (available <= 0) continue;
+      final beforePlan = previousPlanned[entry.key]?.plannedAmount ?? 0;
+      final before = available <= beforePlan ? available : beforePlan;
+      final after = available <= entry.value.plannedAmount
+          ? available
+          : entry.value.plannedAmount;
+      if (after > before) return entry.key;
+    }
+    return null;
+  }
+
+  Future<void> _showRetroactiveBudgetDialog(
+    List<_RetroactiveBudgetAction> actions,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تطبيق عناصر أضيفت بعد نزول الدخل'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'في عناصر اتضافت أو زادت بعد تسجيل الدخل في الدورة الحالية. نقدر نعلّقها الآن للمراجعة أو نطبقها فورًا.',
+            ),
+            const SizedBox(height: 12),
+            ...actions.take(4).map(
+                  (action) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      '• ${action.name}: ${action.amount.toStringAsFixed(2)}'
+                      '${action.isPhysical ? ' (خصم فعلي)' : ' (تخصيص افتراضي)'}',
+                    ),
+                  ),
+                ),
+            if (actions.length > 4)
+              Text('وباقي ${actions.length - 4} عنصر/عناصر أخرى.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('تأجيل'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('تأكيد الآن'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    for (final action in actions) {
+      if (action.kind == 'jar') {
+        await widget.cubit.confirmJarDistribution(action.id);
+      } else {
+        await widget.cubit.confirmAllocationDistribution(action.id);
+      }
+    }
   }
 
   /// لما اليوزر يغير يوم بداية الدورة — نسأله هيبدأ من النهارده ولا الدورة الجاية

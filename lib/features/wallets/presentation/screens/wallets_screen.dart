@@ -2872,11 +2872,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
-    return transaction.transferType == 'jar-allocation' ||
-        transaction.transferType == 'jar-allocation-cancel' ||
-        transaction.transferType == 'jar-allocation-spend' ||
-        transaction.transferType == 'jar-funding' ||
-        transaction.transferType == 'allocation-to-jar' ||
+    return transaction.transferType == 'allocation-to-jar' ||
         transaction.transferType == 'jar-to-allocation';
   }
 
@@ -4000,7 +3996,6 @@ class _SimpleValueTile extends StatelessWidget {
     );
   }
 }
-
 
 class _WalletReservationsPanel extends StatelessWidget {
   const _WalletReservationsPanel({
