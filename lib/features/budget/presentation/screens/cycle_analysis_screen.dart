@@ -184,7 +184,7 @@ class CycleAnalysisScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    Theme.of(context);
     final paragraph = _generateParagraph();
     final catBreakdown = _categoryBreakdown();
     final dailyPoints = _dailyTrend();

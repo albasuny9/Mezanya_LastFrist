@@ -39,13 +39,6 @@ class _DebtsAndSubscriptionsScreenState
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
 
-        final List<RecurringTransactionEntity> debtRecords = state
-            .recurringTransactions
-            .where((r) =>
-                r.expensePlanKind == 'installment' ||
-                r.expensePlanKind == 'lent')
-            .toList()
-          ..sort((a, b) => a.name.compareTo(b.name));
 
         final subscriptionRecords = state.recurringTransactions
             .where((r) =>
@@ -235,10 +228,6 @@ class _DebtsAndSubscriptionsScreenState
     ]);
   }
 
-  Color get _currentAccent {
-    if (_tab == 'subscriptions') return _subscriptionAccent;
-    return _debtAccent;
-  }
 
   void _openBudgetSetupScreen(BuildContext context) {
     Navigator.of(context).push(
@@ -483,7 +472,7 @@ class _DebtsAndSubscriptionsScreenState
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'محفظة: $walletName · $pendingCount/${totalEntries} سلف',
+                    'محفظة: $walletName · $pendingCount/$totalEntries سلف',
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -833,34 +822,6 @@ class _DebtsAndSubscriptionsScreenState
   // ── فورم إضافة سلفة (جديد أو لشخص موجود) ────────────────────────────────
   // (تم حذف _openLentForm المخصص بطلب من المستخدم)
 
-  Widget _datePicker({
-    required BuildContext ctx,
-    required String label,
-    required DateTime date,
-    required DateTime firstDate,
-    required DateTime lastDate,
-    required ValueChanged<DateTime> onPicked,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () async {
-        final d = await showDatePicker(context: ctx, initialDate: date, firstDate: firstDate, lastDate: lastDate);
-        if (d != null) onPicked(d);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(children: [
-          Icon(Icons.calendar_month_outlined, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 10),
-          Text('$label: ${date.day}/${date.month}/${date.year}', style: const TextStyle(fontWeight: FontWeight.w700)),
-        ]),
-      ),
-    );
-  }
 
 
   Widget _recurringCard(

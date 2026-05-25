@@ -35,9 +35,6 @@ Future<void> openTransactionDetailsSheet(
   final rows = _detailRows(cubit, transaction);
   final state = cubit.state;
   final accent = _accentForTransaction(theme, transaction);
-  final isNegative = transaction.type == 'expense' ||
-      transaction.transferType == 'jar-allocation-cancel' ||
-      transaction.transferType == 'jar-allocation-spend';
 
   final category = getCategoryForTransaction(state, transaction.categoryId);
   final displayTitle = category?.name ??

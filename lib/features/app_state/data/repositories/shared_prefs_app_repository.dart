@@ -67,18 +67,19 @@ class SharedPrefsAppRepository implements AppRepository {
       required String id,
       required double delta,
       String? physicalWalletId,
+      bool trackWalletSource = true,
     }) {
       // Check Jars
       final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
       if (jarIdx != -1) {
         var jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
-        if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] =
-              (nextBalances[physicalWalletId] ?? 0) + delta;
+          if (trackWalletSource && physicalWalletId != null) {
+            nextBalances[physicalWalletId] =
+                (nextBalances[physicalWalletId] ?? 0) + delta;
 
-          // Update walletSources as well
-          final existingSourceIdx = jar.walletSources
+            // Update walletSources as well
+            final existingSourceIdx = jar.walletSources
               .indexWhere((s) => s.walletId == physicalWalletId);
           double currentSourceAmount = 0;
           if (existingSourceIdx != -1) {
@@ -137,7 +138,7 @@ class SharedPrefsAppRepository implements AppRepository {
           updateVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
-            physicalWalletId: transaction.fromWalletId,
+            trackWalletSource: false,
           );
         }
       } else {
@@ -192,7 +193,9 @@ class SharedPrefsAppRepository implements AppRepository {
             updateVirtualBalance(
               id: jar.id,
               delta: transferAmount,
-              physicalWalletId: transaction.walletId,
+              physicalWalletId:
+                  hasPhysicalFunding ? null : transaction.walletId,
+              trackWalletSource: !hasPhysicalFunding,
             );
             // لو isPhysical: خصم المبلغ فعلياً من المحفظة
             if (hasPhysicalFunding && transaction.walletId != null) {
@@ -226,8 +229,7 @@ class SharedPrefsAppRepository implements AppRepository {
             // معلّق — ينتظر تأكيد اليوزر
             linkedWallets[i] = jar.copyWith(
               pendingDistribution: jar.pendingDistribution + transferAmount,
-              pendingDistributionWalletId:
-                  hasPhysicalFunding ? (transaction.walletId ?? '') : '',
+              pendingDistributionWalletId: transaction.walletId ?? '',
               pendingDistributionSourceId: sourceId,
             );
           }

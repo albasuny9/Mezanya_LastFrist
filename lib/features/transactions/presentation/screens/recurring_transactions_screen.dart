@@ -22,7 +22,6 @@ class _RecurringTransactionsScreenState
     extends State<RecurringTransactionsScreen> {
   static const Color _incomeAccent = Color(0xFF2F6F5E);
   static const Color _expenseAccent = Color(0xFFC65D2E);
-  static const Color _subscriptionAccent = Color(0xFF2E5CC6);
   static const Color _sharedCardBackground = Color(0xFFF9F3E7);
 
   String _tab = 'expense';
@@ -91,15 +90,7 @@ class _RecurringTransactionsScreenState
     return _expenseAccent;
   }
 
-  String _tabTitle() {
-    if (_tab == 'income') return 'الدخل المتكرر';
-    return 'المصروفات المتكررة';
-  }
 
-  String _addButtonLabel() {
-    if (_tab == 'income') return 'إضافة دخل متكرر';
-    return 'إضافة مصروف متكرر';
-  }
 
   String _scopeSubtitle({required bool withinBudget}) {
     if (_tab == 'income') {

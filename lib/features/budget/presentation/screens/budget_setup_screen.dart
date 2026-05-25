@@ -362,7 +362,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       final isPhysical = triggeredFunding?.isPhysical == true;
       return jar.copyWith(
         pendingDistribution: jar.pendingDistribution + delta,
-        pendingDistributionWalletId: isPhysical ? fallbackWalletId : '',
+        pendingDistributionWalletId: fallbackWalletId,
         pendingDistributionSourceId: triggeredSource ?? '',
       );
     }).toList();
@@ -389,6 +389,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       final original =
           next.linkedWallets.firstWhere((item) => item.id == jar.id);
       final delta = jar.pendingDistribution - original.pendingDistribution;
+      final hasPhysicalPending = jar.pendingDistributionSourceId.isNotEmpty &&
+          jar.funding.any(
+            (entry) =>
+                entry.incomeSourceId == jar.pendingDistributionSourceId &&
+                entry.isPhysical,
+          );
       if (delta > 0) {
         retroactiveActions.add(
           _RetroactiveBudgetAction(
@@ -396,7 +402,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             kind: 'jar',
             name: jar.name,
             amount: delta,
-            isPhysical: jar.pendingDistributionWalletId.isNotEmpty,
+            isPhysical: hasPhysicalPending,
           ),
         );
       }
@@ -1284,22 +1290,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     await _showDebtDialog();
   }
 
-  Future<void> _openAddLentComposer() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
-          initialType: 'expense',
-          initialWithinBudget: true,
-          debtOnlyMode: true,
-          initialLentMode: true,
-          returnOnSave: false,
-        ),
-      ),
-    );
-    if (mounted) setState(() {});
-  }
 
   Future<void> _openLentSetupManagementSheet(
       RecurringTransactionEntity record) async {

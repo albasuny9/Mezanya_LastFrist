@@ -22,10 +22,7 @@ class MoneyScreen extends StatefulWidget {
 class _MoneyScreenState extends State<MoneyScreen> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
-  static const _beige = Color(0xFFFFFBF1);
   static const _green = Color(0xFF165b47);
-  static const _incomeColor = Color(0xFF16A34A);
-  static const _expenseColor = Color(0xFFDC2626);
 
   bool _isJarTx(TransactionEntity t) =>
       t.transferType == 'jar-allocation' ||
@@ -486,64 +483,6 @@ class _HeroStat extends StatelessWidget {
   }
 }
 
-class _GlassStat extends StatelessWidget {
-  const _GlassStat({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.iconColor,
-  });
-
-  final String label, value;
-  final IconData icon;
-  final Color iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.20),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(icon, color: iconColor, size: 16),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.70),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(value,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Quick Stats Row ────────────────────────────────────────────────────────
 
 class _QuickStatsRow extends StatelessWidget {
   const _QuickStatsRow({required this.monthTx, required this.categories});
@@ -553,7 +492,7 @@ class _QuickStatsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final expenseTx = monthTx.where((t) => t.type == 'expense').toList();
-    final incomeTx = monthTx.where((t) => t.type == 'income').toList();
+    monthTx.where((t) => t.type == 'income').toList();
     final avgExpense = expenseTx.isEmpty
         ? 0.0
         : expenseTx.fold<double>(0, (s, t) => s + t.amount) / expenseTx.length;

@@ -94,72 +94,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     ];
   }
 
-  Widget _heroCard(int totalCategories) {
-    final theme = Theme.of(context);
-    final accent =
-        _tab == 'income' ? const Color(0xFF2F6F5E) : const Color(0xFF7A5D34);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            accent.withValues(alpha: 0.96),
-            accent.withValues(alpha: 0.72),
-          ],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: const Icon(
-              Icons.category_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tab == 'income' ? 'فئات الدخل' : 'فئات المصروف',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '$totalCategories فئة منظمة داخل الأقسام الحالية',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _typeSwitcher() {
     final theme = Theme.of(context);
@@ -1009,53 +943,6 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
   }
 }
 
-class _EditorSection extends StatelessWidget {
-  const _EditorSection({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
-}
 
 class _CategoryTarget {
   const _CategoryTarget(this.kind, this.id);

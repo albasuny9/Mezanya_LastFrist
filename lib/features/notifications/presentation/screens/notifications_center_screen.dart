@@ -212,17 +212,20 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
 
     for (final jar in budget.linkedWallets) {
       if (jar.pendingDistribution > 0) {
-        final hasPhysical = jar.pendingDistributionWalletId.isNotEmpty;
+        final hasPhysical = _isJarPendingPhysical(jar);
+        final sourceWalletName = jar.pendingDistributionWalletId.isNotEmpty
+            ? _walletName(jar.pendingDistributionWalletId)
+            : 'بدون محفظة محددة';
         cards.add(
           PendingNotificationCard(
             accent: const Color(0xFF0F766E),
             title: jar.name,
             subtitle: hasPhysical
-                ? 'خصم فعلي: ${jar.pendingDistribution.toStringAsFixed(2)} من ${_walletName(jar.pendingDistributionWalletId)}'
-                : 'تخصيص افتراضي: ${jar.pendingDistribution.toStringAsFixed(2)}',
+                ? 'خصم فعلي: ${jar.pendingDistribution.toStringAsFixed(2)} من $sourceWalletName'
+                : 'حجز افتراضي: ${jar.pendingDistribution.toStringAsFixed(2)} من $sourceWalletName',
             amount: jar.pendingDistribution,
             badge: 'حصالة ادخار',
-            meta: hasPhysical ? _walletName(jar.pendingDistributionWalletId) : 'تخصيص',
+            meta: sourceWalletName,
             icon: Icons.savings_outlined,
             actions: [
               PendingNotificationAction(
@@ -646,59 +649,11 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   }
 
   Future<void> _confirmJarDistribution(LinkedWalletEntity jar) async {
-    final setup = widget.cubit.state.budgetSetup;
-    final amount = jar.pendingDistribution;
-    final walletId = jar.pendingDistributionWalletId;
-
-    if (amount <= 0) return;
-
-    if (walletId.isNotEmpty) {
-      // Physical deduction: Create an expense transaction
-      await widget.cubit.addTransaction(
-        walletId: walletId,
-        toWalletId: jar.id,
-        amount: amount,
-        type: 'transfer',
-        budgetScope: 'within-budget',
-        notes: 'تأكيد الخصم المجدول: ${jar.name}',
-      );
-    } else {
-      // Virtual funding only: No transaction, just clear the pending state
-      final jars = setup.linkedWallets.map((j) {
-        if (j.id == jar.id) {
-          return j.copyWith(
-            pendingDistribution: 0,
-            pendingDistributionWalletId: '',
-            pendingDistributionSourceId: '',
-          );
-        }
-        return j;
-      }).toList();
-      await widget.cubit.updateBudgetSetup(
-        setup.copyWith(linkedWallets: jars),
-        detailsOverride: 'تأكيد التخصيص لـ: ${jar.name}',
-      );
-    }
+    await widget.cubit.confirmJarDistribution(jar.id);
   }
 
   Future<void> _postponeJarDistribution(LinkedWalletEntity jar) async {
-    // For now, we will just dismiss the pending distribution by resetting it.
-    // In a full implementation, we might want to schedule it.
-    final setup = widget.cubit.state.budgetSetup;
-    final jars = setup.linkedWallets.map((j) {
-      if (j.id == jar.id) {
-        return j.copyWith(
-          pendingDistribution: 0,
-          pendingDistributionWalletId: '',
-          pendingDistributionSourceId: '',
-        );
-      }
-      return j;
-    }).toList();
-    await widget.cubit.updateBudgetSetup(
-      setup.copyWith(linkedWallets: jars),
-      detailsOverride: 'تخطي التخصيص لـ: ${jar.name}',
-    );
+    await widget.cubit.postponeJarDistribution(jar.id);
   }
 
   Future<void> _confirmAllocationDistribution(AllocationEntity alloc) async {
@@ -738,6 +693,14 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(allocations: allocations),
       detailsOverride: 'تخطي النزول لـ: ${alloc.name}',
+    );
+  }
+
+  bool _isJarPendingPhysical(LinkedWalletEntity jar) {
+    final sourceId = jar.pendingDistributionSourceId;
+    if (sourceId.isEmpty) return false;
+    return jar.funding.any(
+      (entry) => entry.incomeSourceId == sourceId && entry.isPhysical,
     );
   }
 

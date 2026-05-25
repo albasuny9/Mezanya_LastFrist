@@ -1345,18 +1345,6 @@ class _LogsScreenState extends State<LogsScreen> {
     return items.isEmpty ? id : items.first.name;
   }
 
-  String _fmtFull(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inMinutes < 1) return 'الآن';
-    if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
-    if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
-    if (diff.inDays == 1) return 'أمس ${DateFormat('HH:mm').format(date)}';
-    if (diff.inDays < 7) {
-      return 'منذ ${diff.inDays} أيام - ${DateFormat('HH:mm').format(date)}';
-    }
-    return DateFormat('yyyy/MM/dd HH:mm', 'ar').format(date);
-  }
 
   IconData _iconForAction(String action) {
     return switch (action) {

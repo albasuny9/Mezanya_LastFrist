@@ -434,8 +434,6 @@ class RecurringScheduleEngine {
     final hour = time.hour;
     final minute = time.minute;
 
-    DateTime atDate(DateTime d) =>
-        DateTime(d.year, d.month, d.day, hour, minute);
 
     switch (recurring.recurrencePattern) {
       case 'daily':

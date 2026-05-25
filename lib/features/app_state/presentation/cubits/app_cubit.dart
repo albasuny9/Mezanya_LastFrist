@@ -303,12 +303,13 @@ class AppCubit extends Cubit<AppStateEntity> {
       required String id,
       required double delta, // Original delta that was added
       String? physicalWalletId,
+      bool trackWalletSource = true,
     }) {
       final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
       if (jarIdx != -1) {
         final jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
-        if (physicalWalletId != null) {
+        if (trackWalletSource && physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) - delta;
         }
@@ -360,7 +361,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           reverseVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
-            physicalWalletId: transaction.fromWalletId,
+            trackWalletSource: false,
           );
         }
       } else {
@@ -607,6 +608,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     final jar = jars[idx];
     final amount = jar.pendingDistribution;
     if (amount <= 0) return;
+    final isPhysical = _isJarPendingPhysical(jar);
 
     final clearedPending = jars
         .map((item) => item.id == jarId
@@ -628,7 +630,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       walletId: jar.pendingDistributionWalletId.isNotEmpty
           ? jar.pendingDistributionWalletId
           : null,
-      fromWalletId: jar.pendingDistributionWalletId.isNotEmpty
+      fromWalletId: isPhysical && jar.pendingDistributionWalletId.isNotEmpty
           ? jar.pendingDistributionWalletId
           : null,
       toWalletId: jar.id,
@@ -638,14 +640,14 @@ class AppCubit extends Cubit<AppStateEntity> {
       incomeSourceId: jar.pendingDistributionSourceId.isNotEmpty
           ? jar.pendingDistributionSourceId
           : null,
-      transferType: jar.pendingDistributionWalletId.isNotEmpty
+      transferType: isPhysical
           ? 'jar-funding-physical'
           : 'jar-funding',
-      notes: jar.pendingDistributionWalletId.isNotEmpty
+      notes: isPhysical
           ? 'خصم فعلي إلى حصالة ${jar.name}'
           : 'حجز للحصالة ${jar.name}',
       details:
-          'تم تأكيد ${jar.pendingDistributionWalletId.isNotEmpty ? 'خصم فعلي' : 'حجز'} ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
+          'تم تأكيد ${isPhysical ? 'خصم فعلي' : 'حجز'} ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
     );
   }
 
@@ -735,6 +737,14 @@ class AppCubit extends Cubit<AppStateEntity> {
       details:
           'تم تأجيل تحويل ${alloc.pendingDistribution.toStringAsFixed(2)} لمخصصة ${alloc.name}',
       apply: () async => next,
+    );
+  }
+
+  bool _isJarPendingPhysical(LinkedWalletEntity jar) {
+    final sourceId = jar.pendingDistributionSourceId;
+    if (sourceId.isEmpty) return false;
+    return jar.funding.any(
+      (entry) => entry.incomeSourceId == sourceId && entry.isPhysical,
     );
   }
 

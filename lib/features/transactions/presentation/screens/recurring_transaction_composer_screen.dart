@@ -7,7 +7,6 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../data/subscription_service_presets.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/services/recurring_schedule_engine.dart';
-import '../widgets/subscription_service_picker_sheet.dart';
 
 class RecurringTransactionComposerResult {
   const RecurringTransactionComposerResult._({
@@ -88,8 +87,7 @@ class _RecurringTransactionComposerScreenState
   final _lentAmountController = TextEditingController();
   final _lentNotesController = TextEditingController();
   String _lentWalletId = '';
-  DateTime _lentReturnDate =
-      DateTime.now().add(const Duration(days: 30));
+  DateTime _lentReturnDate = DateTime.now().add(const Duration(days: 30));
   bool _lentIsMonthly = false;
   int _monthlyDay = 1;
   int _yearlyMonth = 1;
@@ -100,7 +98,6 @@ class _RecurringTransactionComposerScreenState
   final Set<String> _selectedCategoryIds = <String>{};
   String? _allocationId;
   String? _targetJarId;
-  String? _selectedSubscriptionPresetId;
 
   @override
   void initState() {
@@ -110,8 +107,7 @@ class _RecurringTransactionComposerScreenState
     _type = recurring?.type ?? widget.initialType;
     _walletId = recurring?.walletId ??
         (state.wallets.isNotEmpty ? state.wallets.first.id : '');
-    _lentWalletId =
-        state.wallets.isNotEmpty ? state.wallets.first.id : '';
+    _lentWalletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
     _withinBudget = recurring != null
         ? recurring.budgetScope == 'within-budget'
         : widget.initialWithinBudget;
@@ -162,8 +158,6 @@ class _RecurringTransactionComposerScreenState
               : <int>{DateTime.now().weekday},
     );
     _selectedTime = _parseStoredTime(recurring?.scheduledTime);
-    _selectedSubscriptionPresetId =
-        subscriptionPresetByName(recurring?.name)?.id;
 
     // تاريخ أول دفعة
     final anchor = recurring?.anchorDate != null
@@ -185,7 +179,6 @@ class _RecurringTransactionComposerScreenState
         _nameController.text = preset.name;
         _iconName = preset.iconName;
         _iconColor = preset.colorHex;
-        _selectedSubscriptionPresetId = preset.id;
       }
     }
 
@@ -569,7 +562,8 @@ class _RecurringTransactionComposerScreenState
     return Container(
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
@@ -683,8 +677,8 @@ class _RecurringTransactionComposerScreenState
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Center(
-              child: Icon(Icons.handshake_outlined,
-                  color: Colors.white, size: 28),
+              child:
+                  Icon(Icons.handshake_outlined, color: Colors.white, size: 28),
             ),
           ),
           const SizedBox(width: 14),
@@ -798,8 +792,7 @@ class _RecurringTransactionComposerScreenState
           if (d != null) setState(() => _lentReturnDate = d);
         },
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             border: Border.all(
               color: Theme.of(context).colorScheme.outlineVariant,
@@ -827,8 +820,8 @@ class _RecurringTransactionComposerScreenState
         value: _lentIsMonthly,
         title: const Text('يردها أقساط شهرية',
             style: TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: const Text('سيظهر تذكير شهري',
-            style: TextStyle(fontSize: 12)),
+        subtitle:
+            const Text('سيظهر تذكير شهري', style: TextStyle(fontSize: 12)),
         onChanged: (v) => setState(() => _lentIsMonthly = v),
       ),
 
@@ -1332,7 +1325,6 @@ class _RecurringTransactionComposerScreenState
                   _targetJarId = null;
                   _expensePlanKind = 'normal';
                   _isDebtOrSubscription = false;
-                  _selectedSubscriptionPresetId = null;
                 });
               },
             ),
@@ -1928,24 +1920,6 @@ class _RecurringTransactionComposerScreenState
     return allCategories.where((category) => category.scope == _type).toList();
   }
 
-  void _applySubscriptionPreset({
-    required String name,
-    required String icon,
-    required String color,
-    String? presetId,
-  }) {
-    setState(() {
-      if (_nameController.text.trim().isEmpty || _isExpenseSubscription) {
-        _nameController.text = name;
-      }
-      _iconName = icon;
-      _iconColor = color;
-      _selectedSubscriptionPresetId = presetId;
-      _withinBudget = true;
-      _expensePlanKind = 'subscription';
-      _isDebtOrSubscription = true;
-    });
-  }
 
   Future<void> _pickIcon() async {
     final picked = await AppIconPickerDialog.show(
@@ -2525,13 +2499,11 @@ class _EditorSection extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.child,
-    this.trailing,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -2578,7 +2550,7 @@ class _EditorSection extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) trailing!,
+          
             ],
           ),
           const SizedBox(height: 14),

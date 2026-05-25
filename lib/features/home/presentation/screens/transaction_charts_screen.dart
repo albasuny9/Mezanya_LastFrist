@@ -27,7 +27,6 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
   late DateTime _month;
 
   static const _beige = Color(0xFFFFFBF1);
-  static const _green = Color(0xFF165b47);
 
   bool _isJarTx(TransactionEntity t) =>
       t.transferType == 'jar-allocation' ||
@@ -245,56 +244,6 @@ class _ChartsPeriodBar extends StatelessWidget {
   }
 }
 
-// ── Month Bar ──────────────────────────────────────────────────────────────
-
-class _MonthBar extends StatelessWidget {
-  const _MonthBar({
-    required this.month,
-    required this.onPrev,
-    required this.onNext,
-  });
-
-  final DateTime month;
-  final VoidCallback onPrev, onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF1),
-        borderRadius: BorderRadius.circular(18),
-        border:
-            Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.20)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onPrev,
-            icon: const Icon(Icons.chevron_right, color: Color(0xFF165b47)),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                DateFormat('MMMM yyyy', 'ar').format(month),
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: Color(0xFF165b47)),
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onNext,
-            icon: const Icon(Icons.chevron_left, color: Color(0xFF165b47)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── KPI Row ────────────────────────────────────────────────────────────────
 
 class _KpiRow extends StatelessWidget {
   const _KpiRow({

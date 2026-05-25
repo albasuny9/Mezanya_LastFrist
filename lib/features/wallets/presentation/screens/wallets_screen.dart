@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mezanya_app/features/categories/domain/entities/category_entity.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -33,9 +32,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
         final state = snapshot.data ?? widget.cubit.state;
         final wallets = state.wallets;
         final jars = _orderedJars(state.budgetSetup.linkedWallets);
-        final totalWalletsBalance =
-            wallets.fold<double>(0, (s, w) => s + w.balance);
-        final totalJarsBalance = jars.fold<double>(0, (s, j) => s + j.balance);
+        wallets.fold<double>(0, (s, w) => s + w.balance);
+        jars.fold<double>(0, (s, j) => s + j.balance);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(0, 0, 0, 110),
@@ -372,317 +370,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  Widget _softMetric({
-    required String label,
-    required String value,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              color: accent,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: accent.withValues(alpha: 0.75),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _softIconAction(
-    IconData icon, {
-    required VoidCallback onTap,
-    required String tooltip,
-    required Color accent,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Tooltip(
-        message: tooltip,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: accent.withValues(alpha: 0.18)),
-          ),
-          child: Icon(icon, color: accent, size: 18),
-        ),
-      ),
-    );
-  }
-
-  Widget _walletCard(AppStateEntity state, WalletEntity wallet) {
-    final reserved = _walletReservedAmount(state, wallet.id);
-    final available = wallet.balance - reserved;
-    final accent = _parseColor(wallet.iconColor ?? '#165b47');
-    final hasMultipleWallets = state.wallets.length >= 2;
-
-    return InkWell(
-      onTap: () => _openWalletDetailsSheet(wallet),
-      borderRadius: BorderRadius.circular(26),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: accent.withValues(alpha: 0.22)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.10),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Top row: icon + name + actions ──
-              Row(
-                children: [
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Center(
-                      child: AppIconPickerDialog.iconWidgetForName(
-                        wallet.icon ?? 'account_balance_wallet',
-                        color: accent,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      wallet.name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (hasMultipleWallets)
-                        _softIconAction(
-                          Icons.swap_horiz_rounded,
-                          onTap: _openWalletTransferDialog,
-                          tooltip: 'تحويل بين المحافظ',
-                          accent: accent,
-                        ),
-                      const SizedBox(width: 6),
-                      _softIconAction(
-                        Icons.add_circle_outline_rounded,
-                        onTap: () => _openWalletAllocateToJarDialog(wallet),
-                        tooltip: 'تخصيص مبلغ',
-                        accent: accent,
-                      ),
-                      const SizedBox(width: 6),
-                      _softIconAction(
-                        Icons.settings_outlined,
-                        onTap: () => _openWalletEditor(current: wallet),
-                        tooltip: 'تعديل',
-                        accent: accent,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // ── Balance row ──
-              Row(
-                children: [
-                  Expanded(
-                    child: _softMetric(
-                      label: 'إجمالي الرصيد',
-                      value: wallet.balance.toStringAsFixed(2),
-                      accent: accent,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _softMetric(
-                      label: 'الصافي المتاح',
-                      value: available.toStringAsFixed(2),
-                      accent: accent,
-                    ),
-                  ),
-                  if (reserved > 0) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _softMetric(
-                        label: 'محجوز',
-                        value: reserved.toStringAsFixed(2),
-                        accent: accent,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _jarCard(AppStateEntity state, LinkedWalletEntity jar) {
-    final accent = _parseColor(jar.iconColor);
-    final distribution = _jarDistribution(state, jar.id);
-
-    return InkWell(
-      onTap: () => _openJarDetailsSheet(jar),
-      borderRadius: BorderRadius.circular(26),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: accent.withValues(alpha: 0.22)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.10),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Top row: icon + name + actions ──
-              Row(
-                children: [
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.13),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Center(
-                      child: AppIconPickerDialog.iconWidgetForName(
-                        jar.icon,
-                        color: accent,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      jar.name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (distribution.isNotEmpty)
-                        _softIconAction(
-                          Icons.swap_horiz_rounded,
-                          onTap: () =>
-                              _openInternalTransferDialog(sourceJar: jar),
-                          tooltip: 'تحويل داخلي',
-                          accent: accent,
-                        ),
-                      const SizedBox(width: 6),
-                      _softIconAction(
-                        Icons.add_circle_outline_rounded,
-                        onTap: () => _openJarAdjustmentDialog(
-                          jar: jar,
-                          mode: _JarAdjustmentMode.allocate,
-                        ),
-                        tooltip: 'تخصيص للحصالة',
-                        accent: accent,
-                      ),
-                      const SizedBox(width: 6),
-                      _softIconAction(
-                        Icons.settings_outlined,
-                        onTap: () => _openJarEditor(current: jar),
-                        tooltip: 'تعديل',
-                        accent: accent,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // ── Metrics row ──
-              Row(
-                children: [
-                  Expanded(
-                    child: _softMetric(
-                      label: 'رصيد الحصالة',
-                      value: jar.balance.toStringAsFixed(2),
-                      accent: accent,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _softMetric(
-                      label: 'شهري مخطط',
-                      value: jar.monthlyAmount.toStringAsFixed(2),
-                      accent: accent,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _softMetric(
-                      label: 'المحافظ المرتبطة',
-                      value: distribution.length.toString(),
-                      accent: accent,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _openWalletsPage(AppStateEntity state) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _WalletsListPage(
           cubit: widget.cubit,
-          onWalletTap: (w) => _openWalletDetailsSheet(w),
+          onWalletTap: (w, showReservations) => _openWalletDetailsSheet(
+            w,
+            initialShowJars: showReservations,
+          ),
         ),
       ),
     );
@@ -699,7 +395,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  Future<void> _openWalletDetailsSheet(WalletEntity wallet) async {
+  Future<void> _openWalletDetailsSheet(
+    WalletEntity wallet, {
+    bool initialShowJars = false,
+  }) async {
     final state = widget.cubit.state;
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final reserved = _walletReservedAmount(state, wallet.id);
@@ -725,7 +424,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       builder: (ctx) {
-        var showJars = false;
+        var showJars = initialShowJars;
         return StatefulBuilder(
           builder: (ctx, setSheet) {
             return DraggableScrollableSheet(
@@ -1115,6 +814,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             t.transferType == 'jar-allocation-cancel' ||
             t.transferType == 'jar-allocation-spend' ||
             t.transferType == 'jar-funding' ||
+            t.transferType == 'jar-funding-physical' ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
             (t.type == 'income' && t.budgetScope == 'within-budget'))
@@ -2200,9 +1900,12 @@ class _WalletsScreenState extends State<WalletsScreen> {
                           double.tryParse(amountController.text.trim()) ?? 0;
                       if (amount <= 0) return;
                       if (walletOptions.isNotEmpty &&
-                          amount > selectedWalletAmount + 0.01) return;
-                      if (sourceId == targetId && sourceType == targetType)
+                          amount > selectedWalletAmount + 0.01) {
                         return;
+                      }
+                      if (sourceId == targetId && sourceType == targetType) {
+                        return;
+                      }
 
                       Navigator.of(context).pop();
 
@@ -2876,29 +2579,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
         transaction.transferType == 'jar-to-allocation';
   }
 
-  Widget _iconBubble({
-    required String iconName,
-    required String colorHex,
-    double size = 48,
-  }) {
-    final color = _parseColor(colorHex);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(size / 3),
-      ),
-      child: Center(
-        child: AppIconPickerDialog.iconWidgetForName(
-          iconName,
-          color: color,
-          size: size * 0.42,
-        ),
-      ),
-    );
-  }
-
   Widget _glassMetric({
     required String label,
     required String value,
@@ -2958,96 +2638,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  MapEntry<String, String> _heroMetric(String label, String value) {
-    return MapEntry(label, value);
-  }
-
-  Widget _heroCard({
-    required String title,
-    required String icon,
-    required String colorHex,
-    required VoidCallback onEdit,
-    required List<MapEntry<String, String>> rows,
-  }) {
-    final accent = _parseColor(colorHex);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF1),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: accent.withValues(alpha: 0.20)),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.10),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: onEdit,
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'تعديل',
-              ),
-              const Spacer(),
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      title,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              _iconBubble(iconName: icon, colorHex: colorHex, size: 64),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ...rows.map(
-            (row) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      row.value,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    row.key,
-                    style: const TextStyle(
-                      color: Color(0xFF6E6558),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _sectionHeader(String title) {
     return Align(
       alignment: AlignmentDirectional.centerEnd,
@@ -3062,10 +2652,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final normalized = hex.replaceAll('#', '');
     final value = int.tryParse(normalized, radix: 16) ?? 0xFF165B47;
     return Color(0xFF000000 | value);
-  }
-
-  String _hexFromColor(Color color) {
-    return '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
   }
 
   List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
@@ -3086,84 +2672,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
 }
 
 enum _JarAdjustmentMode { allocate, cancel }
-
-enum _InternalTransferMode {
-  jarToJar,
-  jarToAllocation,
-  allocationToJar,
-  allocationToAllocation
-}
-
-// ── Summary Badge ───────────────────────────────────────────────────────────
-
-class _SummaryBadge extends StatelessWidget {
-  const _SummaryBadge({
-    required this.label,
-    required this.amount,
-    required this.icon,
-    required this.color,
-    required this.currencyCode,
-  });
-
-  final String label, currencyCode;
-  final double amount;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  amount.toStringAsFixed(2),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color.withValues(alpha: 0.65),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Action Button ───────────────────────────────────────────────────────────
 
 class _ActionBtn extends StatelessWidget {
   const _ActionBtn({
@@ -3210,7 +2718,7 @@ class _ActionBtn extends StatelessWidget {
 class _WalletsListPage extends StatefulWidget {
   const _WalletsListPage({required this.cubit, this.onWalletTap});
   final AppCubit cubit;
-  final void Function(WalletEntity)? onWalletTap;
+  final void Function(WalletEntity wallet, bool showReservations)? onWalletTap;
   @override
   State<_WalletsListPage> createState() => _WalletsListPageState();
 }
@@ -3224,10 +2732,30 @@ class _WalletsListPageState extends State<_WalletsListPage> {
     return Color(int.tryParse(normalized, radix: 16) ?? 0xFF165B47);
   }
 
+  Map<String, double> _walletReservations(
+      AppStateEntity state, String walletId) {
+    final result = <String, double>{};
+    for (final jar in state.budgetSetup.linkedWallets) {
+      for (final src in jar.walletSources) {
+        if (src.walletId == walletId && src.amount > 0) {
+          result[jar.id] = src.amount;
+        }
+      }
+    }
+    return result;
+  }
+
+  double _walletReservedAmount(AppStateEntity state, String walletId) {
+    return _walletReservations(state, walletId)
+        .values
+        .fold<double>(0, (sum, item) => sum + item);
+  }
+
   Widget _buildCard(AppStateEntity state, WalletEntity wallet, int index) {
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final isColored = wallet.isHighlighted;
-    final available = wallet.balance - wallet.reservedForSavings;
+    final reserved = _walletReservedAmount(state, wallet.id);
+    final available = wallet.balance - reserved;
 
     final card = Container(
       key: ValueKey(wallet.id),
@@ -3383,31 +2911,35 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                       ],
                     ),
                   ),
-                  if (wallet.reservedForSavings > 0) ...[
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          wallet.reservedForSavings.toStringAsFixed(2),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: isColored
-                                ? Colors.white.withValues(alpha: 0.80)
-                                : accent.withValues(alpha: 0.70),
+                  if (reserved > 0) ...[
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => widget.onWalletTap?.call(wallet, true),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            reserved.toStringAsFixed(2),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: isColored
+                                  ? Colors.white.withValues(alpha: 0.80)
+                                  : accent.withValues(alpha: 0.70),
+                            ),
                           ),
-                        ),
-                        Text(
-                          'محجوز للتوفير',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isColored
-                                ? Colors.white.withValues(alpha: 0.60)
-                                : accent.withValues(alpha: 0.50),
+                          Text(
+                            'فلوس محجوزة',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isColored
+                                  ? Colors.white.withValues(alpha: 0.60)
+                                  : accent.withValues(alpha: 0.50),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ],
@@ -3421,7 +2953,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
     return _reorderMode
         ? card
         : GestureDetector(
-            onTap: () => widget.onWalletTap?.call(wallet),
+            onTap: () => widget.onWalletTap?.call(wallet, false),
             child: card,
           );
   }
@@ -3783,381 +3315,6 @@ class _JarsListPageState extends State<_JarsListPage> {
               itemBuilder: (ctx, i) => _buildCard(jars, jars[i], i),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-// class _SectionShell extends StatelessWidget {
-//   const _SectionShell({
-//     required this.title,
-//     required this.subtitle,
-//     required this.child,
-//     required this.actionLabel,
-//     required this.onAction,
-//     this.trailing,
-//   });
-
-//   final String title;
-//   final String subtitle;
-//   final Widget child;
-//   final String actionLabel;
-//   final VoidCallback onAction;
-//   final Widget? trailing;
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-//       decoration: BoxDecoration(
-//         color: const Color(0xFFFFFBF1),
-//         borderRadius: BorderRadius.circular(30),
-//         border: Border.all(color: const Color(0xFFE0D7C8)),
-//         boxShadow: [
-//           BoxShadow(
-//             color: const Color(0xFF165B47).withValues(alpha: 0.05),
-//             blurRadius: 20,
-//             offset: const Offset(0, 12),
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           Row(
-//             children: [
-//               if (trailing != null) trailing!,
-//               const Spacer(),
-//               Expanded(
-//                 flex: 6,
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.end,
-//                   children: [
-//                     Text(
-//                       title,
-//                       textAlign: TextAlign.right,
-//                       style: const TextStyle(
-//                         fontSize: 28,
-//                         fontWeight: FontWeight.w900,
-//                       ),
-//                     ),
-//                     const SizedBox(height: 6),
-//                     Text(
-//                       subtitle,
-//                       textAlign: TextAlign.right,
-//                       style: const TextStyle(
-//                         color: Color(0xFF6E6558),
-//                         height: 1.5,
-//                         fontWeight: FontWeight.w600,
-//                       ),
-//                     ),
-//                   ],
-//                 ),
-//               ),
-//             ],
-//           ),
-//           const SizedBox(height: 14),
-//           child,
-//           const SizedBox(height: 10),
-//           SizedBox(
-//             width: double.infinity,
-//             child: OutlinedButton.icon(
-//               onPressed: onAction,
-//               icon: const Icon(Icons.add_rounded),
-//               label: Text(actionLabel),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-// class _DetailsSheetShell extends StatelessWidget {
-//   const _DetailsSheetShell({required this.child});
-
-//   final Widget child;
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return DraggableScrollableSheet(
-//       initialChildSize: 0.56,
-//       minChildSize: 0.42,
-//       maxChildSize: 0.96,
-//       snap: true,
-//       snapSizes: const [0.56, 0.96],
-//       builder: (context, controller) => Container(
-//         decoration: const BoxDecoration(
-//           color: Color(0xFFFCF7EC),
-//           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-//         ),
-//         child: child,
-//       ),
-//     );
-//   }
-// }
-
-class _SimpleValueTile extends StatelessWidget {
-  const _SimpleValueTile({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.icon,
-    required this.colorHex,
-    this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final String value;
-  final String icon;
-  final String colorHex;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Color(
-      0xFF000000 |
-          (int.tryParse(colorHex.replaceAll('#', ''), radix: 16) ?? 0x165B47),
-    );
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Ink(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: color.withValues(alpha: 0.16)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 22,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: Color(0xFF7A725F),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    title,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 22,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Center(
-                      child: AppIconPickerDialog.iconWidgetForName(
-                        icon,
-                        color: color,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_left_rounded),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WalletReservationsPanel extends StatelessWidget {
-  const _WalletReservationsPanel({
-    required this.totalReserved,
-    required this.reservations,
-    required this.jars,
-    required this.onOpenJar,
-  });
-
-  final double totalReserved;
-  final Map<String, double> reservations;
-  final List<LinkedWalletEntity> jars;
-  final void Function(LinkedWalletEntity jar) onOpenJar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF1),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE4DCCF)),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          title: const Text(
-            'مخصص للحصالات',
-            textAlign: TextAlign.right,
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
-          subtitle: Text(
-            totalReserved > 0
-                ? totalReserved.toStringAsFixed(2)
-                : 'لا يوجد مبلغ محجوز',
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: Color(0xFF756C5C),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFF165B47).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: Color(0xFF165B47),
-            ),
-          ),
-          children: [
-            if (reservations.isEmpty)
-              const _InlineNote(
-                text:
-                    'لا يوجد أي مبلغ محجوز من هذه المحفظة داخل الحصالات حتى الآن.',
-              )
-            else
-              ...reservations.entries.map((entry) {
-                final jar = jars.firstWhere(
-                  (item) => item.id == entry.key,
-                  orElse: () => LinkedWalletEntity(
-                    id: entry.key,
-                    name: 'حصالة',
-                    balance: entry.value,
-                    monthlyAmount: 0,
-                    executionDay: 1,
-                    fundingSource: '',
-                    funding: const [],
-                    icon: 'savings',
-                    iconColor: '#0f766e',
-                    automationType: 'confirm',
-                    categories: const [],
-                  ),
-                );
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ReservationRow(
-                    title: jar.name,
-                    amount: entry.value,
-                    icon: jar.icon,
-                    colorHex: jar.iconColor,
-                    onTap: () => onOpenJar(jar),
-                  ),
-                );
-              }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReservationRow extends StatelessWidget {
-  const _ReservationRow({
-    required this.title,
-    required this.amount,
-    required this.icon,
-    required this.colorHex,
-    required this.onTap,
-  });
-
-  final String title;
-  final double amount;
-  final String icon;
-  final String colorHex;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Color(
-      0xFF000000 |
-          (int.tryParse(colorHex.replaceAll('#', ''), radix: 16) ?? 0x165B47),
-    );
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Ink(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.14)),
-        ),
-        child: Row(
-          children: [
-            Text(
-              amount.toStringAsFixed(2),
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                textAlign: TextAlign.right,
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Center(
-                child: AppIconPickerDialog.iconWidgetForName(
-                  icon,
-                  color: color,
-                  size: 20,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

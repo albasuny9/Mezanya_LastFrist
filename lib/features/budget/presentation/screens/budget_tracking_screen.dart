@@ -944,30 +944,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Widget _summaryBreakdownCard({required BudgetSetupEntity budget}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _row('المبلغ غير المخصص', budget.unallocatedAmount),
-          _row(
-            'التوفير المتوقع',
-            budget.bufferEndBehavior == 'to-savings'
-                ? budget.unallocatedAmount.clamp(0, double.infinity).toDouble()
-                : 0,
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _entityTile({
     required String title,
@@ -1779,204 +1755,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return incomeOnly;
   }
 
-  Widget _cycleInsightsSection({
-    required AppStateEntity state,
-    required BudgetSetupEntity budget,
-    required double totalIncomeActual,
-    required double totalExpenseActual,
-    required double remainingIncome,
-  }) {
-    final plannedIncome = budget.incomeSources
-        .where((item) => !item.isVariable)
-        .fold<double>(0, (sum, item) => sum + item.amount);
-    final plannedAllocations = budget.allocations.fold<double>(
-      0,
-      (sum, item) =>
-          sum + item.funding.fold<double>(0, (s, f) => s + f.plannedAmount),
-    );
-    final plannedJars = budget.linkedWallets.fold<double>(
-      0,
-      (sum, item) => sum + item.monthlyAmount,
-    );
-    final plannedDebts = budget.debts.fold<double>(0, (sum, debt) {
-      final recurring = _linkedRecurringDebt(state, debt);
-      return sum +
-          BudgetRecurringPlanService.amountDueInCycle(
-            debt: debt,
-            recurring: recurring,
-            cycleStart: _cycleStart,
-            cycleEnd: _cycleEnd,
-          );
-    });
-    final plannedCommitments = plannedAllocations + plannedJars + plannedDebts;
-    final utilizationRatio = totalIncomeActual <= 0
-        ? 0.0
-        : (totalExpenseActual / totalIncomeActual).clamp(0.0, 1.0);
-    final coverageRatio = plannedCommitments <= 0
-        ? 1.0
-        : (totalIncomeActual / plannedCommitments).clamp(0.0, 2.0);
-    final analysisText = totalIncomeActual <= 0
-        ? 'لم يُسجل دخل فعلي في هذه الدورة بعد، لذلك التحليل الحالي يعتمد على الخطة أكثر من التنفيذ.'
-        : remainingIncome < 0
-            ? 'مصروفات الدورة تجاوزت الدخل الفعلي حتى الآن، فالأولوية هنا ضبط الاستهلاك أو تأجيل بعض البنود.'
-            : plannedCommitments > totalIncomeActual
-                ? 'الخطة الحالية أثقل من الدخل المنفذ حتى الآن، لذلك قد تحتاج لتقليل بعض المخصصات أو متابعة الدخل المتوقع.'
-                : 'تنفيذ الدورة متماسك حتى الآن، والدخل يغطي الالتزامات المخططة مع وجود مساحة متبقية.';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('تحليل الدورة'),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _cycleInsightCard(
-              title: 'المستهلك',
-              value: totalExpenseActual,
-              subtitle: totalIncomeActual > 0
-                  ? '${(utilizationRatio * 100).round()}٪ من الدخل الفعلي'
-                  : 'لا يوجد دخل منفذ',
-              icon: Icons.trending_down_rounded,
-              tint: const Color(0xFFC65D2E),
-            ),
-            _cycleInsightCard(
-              title: 'المتبقي',
-              value: remainingIncome,
-              subtitle: remainingIncome >= 0
-                  ? 'متاح حتى نهاية الدورة'
-                  : 'عجز في التنفيذ الحالي',
-              icon: Icons.account_balance_wallet_rounded,
-              tint: remainingIncome >= 0
-                  ? const Color(0xFF0F9D7A)
-                  : const Color(0xFF8E4A37),
-            ),
-            _cycleInsightCard(
-              title: 'الخطة المخططة',
-              value: plannedCommitments,
-              subtitle:
-                  'مخصصات ${budget.allocations.length} · حصالات ${budget.linkedWallets.length} · التزامات ${budget.debts.length}',
-              icon: Icons.fact_check_rounded,
-              tint: const Color(0xFF3F6E8C),
-            ),
-            _cycleInsightCard(
-              title: 'التغطية',
-              value: coverageRatio * 100,
-              suffix: '%',
-              subtitle: plannedCommitments <= 0
-                  ? 'لا توجد التزامات مخططة'
-                  : 'الدخل الفعلي مقابل الخطة',
-              icon: Icons.auto_graph_rounded,
-              tint: const Color(0xFF5B8C5A),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest
-                .withValues(alpha: 0.38),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ملخص الخطة والتنفيذ',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                analysisText,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.5,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              _row('مصادر الدخل المخططة', plannedIncome),
-              _row('إجمالي المخصصات المخططة', plannedAllocations),
-              _row('إجمالي الحصالات المخططة', plannedJars),
-              _row('الالتزامات المستحقة في الدورة', plannedDebts),
-              _row(
-                'غير المخصص حاليًا',
-                budget.unallocatedAmount,
-                danger: budget.unallocatedAmount < 0,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _cycleInsightCard({
-    required String title,
-    required double value,
-    required String subtitle,
-    required IconData icon,
-    required Color tint,
-    String suffix = '',
-  }) {
-    final theme = Theme.of(context);
-    final width = (MediaQuery.of(context).size.width - 52) / 2;
-    return Container(
-      width: width < 150 ? double.infinity : width,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: tint.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: tint, size: 20),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${value.toStringAsFixed(2)}$suffix',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   List<Widget> _incomeInlineCards(
     AppStateEntity state,
@@ -2859,7 +2638,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           return d != null && d.isBefore(DateTime.now());
         }));
 
-    const lentAccent = Color(0xFF1a7a4a);
 
     final childTiles = cycleLentPersons.map((record) {
       final personName = record.lentPersonName ?? record.name;
@@ -2892,11 +2670,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
       String activityLabel = '';
       if (out > 0 && inc > 0)
-        activityLabel =
-            'سلفة ${out.toStringAsFixed(0)} • استرداد ${inc.toStringAsFixed(0)}';
+       { activityLabel =
+            'سلفة ${out.toStringAsFixed(0)} • استرداد ${inc.toStringAsFixed(0)}';}
       else if (out > 0)
-        activityLabel = 'سلفة ${out.toStringAsFixed(0)}';
-      else if (inc > 0) activityLabel = 'استرداد ${inc.toStringAsFixed(0)}';
+        {activityLabel = 'سلفة ${out.toStringAsFixed(0)}';}
+      else if (inc > 0){ activityLabel = 'استرداد ${inc.toStringAsFixed(0)}';}
 
       final balanceLabel =
           'المتبقي: ${record.outstandingLentAmount.toStringAsFixed(0)}';
@@ -3385,54 +3163,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     notesCtrl.dispose();
   }
 
-  Widget _actionBtn(
-      {required String label,
-      required IconData icon,
-      required Color color,
-      required VoidCallback onTap}) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: color.withValues(alpha: 0.2))),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w800, color: color)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Future<bool> _confirmAction(
-      BuildContext context, String title, String msg) async {
-    return await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-                  title: Text(title),
-                  content: Text(msg),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('إلغاء')),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('تأكيد')),
-                  ],
-                )) ??
-        false;
-  }
 
   List<Widget> _subscriptionCards(
     AppStateEntity state,
@@ -3843,118 +3574,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Future<void> _openJarSheet(
-    AppStateEntity state,
-    LinkedWalletEntity jar,
-    List<TransactionEntity> monthTx,
-  ) async {
-    final theme = Theme.of(context);
-    final accent = _colorFromHex(jar.iconColor);
-    final spentFromJar = monthTx
-        .where((t) => t.type == 'expense' && t.walletId == jar.id)
-        .fold<double>(0, (s, t) => s + t.amount);
-    final ratio = jar.monthlyAmount <= 0
-        ? null
-        : (spentFromJar / jar.monthlyAmount).clamp(0.0, 1.0);
-    final progressColor =
-        ratio == null ? theme.colorScheme.primary : _usageProgressColor(ratio);
-    final tx = state.transactions
-        .where((t) =>
-            !_isJarReserveTx(t) &&
-            (t.walletId == jar.id ||
-                t.toWalletId == jar.id ||
-                t.fromWalletId == jar.id))
-        .toList();
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
-        theme: theme,
-        accent: accent,
-        transactions: tx,
-        initialMonth: _month,
-        emptyMessage: 'لا توجد معاملات مرتبطة بهذه الحصالة في المدة المحددة.',
-        sheetContext: sheetContext,
-        tileBuilder: (item) =>
-            _trackingMonthTransactionTile(sheetContext, theme, item),
-        topSectionAfterGrab: [
-          _trackingDetailHeroShell(
-            accent: accent,
-            onEdit: () {
-              Navigator.pop(sheetContext);
-              Future.microtask(() {
-                if (!mounted) return;
-                _openBudgetSetupScreen();
-              });
-            },
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _iconBadge(jar.icon, jar.iconColor, size: 56),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          jar.name,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'المخصص الشهري ${jar.monthlyAmount.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    jar.balance.toStringAsFixed(2),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'المصروف من الحصالة هذا الشهر: ${spentFromJar.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (ratio != null) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: ratio,
-                    minHeight: 8,
-                    color: progressColor,
-                    backgroundColor:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.10),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _openIncomeDetailsSheet(
     IncomeSourceEntity source,
@@ -5002,7 +4621,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
 class _BudgetLentPendingCard extends StatelessWidget {
   const _BudgetLentPendingCard({
-    super.key,
     required this.theme,
     required this.accent,
     required this.person,
@@ -5363,9 +4981,6 @@ enum _TxKindFilter { all, expense, income, transfer }
 
 enum _TxDateFilter { day, week, month, year, custom, all }
 
-class _TrackingPostponeChoice {
-  static final DateTime skip = DateTime(1);
-}
 
 class _DraggableFilterableTxSheet extends StatefulWidget {
   const _DraggableFilterableTxSheet({
