@@ -409,8 +409,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final walletTx = state.transactions
         .where((t) =>
             t.walletId == wallet.id ||
-            (t.toWalletId == wallet.id && t.type != 'transfer') ||
-            (t.fromWalletId == wallet.id && t.type != 'transfer'))
+            t.toWalletId == wallet.id ||
+            t.fromWalletId == wallet.id)
         .where((t) => !_isVirtualJarTransaction(t))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -2576,14 +2576,12 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
-    return transaction.transferType == 'allocation-to-jar' ||
-        transaction.transferType == 'jar-to-allocation' ||
-        transaction.transferType == 'wallet-to-jar-reserve' ||
-        transaction.transferType == 'jar-to-wallet-release' ||
-        transaction.transferType == 'jar-funding' ||
+    return transaction.transferType == 'jar-funding' ||
         transaction.transferType == 'jar-allocation' ||
         transaction.transferType == 'jar-allocation-cancel' ||
-        transaction.transferType == 'jar-allocation-spend';
+        transaction.transferType == 'jar-allocation-spend' ||
+        transaction.transferType == 'allocation-to-jar' ||
+        transaction.transferType == 'jar-to-allocation';
   }
 
   Widget _glassMetric({
