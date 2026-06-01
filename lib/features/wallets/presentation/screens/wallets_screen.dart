@@ -815,6 +815,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             t.transferType == 'jar-allocation-spend' ||
             t.transferType == 'jar-funding' ||
             t.transferType == 'jar-funding-physical' ||
+            t.transferType == 'deposit-with-jar-label' ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
             (t.type == 'income' && t.budgetScope == 'within-budget'))
@@ -2576,7 +2577,13 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
     return transaction.transferType == 'allocation-to-jar' ||
-        transaction.transferType == 'jar-to-allocation';
+        transaction.transferType == 'jar-to-allocation' ||
+        transaction.transferType == 'wallet-to-jar-reserve' ||
+        transaction.transferType == 'jar-to-wallet-release' ||
+        transaction.transferType == 'jar-funding' ||
+        transaction.transferType == 'jar-allocation' ||
+        transaction.transferType == 'jar-allocation-cancel' ||
+        transaction.transferType == 'jar-allocation-spend';
   }
 
   Widget _glassMetric({

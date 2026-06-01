@@ -634,9 +634,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             categories: [],
                                           ));
                                   if (jar.id.isNotEmpty) {
-                                    final fundedAmount = jar.walletSources.fold<double>(
-                                        0, (sum, source) => sum + source.amount);
-                                    final unfundedAmount = jar.balance - fundedAmount;
+                                    final fundedAmount = jar.walletSources
+                                        .fold<double>(
+                                            0,
+                                            (sum, source) =>
+                                                sum + source.amount);
+                                    final unfundedAmount =
+                                        jar.balance - fundedAmount;
                                     if (amount > unfundedAmount) {
                                       _showValidationError(
                                           'المبلغ أكبر من الرصيد غير الممول في الحصالة (${unfundedAmount.toStringAsFixed(2)}). اختر محفظة البنك الممول للخصم منها.');
@@ -781,6 +785,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     incomeSourceId: _type == 'income' &&
                                             _incomeSourceId != 'wallet-only'
                                         ? _incomeSourceId
+                                        : null,
+                                    transferType: _type == 'income' &&
+                                            _incomeBudgetScope ==
+                                                'within-budget' &&
+                                            _incomeJarId.isNotEmpty
+                                        ? 'deposit-with-jar-label'
                                         : null,
                                     notes: _notesController.text.trim().isEmpty
                                         ? null

@@ -74,12 +74,12 @@ class SharedPrefsAppRepository implements AppRepository {
       if (jarIdx != -1) {
         var jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
-          if (trackWalletSource && physicalWalletId != null) {
-            nextBalances[physicalWalletId] =
-                (nextBalances[physicalWalletId] ?? 0) + delta;
+        if (trackWalletSource && physicalWalletId != null) {
+          nextBalances[physicalWalletId] =
+              (nextBalances[physicalWalletId] ?? 0) + delta;
 
-            // Update walletSources as well
-            final existingSourceIdx = jar.walletSources
+          // Update walletSources as well
+          final existingSourceIdx = jar.walletSources
               .indexWhere((s) => s.walletId == physicalWalletId);
           double currentSourceAmount = 0;
           if (existingSourceIdx != -1) {
@@ -138,7 +138,7 @@ class SharedPrefsAppRepository implements AppRepository {
           updateVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
-            trackWalletSource: false,
+            physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
           );
         }
       } else {
@@ -167,6 +167,15 @@ class SharedPrefsAppRepository implements AppRepository {
         return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
 
+      if (transaction.transferType == 'deposit-with-jar-label' &&
+          transaction.toWalletId != null) {
+        updateVirtualBalance(
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
+          physicalWalletId: transaction.walletId,
+        );
+      }
+
       // Handle Distribution to Jars based on automationType and isPhysical
       if (transaction.incomeSourceId != null) {
         final sourceId = transaction.incomeSourceId!;
@@ -193,9 +202,7 @@ class SharedPrefsAppRepository implements AppRepository {
             updateVirtualBalance(
               id: jar.id,
               delta: transferAmount,
-              physicalWalletId:
-                  hasPhysicalFunding ? null : transaction.walletId,
-              trackWalletSource: !hasPhysicalFunding,
+              physicalWalletId: transaction.walletId,
             );
             // لو isPhysical: خصم المبلغ فعلياً من المحفظة
             if (hasPhysicalFunding && transaction.walletId != null) {
@@ -207,24 +214,25 @@ class SharedPrefsAppRepository implements AppRepository {
                 );
               }
             }
-            transactions.add(
-              TransactionEntity(
-                id: auditTransactionId('txn'),
-                walletId: transaction.walletId,
-                fromWalletId: hasPhysicalFunding ? transaction.walletId : null,
-                toWalletId: jar.id,
-                budgetScope: 'within-budget',
-                incomeSourceId: sourceId,
-                amount: transferAmount,
-                type: 'transfer',
-                transferType:
-                    hasPhysicalFunding ? 'jar-funding-physical' : 'jar-funding',
-                notes: hasPhysicalFunding
-                    ? 'خصم فعلي إلى حصالة ${jar.name}'
-                    : 'حجز للحصالة ${jar.name}',
-                createdAt: transaction.createdAt,
-              ),
-            );
+            if (hasPhysicalFunding) {
+              transactions.add(
+                TransactionEntity(
+                  id: auditTransactionId('txn'),
+                  walletId: transaction.walletId,
+                  fromWalletId: transaction.walletId,
+                  toWalletId: jar.id,
+                  budgetScope: 'within-budget',
+                  incomeSourceId: sourceId,
+                  amount: transferAmount,
+                  type: 'transfer',
+                  transferType: 'jar-funding-physical',
+                  notes: hasPhysicalFunding
+                      ? 'خصم فعلي إلى حصالة ${jar.name}'
+                      : 'حجز للحصالة ${jar.name}',
+                  createdAt: transaction.createdAt,
+                ),
+              );
+            }
           } else if (jar.automationType == 'confirm') {
             // معلّق — ينتظر تأكيد اليوزر
             linkedWallets[i] = jar.copyWith(

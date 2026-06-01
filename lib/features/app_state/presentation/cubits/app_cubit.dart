@@ -361,7 +361,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           reverseVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
-            trackWalletSource: false,
+            physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
           );
         }
       } else {
@@ -626,6 +626,34 @@ class AppCubit extends Cubit<AppStateEntity> {
     emit(stagedState);
     await _repository.saveState(stagedState);
 
+    if (!isPhysical) {
+      final sourceWalletId = jar.pendingDistributionWalletId;
+      final nextJars = clearedPending.map((item) {
+        if (item.id != jarId) return item;
+        var updated = item.copyWith(balance: item.balance + amount);
+        if (sourceWalletId.isNotEmpty) {
+          final currentSourceAmount = updated.walletSources
+              .where((source) => source.walletId == sourceWalletId)
+              .fold<double>(0, (sum, source) => sum + source.amount);
+          updated = updated.withUpdatedSource(
+              sourceWalletId, currentSourceAmount + amount);
+        }
+        return updated;
+      }).toList();
+      final next = stagedState.copyWith(
+        budgetSetup: stagedState.budgetSetup.copyWith(linkedWallets: nextJars),
+      );
+      await _applyAndLog(
+        action: 'edit',
+        entityType: 'jar',
+        entityId: jarId,
+        details:
+            'طھظ… طھط£ظƒظٹط¯ ط­ط¬ط² ${amount.toStringAsFixed(2)} ظ„ط­طµط§ظ„ط© ${jar.name}',
+        apply: () async => next,
+      );
+      return;
+    }
+
     await addTransaction(
       walletId: jar.pendingDistributionWalletId.isNotEmpty
           ? jar.pendingDistributionWalletId
@@ -640,9 +668,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       incomeSourceId: jar.pendingDistributionSourceId.isNotEmpty
           ? jar.pendingDistributionSourceId
           : null,
-      transferType: isPhysical
-          ? 'jar-funding-physical'
-          : 'jar-funding',
+      transferType: isPhysical ? 'jar-funding-physical' : 'jar-funding',
       notes: isPhysical
           ? 'خصم فعلي إلى حصالة ${jar.name}'
           : 'حجز للحصالة ${jar.name}',

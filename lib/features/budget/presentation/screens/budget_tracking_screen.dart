@@ -944,7 +944,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-
   Widget _entityTile({
     required String title,
     required Widget leading,
@@ -1755,8 +1754,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return incomeOnly;
   }
 
-
-
   List<Widget> _incomeInlineCards(
     AppStateEntity state,
     BudgetSetupEntity budget,
@@ -2116,6 +2113,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             t.transferType == 'jar-allocation' ||
             t.transferType == 'jar-allocation-cancel' ||
             t.transferType == 'jar-allocation-spend' ||
+            t.transferType == 'jar-funding-physical' ||
+            t.transferType == 'deposit-with-jar-label' ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
             (t.type == 'income' && t.budgetScope == 'within-budget') ||
@@ -2638,7 +2637,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           return d != null && d.isBefore(DateTime.now());
         }));
 
-
     final childTiles = cycleLentPersons.map((record) {
       final personName = record.lentPersonName ?? record.name;
 
@@ -2669,12 +2667,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           });
 
       String activityLabel = '';
-      if (out > 0 && inc > 0)
-       { activityLabel =
-            'سلفة ${out.toStringAsFixed(0)} • استرداد ${inc.toStringAsFixed(0)}';}
-      else if (out > 0)
-        {activityLabel = 'سلفة ${out.toStringAsFixed(0)}';}
-      else if (inc > 0){ activityLabel = 'استرداد ${inc.toStringAsFixed(0)}';}
+      if (out > 0 && inc > 0) {
+        activityLabel =
+            'سلفة ${out.toStringAsFixed(0)} • استرداد ${inc.toStringAsFixed(0)}';
+      } else if (out > 0) {
+        activityLabel = 'سلفة ${out.toStringAsFixed(0)}';
+      } else if (inc > 0) {
+        activityLabel = 'استرداد ${inc.toStringAsFixed(0)}';
+      }
 
       final balanceLabel =
           'المتبقي: ${record.outstandingLentAmount.toStringAsFixed(0)}';
@@ -3163,8 +3163,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     notesCtrl.dispose();
   }
 
-
-
   List<Widget> _subscriptionCards(
     AppStateEntity state,
     BudgetSetupEntity budget,
@@ -3573,7 +3571,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       budget.copyWith(allocations: next),
     );
   }
-
 
   Future<void> _openIncomeDetailsSheet(
     IncomeSourceEntity source,
@@ -4980,7 +4977,6 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
 enum _TxKindFilter { all, expense, income, transfer }
 
 enum _TxDateFilter { day, week, month, year, custom, all }
-
 
 class _DraggableFilterableTxSheet extends StatefulWidget {
   const _DraggableFilterableTxSheet({
