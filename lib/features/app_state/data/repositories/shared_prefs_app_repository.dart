@@ -203,6 +203,7 @@ class SharedPrefsAppRepository implements AppRepository {
               id: jar.id,
               delta: transferAmount,
               physicalWalletId: transaction.walletId,
+              trackWalletSource: !hasPhysicalFunding,
             );
             // لو isPhysical: خصم المبلغ فعلياً من المحفظة
             if (hasPhysicalFunding && transaction.walletId != null) {
@@ -226,9 +227,7 @@ class SharedPrefsAppRepository implements AppRepository {
                 type: hasPhysicalFunding ? 'expense' : 'transfer',
                 transferType:
                     hasPhysicalFunding ? 'jar-funding-physical' : 'jar-funding',
-                notes: hasPhysicalFunding
-                    ? 'خصم فعلي إلى حصالة ${jar.name}'
-                    : 'حجز للحصالة ${jar.name}',
+                notes: null,
                 createdAt: transaction.createdAt,
               ),
             );
@@ -292,6 +291,7 @@ class SharedPrefsAppRepository implements AppRepository {
           id: transaction.toWalletId!,
           delta: transaction.amount,
           physicalWalletId: transaction.walletId,
+          trackWalletSource: false,
         );
       } else {
         // Deduct from Virtual Reservation if linked

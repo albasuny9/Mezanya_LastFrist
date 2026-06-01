@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
+import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../screens/add_transaction_screen.dart';
@@ -37,10 +38,8 @@ Future<void> openTransactionDetailsSheet(
   final accent = _accentForTransaction(theme, transaction);
 
   final category = getCategoryForTransaction(state, transaction.categoryId);
-  final displayTitle = category?.name ??
-      (transaction.notes?.trim().isNotEmpty == true
-          ? transaction.notes!.trim()
-          : _typeLabel(transaction.type));
+  final displayTitle =
+      category?.name ?? _transactionDisplayTitle(state, transaction);
   final displayIcon = category != null
       ? parseCategoryIcon(category.icon)
       : _iconForTransaction(transaction);
@@ -180,8 +179,10 @@ Future<void> _openJarReserveEditor(
 }) async {
   final amountController =
       TextEditingController(text: transaction.amount.toStringAsFixed(2));
-  final notesController = TextEditingController(text: transaction.notes ?? '');
+  final notesController =
+      TextEditingController(text: _editableJarNote(transaction));
   var selectedWalletId = transaction.fromWalletId ?? transaction.walletId ?? '';
+  var selectedJarId = transaction.toWalletId ?? '';
   var selectedDate = transaction.createdAt;
   var selectedTime = TimeOfDay(
     hour: transaction.createdAt.hour,
@@ -196,8 +197,12 @@ Future<void> _openJarReserveEditor(
     builder: (sheetContext) => StatefulBuilder(
       builder: (sheetContext, setSheet) {
         final wallets = cubit.state.wallets;
+        final jars = cubit.state.budgetSetup.linkedWallets;
         if (selectedWalletId.isEmpty && wallets.isNotEmpty) {
           selectedWalletId = wallets.first.id;
+        }
+        if (selectedJarId.isEmpty && jars.isNotEmpty) {
+          selectedJarId = jars.first.id;
         }
 
         return Padding(
@@ -239,6 +244,24 @@ Future<void> _openJarReserveEditor(
                 onChanged: (value) {
                   if (value != null) {
                     setSheet(() => selectedWalletId = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedJarId.isEmpty ? null : selectedJarId,
+                decoration: const InputDecoration(labelText: 'الحصالة'),
+                items: jars
+                    .map(
+                      (jar) => DropdownMenuItem<String>(
+                        value: jar.id,
+                        child: Text(jar.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setSheet(() => selectedJarId = value);
                   }
                 },
               ),
@@ -288,13 +311,89 @@ Future<void> _openJarReserveEditor(
                 decoration: const InputDecoration(labelText: 'ملاحظات'),
               ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: sheetContext,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('حذف الحجز'),
+                      content: const Text(
+                          'سيتم حذف حجز الحصالة بالكامل. هل تريد المتابعة؟'),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                          child: const Text('إلغاء'),
+                        ),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                          child: const Text('حذف'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  await cubit.deleteTransaction(transaction.id);
+                  if (sheetContext.mounted) Navigator.pop(sheetContext);
+                },
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('حذف الحجز'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  foregroundColor: Theme.of(sheetContext).colorScheme.error,
+                  side: BorderSide(
+                    color: Theme.of(sheetContext)
+                        .colorScheme
+                        .error
+                        .withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               FilledButton.icon(
-                onPressed: selectedWalletId.isEmpty
+                onPressed: selectedWalletId.isEmpty || selectedJarId.isEmpty
                     ? null
                     : () async {
                         final amount =
                             double.tryParse(amountController.text.trim());
                         if (amount == null || amount <= 0) return;
+                        LinkedWalletEntity? targetJar;
+                        for (final jar
+                            in cubit.state.budgetSetup.linkedWallets) {
+                          if (jar.id == selectedJarId) {
+                            targetJar = jar;
+                            break;
+                          }
+                        }
+                        if (targetJar == null) return;
+                        final targetJarName = targetJar.name;
+                        final currentAmountForSameJar =
+                            transaction.toWalletId == selectedJarId
+                                ? transaction.amount
+                                : 0.0;
+                        final availableForReservation =
+                            targetJar.unlabeledAmount + currentAmountForSameJar;
+                        if (amount > availableForReservation + 0.01) {
+                          await showDialog<void>(
+                            context: sheetContext,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('المبلغ أكبر من المتاح'),
+                              content: Text(
+                                'المتاح للحجز في $targetJarName هو '
+                                '${availableForReservation.toStringAsFixed(2)} فقط.',
+                              ),
+                              actions: [
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(),
+                                  child: const Text('تمام'),
+                                ),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
                         final createdAt = DateTime(
                           selectedDate.year,
                           selectedDate.month,
@@ -306,7 +405,7 @@ Future<void> _openJarReserveEditor(
                         await cubit.addTransaction(
                           walletId: selectedWalletId,
                           fromWalletId: selectedWalletId,
-                          toWalletId: transaction.toWalletId,
+                          toWalletId: selectedJarId,
                           amount: amount,
                           type: 'transfer',
                           budgetScope: transaction.budgetScope,
@@ -330,9 +429,6 @@ Future<void> _openJarReserveEditor(
       },
     ),
   );
-
-  amountController.dispose();
-  notesController.dispose();
 }
 
 List<MapEntry<String, String>> _detailRows(
@@ -378,9 +474,51 @@ List<MapEntry<String, String>> _detailRows(
     if (tx.budgetScope != null)
       MapEntry('نطاق الميزانية', _budgetScopeLabel(tx.budgetScope!)),
     if (tx.transferType != null) MapEntry('نوع التحويل', tx.transferType!),
-    if (tx.notes?.trim().isNotEmpty == true)
+    if (tx.notes?.trim().isNotEmpty == true && !_isGeneratedJarNote(tx))
       MapEntry('الملاحظات', tx.notes!.trim()),
   ];
+}
+
+String _editableJarNote(TransactionEntity tx) {
+  if (_isGeneratedJarNote(tx)) return '';
+  return tx.notes ?? '';
+}
+
+bool _isGeneratedJarNote(TransactionEntity tx) {
+  final note = tx.notes?.trim();
+  if (note == null || note.isEmpty) return false;
+  if (tx.transferType != 'jar-funding' &&
+      tx.transferType != 'jar-funding-physical') {
+    return false;
+  }
+  return note.startsWith('حجز للحصالة') ||
+      note.startsWith('حجز لحصالة') ||
+      note.startsWith('خصم فعلي إلى حصالة') ||
+      note.startsWith('خصم فعلي لحصالة') ||
+      note.startsWith('تم تعديل حجز حصالة') ||
+      note.startsWith('تعديل حجز');
+}
+
+String _transactionDisplayTitle(AppStateEntity state, TransactionEntity tx) {
+  String? resolvedJarName;
+  for (final jar in state.budgetSetup.linkedWallets) {
+    if (jar.id == tx.toWalletId) {
+      resolvedJarName = jar.name;
+      break;
+    }
+  }
+  final jarName = resolvedJarName ?? 'التوفير';
+
+  if (tx.transferType == 'jar-funding') {
+    return 'حجز لحصالة $jarName';
+  }
+  if (tx.transferType == 'jar-funding-physical') {
+    return 'خصم لحصالة $jarName';
+  }
+  if (tx.notes?.trim().isNotEmpty == true) {
+    return tx.notes!.trim();
+  }
+  return _typeLabel(tx.type);
 }
 
 String _typeLabel(String type) {

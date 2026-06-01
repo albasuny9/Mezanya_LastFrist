@@ -362,6 +362,7 @@ class AppCubit extends Cubit<AppStateEntity> {
             id: transaction.toWalletId!,
             delta: transaction.amount,
             physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
+            trackWalletSource: false,
           );
         }
       } else {
@@ -406,6 +407,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           id: transaction.toWalletId!,
           delta: transaction.amount,
           physicalWalletId: transaction.walletId,
+          trackWalletSource: false,
         );
       } else {
         // Reverse virtual reservation
@@ -650,9 +652,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           ? jar.pendingDistributionSourceId
           : null,
       transferType: isPhysical ? 'jar-funding-physical' : 'jar-funding',
-      notes: isPhysical
-          ? 'خصم فعلي إلى حصالة ${jar.name}'
-          : 'حجز للحصالة ${jar.name}',
+      notes: null,
       details:
           'تم تأكيد ${isPhysical ? 'خصم فعلي' : 'حجز'} ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
     );

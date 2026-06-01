@@ -52,13 +52,21 @@ class SharedTransactionCard extends StatelessWidget {
         transaction.transferType == 'jar-allocation-cancel' ||
         transaction.transferType == 'jar-allocation-spend';
 
+    final targetJarName = transaction.toWalletId == null
+        ? null
+        : appState.budgetSetup.linkedWallets
+            .where((jar) => jar.id == transaction.toWalletId)
+            .map((jar) => jar.name)
+            .cast<String?>()
+            .firstWhere((_) => true, orElse: () => null);
+
     final label = switch (transaction.transferType) {
       'jar-allocation' => 'تخصيص للحصالة',
       'jar-allocation-cancel' => 'إلغاء تخصيص',
       'jar-allocation-spend' => 'سحب من المحجوز',
-      'jar-funding' => 'تمويل تلقائي للحصالة',
+      'jar-funding' => 'حجز لحصالة ${targetJarName ?? 'التوفير'}',
       'wallet-to-wallet' => 'تحويل بين المحافظ',
-      'jar-funding-physical' => 'خصم فعلي للحصالة',
+      'jar-funding-physical' => 'خصم لحصالة ${targetJarName ?? 'التوفير'}',
       _ => transaction.notes ?? _typeLabel(),
     };
 

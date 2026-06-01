@@ -518,7 +518,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 Icons.add_circle_outline_rounded,
                                 onTap: () =>
                                     _openWalletAllocateToJarDialog(wallet),
-                                tooltip: 'تخصيص للحصالة',
+                                tooltip: 'تحديد حجز لحصالة',
                               ),
                               const SizedBox(width: 6),
                               // Expand arrow
@@ -925,7 +925,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   jar: jar,
                                   mode: _JarAdjustmentMode.allocate,
                                 ),
-                                tooltip: 'تخصيص للحصالة',
+                                tooltip: 'تحديد مصدر الحجز',
                               ),
                             ],
                           ),
@@ -1152,6 +1152,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                                     jar: jar,
                                                     mode: _JarAdjustmentMode
                                                         .cancel,
+                                                    initialWalletId: e.key,
                                                   ),
                                                   child: Container(
                                                     padding: const EdgeInsets
@@ -1239,6 +1240,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
   Future<void> _openJarAdjustmentDialog({
     required LinkedWalletEntity jar,
     required _JarAdjustmentMode mode,
+    String? initialWalletId,
   }) async {
     final state = widget.cubit.state;
     final sourceDistribution = _jarDistribution(state, jar.id);
@@ -1250,7 +1252,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
     if (availableWallets.isEmpty) return;
 
     final accent = _parseColor(jar.iconColor);
-    var walletId = availableWallets.first.id;
+    var walletId =
+        availableWallets.any((wallet) => wallet.id == initialWalletId)
+            ? initialWalletId!
+            : availableWallets.first.id;
     final amountController = TextEditingController();
     final notesController = TextEditingController();
 
@@ -2031,85 +2036,330 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
     var jarId = jars.first.id;
     final amountController = TextEditingController();
-    final notesController = TextEditingController();
+    final walletAccent = _parseColor(wallet.iconColor ?? '#165B47');
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تخصيص من المحفظة إلى حصالة'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: jarId,
-                decoration: const InputDecoration(labelText: 'الحصالة'),
-                items: jars
-                    .map(
-                      (jar) => DropdownMenuItem<String>(
-                        value: jar.id,
-                        child: Text(jar.name),
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final currentState = widget.cubit.state;
+          final targetJar = currentState.budgetSetup.linkedWallets
+              .where((jar) => jar.id == jarId)
+              .firstOrNull;
+          final unallocatedJarAmount = targetJar?.unlabeledAmount ?? 0;
+          final reservedFromWallet =
+              _walletReservedAmount(currentState, wallet.id);
+          final availableFromWallet =
+              (wallet.balance - reservedFromWallet).clamp(0.0, double.infinity);
+          final accent = targetJar == null
+              ? walletAccent
+              : _parseColor(targetJar.iconColor);
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4C9B8),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Center(
+                          child: AppIconPickerDialog.iconWidgetForName(
+                            wallet.icon ?? 'account_balance_wallet',
+                            color: accent,
+                            size: 22,
+                          ),
+                        ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setDialogState(() => jarId = value);
-                },
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'المبلغ'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: notesController,
-                decoration: const InputDecoration(labelText: 'ملاحظات'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إلغاء'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'تحديد حجز لحصالة',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                              ),
+                            ),
+                            Text(
+                              wallet.name,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF8A7F72),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: accent.withValues(alpha: 0.12)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'اختر الحصالة التي تريد تحديد مصدر فلوسها:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: accent.withValues(alpha: 0.70),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFBF1),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: accent.withValues(alpha: 0.16)),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: jarId,
+                              isExpanded: true,
+                              icon: Icon(Icons.keyboard_arrow_down_rounded,
+                                  color: accent),
+                              items: jars.map((jar) {
+                                return DropdownMenuItem<String>(
+                                  value: jar.id,
+                                  child: Text(
+                                    jar.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setDialogState(() => jarId = value);
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'المتاح من المحفظة: ${availableFromWallet.toStringAsFixed(2)} جنيه',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'غير محدد المصدر في الحصالة: ${unallocatedJarAmount.toStringAsFixed(2)} جنيه',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'المبلغ',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: accent.withValues(alpha: 0.70),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: amountController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '0.00',
+                            filled: true,
+                            fillColor: const Color(0xFFFFFBF1),
+                            suffixText: 'جنيه',
+                            suffixStyle: TextStyle(
+                              color: accent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                  color: accent.withValues(alpha: 0.16)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                  color: accent.withValues(alpha: 0.16)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: accent, width: 1.5),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                                color: accent.withValues(alpha: 0.30)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            foregroundColor: const Color(0xFF8A7F72),
+                          ),
+                          child: const Text(
+                            'إلغاء',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: targetJar == null
+                              ? null
+                              : () async {
+                                  final amount = double.tryParse(
+                                          amountController.text.trim()) ??
+                                      0;
+                                  if (amount <= 0) return;
+                                  if (amount > availableFromWallet + 0.01) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'المبلغ أكبر من المتاح في المحفظة.'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  if (amount > unallocatedJarAmount + 0.01) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'المبلغ أكبر من الرصيد غير محدد المصدر في الحصالة.'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  final currentJar = widget
+                                      .cubit.state.budgetSetup.linkedWallets
+                                      .firstWhere((jar) => jar.id == jarId);
+                                  final existing =
+                                      currentJar.walletSources.firstWhere(
+                                    (source) => source.walletId == wallet.id,
+                                    orElse: () => JarWalletSource(
+                                        walletId: wallet.id, amount: 0),
+                                  );
+                                  final newSources = [
+                                    ...currentJar.walletSources.where(
+                                      (source) => source.walletId != wallet.id,
+                                    ),
+                                    JarWalletSource(
+                                      walletId: wallet.id,
+                                      amount: existing.amount + amount,
+                                    ),
+                                  ];
+                                  await widget.cubit.updateJarWalletSources(
+                                    jarId: currentJar.id,
+                                    sources: newSources,
+                                  );
+                                  if (!mounted) return;
+                                  Navigator.of(ctx).pop();
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: const Text(
+                            'تأكيد الحجز',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () async {
-                final amount =
-                    double.tryParse(amountController.text.trim()) ?? 0;
-                if (amount <= 0) {
-                  return;
-                }
-                final targetJar = jars.firstWhere((jar) => jar.id == jarId);
-                await widget.cubit.addTransaction(
-                  type: 'transfer',
-                  fromWalletId: wallet.id,
-                  toWalletId: targetJar.id,
-                  amount: amount,
-                  transferType: 'jar-allocation',
-                  notes: notesController.text.trim().isEmpty
-                      ? 'تخصيص ${amount.toStringAsFixed(2)} من ${wallet.name} إلى ${targetJar.name}'
-                      : notesController.text.trim(),
-                );
-                if (targetJar.id == 'linked-savings-default') {
-                  await widget.cubit.applySavingsReserve(
-                    walletId: wallet.id,
-                    amount: amount,
-                    action: 'allocate',
-                  );
-                }
-                if (!mounted) {
-                  return;
-                }
-                Navigator.of(context).pop();
-              },
-              child: const Text('تأكيد'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
