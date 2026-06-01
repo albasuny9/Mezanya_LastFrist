@@ -786,12 +786,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             _incomeSourceId != 'wallet-only'
                                         ? _incomeSourceId
                                         : null,
-                                    transferType: _type == 'income' &&
-                                            _incomeBudgetScope ==
-                                                'within-budget' &&
-                                            _incomeJarId.isNotEmpty
-                                        ? 'deposit-with-jar-label'
-                                        : null,
+                                    transferType: widget.initialTransaction
+                                                ?.transferType ==
+                                            'jar-funding-physical'
+                                        ? 'jar-funding-physical'
+                                        : _type == 'income' &&
+                                                _incomeBudgetScope ==
+                                                    'within-budget' &&
+                                                _incomeJarId.isNotEmpty
+                                            ? 'deposit-with-jar-label'
+                                            : null,
                                     notes: _notesController.text.trim().isEmpty
                                         ? null
                                         : _notesController.text.trim(),

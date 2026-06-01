@@ -44,9 +44,8 @@ Future<void> openTransactionDetailsSheet(
   final displayIcon = category != null
       ? parseCategoryIcon(category.icon)
       : _iconForTransaction(transaction);
-  final displayColor = category != null
-      ? parseCategoryColor(category.color)
-      : accent;
+  final displayColor =
+      category != null ? parseCategoryColor(category.color) : accent;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -139,6 +138,14 @@ Future<void> openTransactionDetailsSheet(
             FilledButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
+                if (transaction.transferType == 'jar-funding') {
+                  await _openJarReserveEditor(
+                    context,
+                    cubit: cubit,
+                    transaction: transaction,
+                  );
+                  return;
+                }
                 await showModalBottomSheet<void>(
                   context: context,
                   isScrollControlled: true,
@@ -166,21 +173,187 @@ Future<void> openTransactionDetailsSheet(
   );
 }
 
-List<MapEntry<String, String>> _detailRows(AppCubit cubit, TransactionEntity tx) {
+Future<void> _openJarReserveEditor(
+  BuildContext context, {
+  required AppCubit cubit,
+  required TransactionEntity transaction,
+}) async {
+  final amountController =
+      TextEditingController(text: transaction.amount.toStringAsFixed(2));
+  final notesController = TextEditingController(text: transaction.notes ?? '');
+  var selectedWalletId = transaction.fromWalletId ?? transaction.walletId ?? '';
+  var selectedDate = transaction.createdAt;
+  var selectedTime = TimeOfDay(
+    hour: transaction.createdAt.hour,
+    minute: transaction.createdAt.minute,
+  );
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheet) {
+        final wallets = cubit.state.wallets;
+        if (selectedWalletId.isEmpty && wallets.isNotEmpty) {
+          selectedWalletId = wallets.first.id;
+        }
+
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text(
+                'تعديل حجز الحصالة',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'المبلغ المحجوز'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedWalletId.isEmpty ? null : selectedWalletId,
+                decoration: const InputDecoration(labelText: 'محفظة الحجز'),
+                items: wallets
+                    .map(
+                      (wallet) => DropdownMenuItem<String>(
+                        value: wallet.id,
+                        child: Text(wallet.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setSheet(() => selectedWalletId = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: sheetContext,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2023),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setSheet(() => selectedDate = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_month_outlined),
+                      label: Text(
+                          DateFormat('d MMM yyyy', 'ar').format(selectedDate)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: sheetContext,
+                          initialTime: selectedTime,
+                        );
+                        if (picked != null) {
+                          setSheet(() => selectedTime = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.schedule_outlined),
+                      label: Text(selectedTime.format(sheetContext)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: notesController,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'ملاحظات'),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: selectedWalletId.isEmpty
+                    ? null
+                    : () async {
+                        final amount =
+                            double.tryParse(amountController.text.trim());
+                        if (amount == null || amount <= 0) return;
+                        final createdAt = DateTime(
+                          selectedDate.year,
+                          selectedDate.month,
+                          selectedDate.day,
+                          selectedTime.hour,
+                          selectedTime.minute,
+                        );
+                        await cubit.deleteTransaction(transaction.id);
+                        await cubit.addTransaction(
+                          walletId: selectedWalletId,
+                          fromWalletId: selectedWalletId,
+                          toWalletId: transaction.toWalletId,
+                          amount: amount,
+                          type: 'transfer',
+                          budgetScope: transaction.budgetScope,
+                          incomeSourceId: transaction.incomeSourceId,
+                          transferType: 'jar-funding',
+                          notes: notesController.text.trim().isEmpty
+                              ? null
+                              : notesController.text.trim(),
+                          createdAt: createdAt,
+                          details:
+                              'تم تعديل حجز حصالة بقيمة ${amount.toStringAsFixed(2)}',
+                        );
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('حفظ الحجز'),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+
+  amountController.dispose();
+  notesController.dispose();
+}
+
+List<MapEntry<String, String>> _detailRows(
+    AppCubit cubit, TransactionEntity tx) {
   final state = cubit.state;
-  String walletName(String? id) => state.wallets
+  String walletName(String? id) =>
+      state.wallets
           .where((w) => w.id == id)
           .map((w) => w.name)
           .cast<String?>()
           .firstWhere((_) => true, orElse: () => id) ??
       '-';
-  String jarName(String? id) => state.budgetSetup.linkedWallets
+  String jarName(String? id) =>
+      state.budgetSetup.linkedWallets
           .where((j) => j.id == id)
           .map((j) => j.name)
           .cast<String?>()
           .firstWhere((_) => true, orElse: () => id) ??
       '-';
-  String allocName(String? id) => state.budgetSetup.allocations
+  String allocName(String? id) =>
+      state.budgetSetup.allocations
           .where((a) => a.id == id)
           .map((a) => a.name)
           .cast<String?>()
@@ -257,22 +430,38 @@ Color _accentForTransaction(ThemeData theme, TransactionEntity tx) {
 IconData parseCategoryIcon(String name) {
   // Simple mapping, add logic if there's a specific package used for icons
   switch (name) {
-    case 'home': return Icons.home_rounded;
-    case 'shopping_cart': return Icons.shopping_cart_rounded;
-    case 'restaurant': return Icons.restaurant_rounded;
-    case 'directions_car': return Icons.directions_car_rounded;
-    case 'medical_services': return Icons.medical_services_rounded;
-    case 'school': return Icons.school_rounded;
-    case 'electrical_services': return Icons.electrical_services_rounded;
-    case 'water_drop': return Icons.water_drop_rounded;
-    case 'flight': return Icons.flight_rounded;
-    case 'fitness_center': return Icons.fitness_center_rounded;
-    case 'category': return Icons.category_rounded;
-    case 'checkroom': return Icons.checkroom_rounded;
-    case 'payments': return Icons.payments_rounded;
-    case 'receipt': return Icons.receipt_rounded;
-    case 'sports_esports': return Icons.sports_esports_rounded;
-    default: return Icons.category_rounded;
+    case 'home':
+      return Icons.home_rounded;
+    case 'shopping_cart':
+      return Icons.shopping_cart_rounded;
+    case 'restaurant':
+      return Icons.restaurant_rounded;
+    case 'directions_car':
+      return Icons.directions_car_rounded;
+    case 'medical_services':
+      return Icons.medical_services_rounded;
+    case 'school':
+      return Icons.school_rounded;
+    case 'electrical_services':
+      return Icons.electrical_services_rounded;
+    case 'water_drop':
+      return Icons.water_drop_rounded;
+    case 'flight':
+      return Icons.flight_rounded;
+    case 'fitness_center':
+      return Icons.fitness_center_rounded;
+    case 'category':
+      return Icons.category_rounded;
+    case 'checkroom':
+      return Icons.checkroom_rounded;
+    case 'payments':
+      return Icons.payments_rounded;
+    case 'receipt':
+      return Icons.receipt_rounded;
+    case 'sports_esports':
+      return Icons.sports_esports_rounded;
+    default:
+      return Icons.category_rounded;
   }
 }
 

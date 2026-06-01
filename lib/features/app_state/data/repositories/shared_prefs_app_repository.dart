@@ -214,25 +214,24 @@ class SharedPrefsAppRepository implements AppRepository {
                 );
               }
             }
-            if (hasPhysicalFunding) {
-              transactions.add(
-                TransactionEntity(
-                  id: auditTransactionId('txn'),
-                  walletId: transaction.walletId,
-                  fromWalletId: transaction.walletId,
-                  toWalletId: jar.id,
-                  budgetScope: 'within-budget',
-                  incomeSourceId: sourceId,
-                  amount: transferAmount,
-                  type: 'transfer',
-                  transferType: 'jar-funding-physical',
-                  notes: hasPhysicalFunding
-                      ? 'خصم فعلي إلى حصالة ${jar.name}'
-                      : 'حجز للحصالة ${jar.name}',
-                  createdAt: transaction.createdAt,
-                ),
-              );
-            }
+            transactions.add(
+              TransactionEntity(
+                id: auditTransactionId('txn'),
+                walletId: transaction.walletId,
+                fromWalletId: hasPhysicalFunding ? null : transaction.walletId,
+                toWalletId: jar.id,
+                budgetScope: 'within-budget',
+                incomeSourceId: sourceId,
+                amount: transferAmount,
+                type: hasPhysicalFunding ? 'expense' : 'transfer',
+                transferType:
+                    hasPhysicalFunding ? 'jar-funding-physical' : 'jar-funding',
+                notes: hasPhysicalFunding
+                    ? 'خصم فعلي إلى حصالة ${jar.name}'
+                    : 'حجز للحصالة ${jar.name}',
+                createdAt: transaction.createdAt,
+              ),
+            );
           } else if (jar.automationType == 'confirm') {
             // معلّق — ينتظر تأكيد اليوزر
             linkedWallets[i] = jar.copyWith(
@@ -287,15 +286,24 @@ class SharedPrefsAppRepository implements AppRepository {
         return w.copyWith(balance: w.balance - transaction.amount);
       }).toList();
 
-      // Deduct from Virtual Reservation if linked
-      final virtualTargetId =
-          transaction.allocationId ?? transaction.toWalletId;
-      if (virtualTargetId != null) {
+      if (transaction.transferType == 'jar-funding-physical' &&
+          transaction.toWalletId != null) {
         updateVirtualBalance(
-          id: virtualTargetId,
-          delta: -transaction.amount,
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
           physicalWalletId: transaction.walletId,
         );
+      } else {
+        // Deduct from Virtual Reservation if linked
+        final virtualTargetId =
+            transaction.allocationId ?? transaction.toWalletId;
+        if (virtualTargetId != null) {
+          updateVirtualBalance(
+            id: virtualTargetId,
+            delta: -transaction.amount,
+            physicalWalletId: transaction.walletId,
+          );
+        }
       }
     }
 

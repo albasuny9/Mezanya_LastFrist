@@ -400,15 +400,24 @@ class AppCubit extends Cubit<AppStateEntity> {
         return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
 
-      // Reverse virtual reservation
-      final virtualTargetId =
-          transaction.allocationId ?? transaction.toWalletId;
-      if (virtualTargetId != null) {
+      if (transaction.transferType == 'jar-funding-physical' &&
+          transaction.toWalletId != null) {
         reverseVirtualBalance(
-          id: virtualTargetId,
-          delta: -transaction.amount,
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
           physicalWalletId: transaction.walletId,
         );
+      } else {
+        // Reverse virtual reservation
+        final virtualTargetId =
+            transaction.allocationId ?? transaction.toWalletId;
+        if (virtualTargetId != null) {
+          reverseVirtualBalance(
+            id: virtualTargetId,
+            delta: -transaction.amount,
+            physicalWalletId: transaction.walletId,
+          );
+        }
       }
     }
 
@@ -626,44 +635,16 @@ class AppCubit extends Cubit<AppStateEntity> {
     emit(stagedState);
     await _repository.saveState(stagedState);
 
-    if (!isPhysical) {
-      final sourceWalletId = jar.pendingDistributionWalletId;
-      final nextJars = clearedPending.map((item) {
-        if (item.id != jarId) return item;
-        var updated = item.copyWith(balance: item.balance + amount);
-        if (sourceWalletId.isNotEmpty) {
-          final currentSourceAmount = updated.walletSources
-              .where((source) => source.walletId == sourceWalletId)
-              .fold<double>(0, (sum, source) => sum + source.amount);
-          updated = updated.withUpdatedSource(
-              sourceWalletId, currentSourceAmount + amount);
-        }
-        return updated;
-      }).toList();
-      final next = stagedState.copyWith(
-        budgetSetup: stagedState.budgetSetup.copyWith(linkedWallets: nextJars),
-      );
-      await _applyAndLog(
-        action: 'edit',
-        entityType: 'jar',
-        entityId: jarId,
-        details:
-            'طھظ… طھط£ظƒظٹط¯ ط­ط¬ط² ${amount.toStringAsFixed(2)} ظ„ط­طµط§ظ„ط© ${jar.name}',
-        apply: () async => next,
-      );
-      return;
-    }
-
     await addTransaction(
       walletId: jar.pendingDistributionWalletId.isNotEmpty
           ? jar.pendingDistributionWalletId
           : null,
-      fromWalletId: isPhysical && jar.pendingDistributionWalletId.isNotEmpty
+      fromWalletId: !isPhysical && jar.pendingDistributionWalletId.isNotEmpty
           ? jar.pendingDistributionWalletId
           : null,
       toWalletId: jar.id,
       amount: amount,
-      type: 'transfer',
+      type: isPhysical ? 'expense' : 'transfer',
       budgetScope: 'within-budget',
       incomeSourceId: jar.pendingDistributionSourceId.isNotEmpty
           ? jar.pendingDistributionSourceId
