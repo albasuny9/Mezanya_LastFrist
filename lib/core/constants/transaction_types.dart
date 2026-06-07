@@ -71,3 +71,43 @@ enum BudgetScope {
     return null;
   }
 }
+
+enum ExpensePlanKind {
+  installment('installment'),
+  subscription('subscription');
+
+  const ExpensePlanKind(this.value);
+
+  final String value;
+
+  static ExpensePlanKind? fromValue(String? value) {
+    for (final kind in ExpensePlanKind.values) {
+      if (kind.value == value) return kind;
+    }
+    return null;
+  }
+}
+
+enum RecurrencePattern {
+  daily('daily'),
+  weekly('weekly'),
+  biweekly('biweekly'),
+  every3Weeks('every_3_weeks'),
+  monthly('monthly'),
+  every2Months('every_2_months'),
+  every3Months('every_3_months'),
+  every6Months('every_6_months'),
+  yearly('yearly'),
+  manualVariable('manual-variable');
+
+  const RecurrencePattern(this.value);
+
+  final String value;
+
+  static RecurrencePattern? fromValue(String? value) {
+    for (final pattern in RecurrencePattern.values) {
+      if (pattern.value == value) return pattern;
+    }
+    return null;
+  }
+}

@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -19,7 +20,8 @@ class NotificationsCenterScreen extends StatefulWidget {
   final AppCubit cubit;
 
   @override
-  State<NotificationsCenterScreen> createState() => _NotificationsCenterScreenState();
+  State<NotificationsCenterScreen> createState() =>
+      _NotificationsCenterScreenState();
 }
 
 class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
@@ -87,7 +89,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
           !transaction.createdAt.isAfter(cycleEnd);
     }).toList();
     final incomeTransactions = monthTransactions
-        .where((transaction) => transaction.type == 'income')
+        .where(
+            (transaction) => transaction.type == TransactionType.income.value)
         .toList();
 
     for (final source in budget.incomeSources) {
@@ -121,11 +124,15 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
                 onPressed: _processingIds.contains('early_${source.id}')
                     ? () {}
                     : () async {
-                        setState(() => _processingIds.add('early_${source.id}'));
+                        setState(
+                            () => _processingIds.add('early_${source.id}'));
                         try {
                           await _recordIncome(source, early: true);
                         } finally {
-                          if (mounted) setState(() => _processingIds.remove('early_${source.id}'));
+                          if (mounted) {
+                            setState(() =>
+                                _processingIds.remove('early_${source.id}'));
+                          }
                         }
                       },
               ),
@@ -139,7 +146,10 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
                         try {
                           await _recordIncome(source);
                         } finally {
-                          if (mounted) setState(() => _processingIds.remove('due_${source.id}'));
+                          if (mounted) {
+                            setState(() =>
+                                _processingIds.remove('due_${source.id}'));
+                          }
                         }
                       },
               ),
@@ -237,7 +247,10 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
                         try {
                           await _confirmJarDistribution(jar);
                         } finally {
-                          if (mounted) setState(() => _processingIds.remove('jar_${jar.id}'));
+                          if (mounted) {
+                            setState(
+                                () => _processingIds.remove('jar_${jar.id}'));
+                          }
                         }
                       },
               ),
@@ -273,7 +286,10 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
                         try {
                           await _confirmAllocationDistribution(alloc);
                         } finally {
-                          if (mounted) setState(() => _processingIds.remove('alloc_${alloc.id}'));
+                          if (mounted) {
+                            setState(() =>
+                                _processingIds.remove('alloc_${alloc.id}'));
+                          }
                         }
                       },
               ),
@@ -297,7 +313,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
       if (item.type == 'revert-system') return false;
 
       // Hide if the original action was reverted
-      final isReverted = state.logs.any((l) => l.id == item.relatedLogId && l.isReverted);
+      final isReverted =
+          state.logs.any((l) => l.id == item.relatedLogId && l.isReverted);
       if (isReverted) return false;
 
       final text = '${item.title} ${item.message}';
@@ -440,8 +457,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   ) {
     final linked = state.recurringTransactions.where(
       (item) =>
-          item.type == 'income' &&
-          item.budgetScope == 'within-budget' &&
+          item.type == TransactionType.income.value &&
+          item.budgetScope == BudgetScope.withinBudget.value &&
           (item.incomeSourceId == source.id ||
               ((item.incomeSourceId ?? '').isEmpty &&
                   item.name == source.name &&
@@ -562,9 +579,9 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
-      type: 'income',
+      type: TransactionType.income.value,
       incomeSourceId: source.id,
-      budgetScope: 'within-budget',
+      budgetScope: BudgetScope.withinBudget.value,
       createdAt: DateTime(now.year, now.month, now.day, 12),
       details: early
           ? 'تسجيل دخل مبكر: ${source.name} بقيمة ${amount.toStringAsFixed(2)}'
@@ -617,7 +634,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
       amount: debt.amount,
       occurrence: occurrence,
       transactionNotes: 'سداد دين: ${debt.name}',
-      logDetails: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
+      logDetails:
+          'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
     );
   }
 

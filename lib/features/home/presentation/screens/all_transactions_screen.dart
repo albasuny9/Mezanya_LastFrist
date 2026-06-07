@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -238,11 +239,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         color: Color(0xFF6B6358))),
                 const SizedBox(height: 10),
                 _SheetChipBar(
-                  options: const [
+                  options: [
                     ('all', 'الكل', Color(0xFF165b47)),
-                    ('income', 'دخل', Color(0xFF16A34A)),
-                    ('expense', 'مصروف', Color(0xFFDC2626)),
-                    ('transfer', 'تحويل', Color(0xFF2563EB)),
+                    (TransactionType.income.value, 'دخل', Color(0xFF16A34A)),
+                    (TransactionType.expense.value, 'مصروف', Color(0xFFDC2626)),
+                    (
+                      TransactionType.transfer.value,
+                      'تحويل',
+                      Color(0xFF2563EB),
+                    ),
                   ],
                   selected: tmpType,
                   onSelect: (v) => setSheet(() => tmpType = v),
@@ -393,10 +398,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final categories = widget.cubit.state.categories;
     final filtered = _filtered();
     final totalIn = filtered
-        .where((t) => t.type == 'income')
+        .where((t) => t.type == TransactionType.income.value)
         .fold<double>(0, (s, t) => s + t.amount);
     final totalOut = filtered
-        .where((t) => t.type == 'expense')
+        .where((t) => t.type == TransactionType.expense.value)
         .fold<double>(0, (s, t) => s + t.amount);
 
     final grouped = <String, List<TransactionEntity>>{};
@@ -525,10 +530,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                       final dayTx = grouped[dateKey]!;
                       final dayDate = DateTime.parse(dateKey);
                       final dayIncome = dayTx
-                          .where((t) => t.type == 'income')
+                          .where((t) => t.type == TransactionType.income.value)
                           .fold<double>(0, (s, t) => s + t.amount);
                       final dayExpense = dayTx
-                          .where((t) => t.type == 'expense')
+                          .where((t) => t.type == TransactionType.expense.value)
                           .fold<double>(0, (s, t) => s + t.amount);
 
                       return _DayGroup(

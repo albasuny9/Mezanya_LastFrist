@@ -118,9 +118,7 @@ class _MoreTabContentState extends State<MoreTabContent> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            email.isEmpty
-                                ? 'غير متصل بحساب Google'
-                                : email,
+                            email.isEmpty ? 'غير متصل بحساب Google' : email,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white70,
@@ -165,8 +163,7 @@ class _MoreTabContentState extends State<MoreTabContent> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  DebtsAndSubscriptionsScreen(cubit: widget.cubit),
+              builder: (_) => DebtsAndSubscriptionsScreen(cubit: widget.cubit),
             ),
           );
         }),

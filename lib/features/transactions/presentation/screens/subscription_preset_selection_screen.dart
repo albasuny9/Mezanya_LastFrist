@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -63,8 +64,8 @@ class _SubscriptionPresetSelectionScreenState
                         )
                       : null,
                   filled: true,
-                  fillColor:
-                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  fillColor: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.3),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none,
@@ -318,9 +319,9 @@ class _SubscriptionPresetSelectionScreenState
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
-          initialType: 'expense',
+          initialType: TransactionType.expense.value,
           initialWithinBudget: true,
-          initialExpensePlanKind: 'subscription',
+          initialExpensePlanKind: ExpensePlanKind.subscription.value,
           subscriptionOnlyMode: true,
           initialSubscriptionPresetId: presetId,
         ),

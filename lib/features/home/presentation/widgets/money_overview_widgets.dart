@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 import '../../../transactions/domain/entities/transaction_entity.dart';
@@ -260,10 +261,10 @@ class MoneyTransactionTile extends StatelessWidget {
       title: Text(title),
       subtitle: Text(subtitle),
       trailing: Text(
-        '${transaction.type == 'expense' ? '-' : '+'}${transaction.amount.toStringAsFixed(2)}',
+        '${transaction.type == TransactionType.expense.value ? '-' : '+'}${transaction.amount.toStringAsFixed(2)}',
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: transaction.type == 'expense'
+          color: transaction.type == TransactionType.expense.value
               ? Theme.of(context).colorScheme.error
               : Theme.of(context).colorScheme.primary,
         ),
@@ -284,13 +285,16 @@ class MoneyChartPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final income = transactions
-        .where((transaction) => transaction.type == 'income')
+        .where(
+            (transaction) => transaction.type == TransactionType.income.value)
         .fold<double>(0, (sum, transaction) => sum + transaction.amount);
     final expense = transactions
-        .where((transaction) => transaction.type == 'expense')
+        .where(
+            (transaction) => transaction.type == TransactionType.expense.value)
         .fold<double>(0, (sum, transaction) => sum + transaction.amount);
     final transfer = transactions
-        .where((transaction) => transaction.type == 'transfer')
+        .where(
+            (transaction) => transaction.type == TransactionType.transfer.value)
         .fold<double>(0, (sum, transaction) => sum + transaction.amount);
     final maxValue = [income, expense, transfer]
         .fold<double>(1, (max, value) => value > max ? value : max);

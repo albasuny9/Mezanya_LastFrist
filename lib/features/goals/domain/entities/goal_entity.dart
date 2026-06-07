@@ -59,8 +59,10 @@ class GoalEntity {
       id: map['id'] as String? ?? '',
       name: map['name'] as String? ?? '',
       targetAmount: (map['targetAmount'] as num?)?.toDouble() ?? 0,
-      startDate: DateTime.tryParse(map['startDate'] as String? ?? '') ?? DateTime.now(),
-      endDate: DateTime.tryParse(map['endDate'] as String? ?? '') ?? DateTime.now(),
+      startDate: DateTime.tryParse(map['startDate'] as String? ?? '') ??
+          DateTime.now(),
+      endDate:
+          DateTime.tryParse(map['endDate'] as String? ?? '') ?? DateTime.now(),
       icon: map['icon'] as String? ?? 'savings',
       iconColor: map['iconColor'] as String? ?? '#2f6f5e',
       notes: map['notes'] as String?,

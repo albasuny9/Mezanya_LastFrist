@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+
 import 'package:intl/intl.dart';
+
+import '../../../../core/constants/transaction_types.dart';
 
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -25,9 +28,9 @@ class _MoneyScreenState extends State<MoneyScreen> {
   static const _green = Color(0xFF165b47);
 
   bool _isJarTx(TransactionEntity t) =>
-      t.transferType == 'jar-allocation' ||
-      t.transferType == 'jar-allocation-cancel' ||
-      t.transferType == 'jar-allocation-spend';
+      t.transferType == TransferType.jarAllocation.value ||
+      t.transferType == TransferType.jarAllocationCancel.value ||
+      t.transferType == TransferType.jarAllocationSpend.value;
 
   @override
   Widget build(BuildContext context) {
@@ -48,10 +51,10 @@ class _MoneyScreenState extends State<MoneyScreen> {
 
         final totalBalance = wallets.fold<double>(0, (s, w) => s + w.balance);
         final netIncome = monthTx
-            .where((t) => t.type == 'income')
+            .where((t) => t.type == TransactionType.income.value)
             .fold<double>(0, (s, t) => s + t.amount);
         final netExpense = monthTx
-            .where((t) => t.type == 'expense')
+            .where((t) => t.type == TransactionType.expense.value)
             .fold<double>(0, (s, t) => s + t.amount);
         final netSaving = netIncome - netExpense;
         // Empty month → full green; spending with no income → red
@@ -111,14 +114,16 @@ class _MoneyScreenState extends State<MoneyScreen> {
                       children: monthTx
                           .take(5)
                           .map((t) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: SharedTransactionCard(
-                              transaction: t,
-                              appState: state,
-                              onTap: () => openTransactionDetailsSheet(context,
-                                  cubit: widget.cubit, transaction: t),
-                            ),
-                          ))
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: SharedTransactionCard(
+                                  transaction: t,
+                                  appState: state,
+                                  onTap: () => openTransactionDetailsSheet(
+                                      context,
+                                      cubit: widget.cubit,
+                                      transaction: t),
+                                ),
+                              ))
                           .toList(),
                     ),
             ),
@@ -483,7 +488,6 @@ class _HeroStat extends StatelessWidget {
   }
 }
 
-
 class _QuickStatsRow extends StatelessWidget {
   const _QuickStatsRow({required this.monthTx, required this.categories});
   final List<TransactionEntity> monthTx;
@@ -491,8 +495,9 @@ class _QuickStatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final expenseTx = monthTx.where((t) => t.type == 'expense').toList();
-    monthTx.where((t) => t.type == 'income').toList();
+    final expenseTx =
+        monthTx.where((t) => t.type == TransactionType.expense.value).toList();
+    monthTx.where((t) => t.type == TransactionType.income.value).toList();
     final avgExpense = expenseTx.isEmpty
         ? 0.0
         : expenseTx.fold<double>(0, (s, t) => s + t.amount) / expenseTx.length;
@@ -725,8 +730,6 @@ class _EmptyHint extends StatelessWidget {
   }
 }
 
-
-
 // ── Mini Chart Preview ─────────────────────────────────────────────────────
 
 class _MiniChartPreview extends StatelessWidget {
@@ -751,7 +754,8 @@ class _MiniChartPreview extends StatelessWidget {
 
     // Top 3 categories
     final catMap = <String, double>{};
-    for (final t in monthTx.where((t) => t.type == 'expense')) {
+    for (final t
+        in monthTx.where((t) => t.type == TransactionType.expense.value)) {
       if (t.categoryId != null) {
         catMap[t.categoryId!] = (catMap[t.categoryId!] ?? 0) + t.amount;
       }

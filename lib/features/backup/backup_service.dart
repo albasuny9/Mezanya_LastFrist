@@ -18,8 +18,7 @@ class BackupService {
 
   static Future<String?> fetchData(String email) async {
     try {
-      final doc =
-          await _root(email).collection('data').doc('backup').get();
+      final doc = await _root(email).collection('data').doc('backup').get();
       if (!doc.exists || doc.data() == null) return null;
       return doc.data()!['backup'] as String?;
     } catch (_) {

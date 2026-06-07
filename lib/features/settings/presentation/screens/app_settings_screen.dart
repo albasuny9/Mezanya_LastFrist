@@ -85,8 +85,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     final ext = result.files.single.extension ?? 'jpg';
     setState(() => _uploadingImage = true);
     try {
-      final uid = _account?.id ??
-          widget.cubit.state.userName.hashCode.toString();
+      final uid =
+          _account?.id ?? widget.cubit.state.userName.hashCode.toString();
       final ref =
           FirebaseStorage.instance.ref().child('profile_images/$uid.$ext');
       await ref.putData(bytes, SettableMetadata(contentType: 'image/$ext'));
@@ -258,7 +258,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     widget.cubit.updateSettings(googleEmail: '');
     setState(() => _account = null);
   }
-
 
   Future<void> _showWipeSheet() async {
     showModalBottomSheet<void>(

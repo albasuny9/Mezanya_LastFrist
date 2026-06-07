@@ -1,3 +1,4 @@
+import '../../../../core/constants/transaction_types.dart';
 import '../entities/recurring_transaction_entity.dart';
 
 enum RecurringExpensePromptState {
@@ -45,10 +46,10 @@ class RecurringScheduleEngine {
 
   static Duration reminderDuration(RecurringTransactionEntity recurring) {
     final lead = recurring.reminderLeadDays ?? 0;
-    if (recurring.recurrencePattern == 'daily' ||
-        recurring.recurrencePattern == 'weekly' ||
-        recurring.recurrencePattern == 'biweekly' ||
-        recurring.recurrencePattern == 'every_3_weeks') {
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value ||
+        recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
       return Duration(hours: lead);
     }
     return Duration(days: lead);
@@ -61,9 +62,9 @@ class RecurringScheduleEngine {
     final reference = from ?? DateTime.now();
 
     // للأنماط الأسبوعية: الـ anchor هو آخر يوم مطابق في الأسبوع الحالي أو السابق
-    if (recurring.recurrencePattern == 'weekly' ||
-        recurring.recurrencePattern == 'biweekly' ||
-        recurring.recurrencePattern == 'every_3_weeks') {
+    if (recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
       final weekdays = _resolvedWeekdays(recurring, reference);
       if (weekdays.isNotEmpty) {
         // ابحث عن أقرب يوم مطابق في الماضي (حتى 21 يوم للخلف)
@@ -80,10 +81,10 @@ class RecurringScheduleEngine {
     }
 
     // للأنماط الشهرية: الـ anchor هو يوم الاستحقاق في الشهر الحالي أو السابق
-    if (recurring.recurrencePattern == 'monthly' ||
-        recurring.recurrencePattern == 'every_2_months' ||
-        recurring.recurrencePattern == 'every_3_months' ||
-        recurring.recurrencePattern == 'every_6_months') {
+    if (recurring.recurrencePattern == RecurrencePattern.monthly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every2Months.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Months.value ||
+        recurring.recurrencePattern == RecurrencePattern.every6Months.value) {
       final time =
           parseScheduledTime(recurring.scheduledTime, reference) ?? reference;
       final thisMonthDay =
@@ -100,7 +101,7 @@ class RecurringScheduleEngine {
     }
 
     // للسنوي: الـ anchor هو تاريخ اليوم لضمان عدم استرجاع استحقاقات من السنة الماضية للمشتريات الجديدة
-    if (recurring.recurrencePattern == 'yearly') {
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
       return reference;
     }
 
@@ -130,63 +131,66 @@ class RecurringScheduleEngine {
           minute,
         );
 
-    switch (recurring.recurrencePattern) {
-      case 'daily':
-        final today = atDate(now);
-        final candidate =
-            today.isAfter(now) ? today : today.add(const Duration(days: 1));
-        return _applyAnchor(candidate, explicitAnchor);
-      case 'weekly':
-      case 'biweekly':
-      case 'every_3_weeks':
-        final weekdays = _resolvedWeekdays(recurring, now);
-        if (weekdays.isEmpty) return null;
-        final intervalWeeks = _weekInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, now, hour, minute);
-        for (var offset = 0; offset <= 366 * 3; offset++) {
-          final day = now.add(Duration(days: offset));
-          if (!weekdays.contains(day.weekday)) continue;
-          if (!_weekCycleMatches(anchor, day, intervalWeeks)) continue;
-          final candidate = atDate(day);
-          if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) continue;
-          if (candidate.isAfter(now)) return candidate;
-        }
-        return null;
-      case 'yearly':
-        final month = (recurring.monthOfYear ?? now.month).clamp(1, 12);
-        final day = _dayInMonth(now.year, month, recurring.dayOfMonth);
-        var candidate = DateTime(now.year, month, day, hour, minute);
-        if (_isOnOrAfterAnchor(candidate, explicitAnchor) &&
-            candidate.isAfter(now)) {
-          return candidate;
-        }
-        final nextYearDay =
-            _dayInMonth(now.year + 1, month, recurring.dayOfMonth);
-        candidate = DateTime(now.year + 1, month, nextYearDay, hour, minute);
-        return _applyAnchor(candidate, explicitAnchor);
-      default:
-        final intervalMonths = _monthInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, now, hour, minute);
-        for (var offset = 0; offset <= 120; offset++) {
-          final monthDate = DateTime(now.year, now.month + offset, 1);
-          final day = _dayInMonth(
-            monthDate.year,
-            monthDate.month,
-            recurring.dayOfMonth,
-          );
-          final candidate = DateTime(
-            monthDate.year,
-            monthDate.month,
-            day,
-            hour,
-            minute,
-          );
-          if (!_monthCycleMatches(anchor, candidate, intervalMonths)) continue;
-          if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) continue;
-          if (candidate.isAfter(now)) return candidate;
-        }
-        return null;
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
+      final today = atDate(now);
+      final candidate =
+          today.isAfter(now) ? today : today.add(const Duration(days: 1));
+      return _applyAnchor(candidate, explicitAnchor);
     }
+
+    if (recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
+      final weekdays = _resolvedWeekdays(recurring, now);
+      if (weekdays.isEmpty) return null;
+      final intervalWeeks = _weekInterval(recurring.recurrencePattern);
+      final anchor = _resolvedAnchor(recurring, now, hour, minute);
+      for (var offset = 0; offset <= 366 * 3; offset++) {
+        final day = now.add(Duration(days: offset));
+        if (!weekdays.contains(day.weekday)) continue;
+        if (!_weekCycleMatches(anchor, day, intervalWeeks)) continue;
+        final candidate = atDate(day);
+        if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) continue;
+        if (candidate.isAfter(now)) return candidate;
+      }
+      return null;
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
+      final month = (recurring.monthOfYear ?? now.month).clamp(1, 12);
+      final day = _dayInMonth(now.year, month, recurring.dayOfMonth);
+      var candidate = DateTime(now.year, month, day, hour, minute);
+      if (_isOnOrAfterAnchor(candidate, explicitAnchor) &&
+          candidate.isAfter(now)) {
+        return candidate;
+      }
+      final nextYearDay =
+          _dayInMonth(now.year + 1, month, recurring.dayOfMonth);
+      candidate = DateTime(now.year + 1, month, nextYearDay, hour, minute);
+      return _applyAnchor(candidate, explicitAnchor);
+    }
+
+    final intervalMonths = _monthInterval(recurring.recurrencePattern);
+    final anchor = _resolvedAnchor(recurring, now, hour, minute);
+    for (var offset = 0; offset <= 120; offset++) {
+      final monthDate = DateTime(now.year, now.month + offset, 1);
+      final day = _dayInMonth(
+        monthDate.year,
+        monthDate.month,
+        recurring.dayOfMonth,
+      );
+      final candidate = DateTime(
+        monthDate.year,
+        monthDate.month,
+        day,
+        hour,
+        minute,
+      );
+      if (!_monthCycleMatches(anchor, candidate, intervalMonths)) continue;
+      if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) continue;
+      if (candidate.isAfter(now)) return candidate;
+    }
+    return null;
   }
 
   static DateTime? dueOccurrenceNow(
@@ -208,83 +212,86 @@ class RecurringScheduleEngine {
           minute,
         );
 
-    switch (recurring.recurrencePattern) {
-      case 'daily':
-        final today = atDate(now);
-        if (today.isAfter(now)) return null;
-        return _isOnOrAfterAnchor(today, explicitAnchor) ? today : null;
-      case 'weekly':
-      case 'biweekly':
-      case 'every_3_weeks':
-        final weekdays = _resolvedWeekdays(recurring, now);
-        if (weekdays.isEmpty) return null;
-        final intervalWeeks = _weekInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, now, hour, minute);
-        final maxLookBack = hasScheduleHistory ? 366 * 3 : 6;
-        for (var offset = 0; offset <= maxLookBack; offset++) {
-          final day = now.subtract(Duration(days: offset));
-          if (!weekdays.contains(day.weekday)) continue;
-          if (!_weekCycleMatches(anchor, day, intervalWeeks)) continue;
-          final candidate = atDate(day);
-          if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) return null;
-          if (!candidate.isAfter(now)) return candidate;
-        }
-        return null;
-      case 'yearly':
-        final month = (recurring.monthOfYear ?? now.month).clamp(1, 12);
-        final thisYearDay = _dayInMonth(now.year, month, recurring.dayOfMonth);
-        final candidate = DateTime(now.year, month, thisYearDay, hour, minute);
-        if (!candidate.isAfter(now) &&
-            _isOnOrAfterAnchor(candidate, explicitAnchor)) {
-          return candidate;
-        }
-        if (!hasScheduleHistory) return null;
-        final previousYearDay =
-            _dayInMonth(now.year - 1, month, recurring.dayOfMonth);
-        final previous =
-            DateTime(now.year - 1, month, previousYearDay, hour, minute);
-        return _isOnOrAfterAnchor(previous, explicitAnchor) ? previous : null;
-      default:
-        final intervalMonths = _monthInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, now, hour, minute);
-        final currentMonthDay = _dayInMonth(
-          now.year,
-          now.month,
-          recurring.dayOfMonth,
-        );
-        final currentCandidate = DateTime(
-          now.year,
-          now.month,
-          currentMonthDay,
-          hour,
-          minute,
-        );
-        if (!hasScheduleHistory) {
-          if (currentCandidate.isAfter(now)) return null;
-          return _isOnOrAfterAnchor(currentCandidate, explicitAnchor)
-              ? currentCandidate
-              : null;
-        }
-        for (var offset = 0; offset <= 120; offset++) {
-          final monthDate = DateTime(now.year, now.month - offset, 1);
-          final day = _dayInMonth(
-            monthDate.year,
-            monthDate.month,
-            recurring.dayOfMonth,
-          );
-          final candidate = DateTime(
-            monthDate.year,
-            monthDate.month,
-            day,
-            hour,
-            minute,
-          );
-          if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) return null;
-          if (!_monthCycleMatches(anchor, candidate, intervalMonths)) continue;
-          if (!candidate.isAfter(now)) return candidate;
-        }
-        return null;
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
+      final today = atDate(now);
+      if (today.isAfter(now)) return null;
+      return _isOnOrAfterAnchor(today, explicitAnchor) ? today : null;
     }
+
+    if (recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
+      final weekdays = _resolvedWeekdays(recurring, now);
+      if (weekdays.isEmpty) return null;
+      final intervalWeeks = _weekInterval(recurring.recurrencePattern);
+      final anchor = _resolvedAnchor(recurring, now, hour, minute);
+      final maxLookBack = hasScheduleHistory ? 366 * 3 : 6;
+      for (var offset = 0; offset <= maxLookBack; offset++) {
+        final day = now.subtract(Duration(days: offset));
+        if (!weekdays.contains(day.weekday)) continue;
+        if (!_weekCycleMatches(anchor, day, intervalWeeks)) continue;
+        final candidate = atDate(day);
+        if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) return null;
+        if (!candidate.isAfter(now)) return candidate;
+      }
+      return null;
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
+      final month = (recurring.monthOfYear ?? now.month).clamp(1, 12);
+      final thisYearDay = _dayInMonth(now.year, month, recurring.dayOfMonth);
+      final candidate = DateTime(now.year, month, thisYearDay, hour, minute);
+      if (!candidate.isAfter(now) &&
+          _isOnOrAfterAnchor(candidate, explicitAnchor)) {
+        return candidate;
+      }
+      if (!hasScheduleHistory) return null;
+      final previousYearDay =
+          _dayInMonth(now.year - 1, month, recurring.dayOfMonth);
+      final previous =
+          DateTime(now.year - 1, month, previousYearDay, hour, minute);
+      return _isOnOrAfterAnchor(previous, explicitAnchor) ? previous : null;
+    }
+
+    final intervalMonths = _monthInterval(recurring.recurrencePattern);
+    final anchor = _resolvedAnchor(recurring, now, hour, minute);
+    final currentMonthDay = _dayInMonth(
+      now.year,
+      now.month,
+      recurring.dayOfMonth,
+    );
+    final currentCandidate = DateTime(
+      now.year,
+      now.month,
+      currentMonthDay,
+      hour,
+      minute,
+    );
+    if (!hasScheduleHistory) {
+      if (currentCandidate.isAfter(now)) return null;
+      return _isOnOrAfterAnchor(currentCandidate, explicitAnchor)
+          ? currentCandidate
+          : null;
+    }
+    for (var offset = 0; offset <= 120; offset++) {
+      final monthDate = DateTime(now.year, now.month - offset, 1);
+      final day = _dayInMonth(
+        monthDate.year,
+        monthDate.month,
+        recurring.dayOfMonth,
+      );
+      final candidate = DateTime(
+        monthDate.year,
+        monthDate.month,
+        day,
+        hour,
+        minute,
+      );
+      if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) return null;
+      if (!_monthCycleMatches(anchor, candidate, intervalMonths)) continue;
+      if (!candidate.isAfter(now)) return candidate;
+    }
+    return null;
   }
 
   static bool wasOccurrenceHandled(
@@ -327,7 +334,7 @@ class RecurringScheduleEngine {
       return null;
     }
 
-    if (recurring.executionType == 'auto') {
+    if (recurring.executionType == AutomationType.auto.value) {
       if (dueOccurrence == null ||
           wasOccurrenceHandled(recurring, dueOccurrence)) {
         return null;
@@ -343,25 +350,30 @@ class RecurringScheduleEngine {
       );
     }
 
-    if (recurring.executionType != 'confirm') {
+    if (recurring.executionType != AutomationType.confirm.value) {
       return null;
     }
 
     if (dueOccurrence != null &&
         !wasOccurrenceHandled(recurring, dueOccurrence)) {
-      
       // If it has never been handled (newly created), and the most recent past occurrence is too old,
       // the user probably doesn't want to be nagged about it. We should just wait for the next one.
       bool ignoreDue = false;
-      if (recurring.lastHandledOccurrenceAt == null || recurring.lastHandledOccurrenceAt!.isEmpty) {
+      if (recurring.lastHandledOccurrenceAt == null ||
+          recurring.lastHandledOccurrenceAt!.isEmpty) {
         final ageDays = now.difference(dueOccurrence).inDays;
-        if (recurring.recurrencePattern == 'yearly' && ageDays > 30) {
+        if (recurring.recurrencePattern == RecurrencePattern.yearly.value &&
+            ageDays > 30) {
           ignoreDue = true;
-        } else if (recurring.recurrencePattern.contains('month') && ageDays > 15) {
+        } else if (recurring.recurrencePattern.contains('month') &&
+            ageDays > 15) {
           ignoreDue = true;
-        } else if (recurring.recurrencePattern.contains('week') && ageDays > 7) {
+        } else if (recurring.recurrencePattern.contains('week') &&
+            ageDays > 7) {
           ignoreDue = true;
-        } else if (recurring.recurrencePattern == 'daily' && ageDays > 2) {
+        } else if (recurring.recurrencePattern ==
+                RecurrencePattern.daily.value &&
+            ageDays > 2) {
           ignoreDue = true;
         }
       }
@@ -434,74 +446,72 @@ class RecurringScheduleEngine {
     final hour = time.hour;
     final minute = time.minute;
 
-
-    switch (recurring.recurrencePattern) {
-      case 'daily':
-        var count = 0;
-        var cursor = start;
-        while (!cursor.isAfter(end)) {
-          count++;
-          cursor = cursor.add(const Duration(days: 1));
-        }
-        return count;
-
-      case 'weekly':
-        final weekdays = _resolvedWeekdays(recurring, start);
-        if (weekdays.isEmpty) return 0;
-        var count = 0;
-        var cursor = start;
-        while (!cursor.isAfter(end)) {
-          if (weekdays.contains(cursor.weekday)) count++;
-          cursor = cursor.add(const Duration(days: 1));
-        }
-        return count;
-
-      case 'biweekly':
-      case 'every_3_weeks':
-        final weekdays = _resolvedWeekdays(recurring, start);
-        if (weekdays.isEmpty) return 0;
-        final intervalWeeks = _weekInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, start, hour, minute);
-        var count = 0;
-        var cursor = start;
-        while (!cursor.isAfter(end)) {
-          if (weekdays.contains(cursor.weekday) &&
-              _weekCycleMatches(anchor, cursor, intervalWeeks)) {
-            count++;
-          }
-          cursor = cursor.add(const Duration(days: 1));
-        }
-        return count;
-
-      case 'yearly':
-        final month = (recurring.monthOfYear ?? start.month).clamp(1, 12);
-        var count = 0;
-        for (var y = start.year; y <= end.year; y++) {
-          final d = _dayInMonth(y, month, recurring.dayOfMonth);
-          final candidate = DateTime(y, month, d, hour, minute);
-          if (!candidate.isBefore(start) && !candidate.isAfter(end)) count++;
-        }
-        return count;
-
-      default:
-        final intervalMonths = _monthInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, start, hour, minute);
-        var count = 0;
-        var cursor = DateTime(start.year, start.month, 1);
-        while (!cursor.isAfter(end)) {
-          final d =
-              _dayInMonth(cursor.year, cursor.month, recurring.dayOfMonth);
-          final candidate =
-              DateTime(cursor.year, cursor.month, d, hour, minute);
-          if (!candidate.isBefore(start) &&
-              !candidate.isAfter(end) &&
-              _monthCycleMatches(anchor, candidate, intervalMonths)) {
-            count++;
-          }
-          cursor = DateTime(cursor.year, cursor.month + 1, 1);
-        }
-        return count;
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
+      var count = 0;
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        count++;
+        cursor = cursor.add(const Duration(days: 1));
+      }
+      return count;
     }
+
+    if (recurring.recurrencePattern == RecurrencePattern.weekly.value) {
+      final weekdays = _resolvedWeekdays(recurring, start);
+      if (weekdays.isEmpty) return 0;
+      var count = 0;
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        if (weekdays.contains(cursor.weekday)) count++;
+        cursor = cursor.add(const Duration(days: 1));
+      }
+      return count;
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
+      final weekdays = _resolvedWeekdays(recurring, start);
+      if (weekdays.isEmpty) return 0;
+      final intervalWeeks = _weekInterval(recurring.recurrencePattern);
+      final anchor = _resolvedAnchor(recurring, start, hour, minute);
+      var count = 0;
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        if (weekdays.contains(cursor.weekday) &&
+            _weekCycleMatches(anchor, cursor, intervalWeeks)) {
+          count++;
+        }
+        cursor = cursor.add(const Duration(days: 1));
+      }
+      return count;
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
+      final month = (recurring.monthOfYear ?? start.month).clamp(1, 12);
+      var count = 0;
+      for (var y = start.year; y <= end.year; y++) {
+        final d = _dayInMonth(y, month, recurring.dayOfMonth);
+        final candidate = DateTime(y, month, d, hour, minute);
+        if (!candidate.isBefore(start) && !candidate.isAfter(end)) count++;
+      }
+      return count;
+    }
+
+    final intervalMonths = _monthInterval(recurring.recurrencePattern);
+    final anchor = _resolvedAnchor(recurring, start, hour, minute);
+    var count = 0;
+    var cursor = DateTime(start.year, start.month, 1);
+    while (!cursor.isAfter(end)) {
+      final d = _dayInMonth(cursor.year, cursor.month, recurring.dayOfMonth);
+      final candidate = DateTime(cursor.year, cursor.month, d, hour, minute);
+      if (!candidate.isBefore(start) &&
+          !candidate.isAfter(end) &&
+          _monthCycleMatches(anchor, candidate, intervalMonths)) {
+        count++;
+      }
+      cursor = DateTime(cursor.year, cursor.month + 1, 1);
+    }
+    return count;
   }
 
   static List<DateTime> occurrenceDatesInRange(
@@ -541,72 +551,71 @@ class RecurringScheduleEngine {
 
     final dates = <DateTime>[];
 
-    switch (recurring.recurrencePattern) {
-      case 'daily':
-        var cursor = start;
-        while (!cursor.isAfter(end)) {
-          dates.add(atDate(cursor));
-          cursor = cursor.add(const Duration(days: 1));
-        }
-        return dates;
-
-      case 'weekly':
-        final weekdays = _resolvedWeekdays(recurring, start);
-        if (weekdays.isEmpty) return dates;
-        var cursor = start;
-        while (!cursor.isAfter(end)) {
-          if (weekdays.contains(cursor.weekday)) {
-            dates.add(atDate(cursor));
-          }
-          cursor = cursor.add(const Duration(days: 1));
-        }
-        return dates;
-
-      case 'biweekly':
-      case 'every_3_weeks':
-        final weekdays = _resolvedWeekdays(recurring, start);
-        if (weekdays.isEmpty) return dates;
-        final intervalWeeks = _weekInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, start, hour, minute);
-        var cursor = start;
-        while (!cursor.isAfter(end)) {
-          if (weekdays.contains(cursor.weekday) &&
-              _weekCycleMatches(anchor, cursor, intervalWeeks)) {
-            dates.add(atDate(cursor));
-          }
-          cursor = cursor.add(const Duration(days: 1));
-        }
-        return dates;
-
-      case 'yearly':
-        final month = (recurring.monthOfYear ?? start.month).clamp(1, 12);
-        for (var y = start.year; y <= end.year; y++) {
-          final d = _dayInMonth(y, month, recurring.dayOfMonth);
-          final candidate = DateTime(y, month, d, hour, minute);
-          if (!candidate.isBefore(start) && !candidate.isAfter(end)) {
-            dates.add(candidate);
-          }
-        }
-        return dates;
-
-      default:
-        final intervalMonths = _monthInterval(recurring.recurrencePattern);
-        final anchor = _resolvedAnchor(recurring, start, hour, minute);
-        var cursor = DateTime(start.year, start.month, 1);
-        while (!cursor.isAfter(end)) {
-          final d =
-              _dayInMonth(cursor.year, cursor.month, recurring.dayOfMonth);
-          final candidate =
-              DateTime(cursor.year, cursor.month, d, hour, minute);
-          if (!candidate.isBefore(start) &&
-              !candidate.isAfter(end) &&
-              _monthCycleMatches(anchor, candidate, intervalMonths)) {
-            dates.add(candidate);
-          }
-          cursor = DateTime(cursor.year, cursor.month + 1, 1);
-        }
-        return dates;
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        dates.add(atDate(cursor));
+        cursor = cursor.add(const Duration(days: 1));
+      }
+      return dates;
     }
+
+    if (recurring.recurrencePattern == RecurrencePattern.weekly.value) {
+      final weekdays = _resolvedWeekdays(recurring, start);
+      if (weekdays.isEmpty) return dates;
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        if (weekdays.contains(cursor.weekday)) {
+          dates.add(atDate(cursor));
+        }
+        cursor = cursor.add(const Duration(days: 1));
+      }
+      return dates;
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
+      final weekdays = _resolvedWeekdays(recurring, start);
+      if (weekdays.isEmpty) return dates;
+      final intervalWeeks = _weekInterval(recurring.recurrencePattern);
+      final anchor = _resolvedAnchor(recurring, start, hour, minute);
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        if (weekdays.contains(cursor.weekday) &&
+            _weekCycleMatches(anchor, cursor, intervalWeeks)) {
+          dates.add(atDate(cursor));
+        }
+        cursor = cursor.add(const Duration(days: 1));
+      }
+      return dates;
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
+      final month = (recurring.monthOfYear ?? start.month).clamp(1, 12);
+      for (var y = start.year; y <= end.year; y++) {
+        final d = _dayInMonth(y, month, recurring.dayOfMonth);
+        final candidate = DateTime(y, month, d, hour, minute);
+        if (!candidate.isBefore(start) && !candidate.isAfter(end)) {
+          dates.add(candidate);
+        }
+      }
+      return dates;
+    }
+
+    final intervalMonths = _monthInterval(recurring.recurrencePattern);
+    final anchor = _resolvedAnchor(recurring, start, hour, minute);
+    var cursor = DateTime(start.year, start.month, 1);
+    while (!cursor.isAfter(end)) {
+      final d = _dayInMonth(cursor.year, cursor.month, recurring.dayOfMonth);
+      final candidate = DateTime(cursor.year, cursor.month, d, hour, minute);
+      if (!candidate.isBefore(start) &&
+          !candidate.isAfter(end) &&
+          _monthCycleMatches(anchor, candidate, intervalMonths)) {
+        dates.add(candidate);
+      }
+      cursor = DateTime(cursor.year, cursor.month + 1, 1);
+    }
+    return dates;
   }
 
   static bool isSameCalendarDay(DateTime left, DateTime right) {
@@ -686,80 +695,82 @@ class RecurringScheduleEngine {
       return DateTime(handled.year, handled.month, handled.day, hour, minute);
     }
 
-    switch (recurring.recurrencePattern) {
-      case 'daily':
-        final today = DateTime(
-          reference.year,
-          reference.month,
-          reference.day,
-          hour,
-          minute,
-        );
-        return today.isAfter(reference)
-            ? today.subtract(const Duration(days: 1))
-            : today;
-      case 'weekly':
-      case 'biweekly':
-      case 'every_3_weeks':
-        final weekdays = _resolvedWeekdays(recurring, reference);
-        for (var offset = 0; offset <= 21; offset++) {
-          final day = reference.subtract(Duration(days: offset));
-          if (weekdays.contains(day.weekday)) {
-            final candidate = DateTime(
-              day.year,
-              day.month,
-              day.day,
-              hour,
-              minute,
-            );
-            if (!candidate.isAfter(reference)) return candidate;
-          }
-        }
-        final fallback = reference;
-        return DateTime(
-          fallback.year,
-          fallback.month,
-          fallback.day,
-          hour,
-          minute,
-        );
-      case 'yearly':
-        final month = (recurring.monthOfYear ?? reference.month).clamp(1, 12);
-        final day = _dayInMonth(reference.year, month, recurring.dayOfMonth);
-        final candidate = DateTime(reference.year, month, day, hour, minute);
-        if (!candidate.isAfter(reference)) return candidate;
-        final previousYearDay =
-            _dayInMonth(reference.year - 1, month, recurring.dayOfMonth);
-        return DateTime(
-            reference.year - 1, month, previousYearDay, hour, minute);
-      default:
-        final day = _dayInMonth(
-          reference.year,
-          reference.month,
-          recurring.dayOfMonth,
-        );
-        final candidate = DateTime(
-          reference.year,
-          reference.month,
-          day,
-          hour,
-          minute,
-        );
-        if (!candidate.isAfter(reference)) return candidate;
-        final previousMonth = DateTime(reference.year, reference.month - 1, 1);
-        final previousDay = _dayInMonth(
-          previousMonth.year,
-          previousMonth.month,
-          recurring.dayOfMonth,
-        );
-        return DateTime(
-          previousMonth.year,
-          previousMonth.month,
-          previousDay,
-          hour,
-          minute,
-        );
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
+      final today = DateTime(
+        reference.year,
+        reference.month,
+        reference.day,
+        hour,
+        minute,
+      );
+      return today.isAfter(reference)
+          ? today.subtract(const Duration(days: 1))
+          : today;
     }
+
+    if (recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
+      final weekdays = _resolvedWeekdays(recurring, reference);
+      for (var offset = 0; offset <= 21; offset++) {
+        final day = reference.subtract(Duration(days: offset));
+        if (weekdays.contains(day.weekday)) {
+          final candidate = DateTime(
+            day.year,
+            day.month,
+            day.day,
+            hour,
+            minute,
+          );
+          if (!candidate.isAfter(reference)) return candidate;
+        }
+      }
+      final fallback = reference;
+      return DateTime(
+        fallback.year,
+        fallback.month,
+        fallback.day,
+        hour,
+        minute,
+      );
+    }
+
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
+      final month = (recurring.monthOfYear ?? reference.month).clamp(1, 12);
+      final day = _dayInMonth(reference.year, month, recurring.dayOfMonth);
+      final candidate = DateTime(reference.year, month, day, hour, minute);
+      if (!candidate.isAfter(reference)) return candidate;
+      final previousYearDay =
+          _dayInMonth(reference.year - 1, month, recurring.dayOfMonth);
+      return DateTime(reference.year - 1, month, previousYearDay, hour, minute);
+    }
+
+    final day = _dayInMonth(
+      reference.year,
+      reference.month,
+      recurring.dayOfMonth,
+    );
+    final candidate = DateTime(
+      reference.year,
+      reference.month,
+      day,
+      hour,
+      minute,
+    );
+    if (!candidate.isAfter(reference)) return candidate;
+    final previousMonth = DateTime(reference.year, reference.month - 1, 1);
+    final previousDay = _dayInMonth(
+      previousMonth.year,
+      previousMonth.month,
+      recurring.dayOfMonth,
+    );
+    return DateTime(
+      previousMonth.year,
+      previousMonth.month,
+      previousDay,
+      hour,
+      minute,
+    );
   }
 
   static bool _weekCycleMatches(

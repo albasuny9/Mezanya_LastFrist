@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
@@ -23,20 +24,28 @@ class SharedTransactionCard extends StatelessWidget {
       getCategoryForTransaction(appState, transaction.categoryId);
 
   String _typeLabel() {
-    if (transaction.type == 'income') return 'دخل';
-    if (transaction.type == 'expense') return 'مصروف';
+    if (transaction.type == TransactionType.income.value) return 'دخل';
+    if (transaction.type == TransactionType.expense.value) return 'مصروف';
     return 'تحويل';
   }
 
   Color _typeColor() {
-    if (transaction.type == 'income') return const Color(0xFF16A34A);
-    if (transaction.type == 'expense') return const Color(0xFFDC2626);
+    if (transaction.type == TransactionType.income.value) {
+      return const Color(0xFF16A34A);
+    }
+    if (transaction.type == TransactionType.expense.value) {
+      return const Color(0xFFDC2626);
+    }
     return const Color(0xFF2563EB); // Transfer
   }
 
   IconData _fallbackIcon() {
-    if (transaction.type == 'income') return Icons.arrow_downward_rounded;
-    if (transaction.type == 'expense') return Icons.arrow_upward_rounded;
+    if (transaction.type == TransactionType.income.value) {
+      return Icons.arrow_downward_rounded;
+    }
+    if (transaction.type == TransactionType.expense.value) {
+      return Icons.arrow_upward_rounded;
+    }
     return Icons.swap_horiz_rounded;
   }
 
@@ -47,10 +56,10 @@ class SharedTransactionCard extends StatelessWidget {
     // not the specific custom category color.
     final color = _typeColor();
 
-    final isNegative = transaction.type == 'expense' ||
-        transaction.transferType == 'jar-funding-physical' ||
-        transaction.transferType == 'jar-allocation-cancel' ||
-        transaction.transferType == 'jar-allocation-spend';
+    final isNegative = transaction.type == TransactionType.expense.value ||
+        transaction.transferType == TransferType.jarFundingPhysical.value ||
+        transaction.transferType == TransferType.jarAllocationCancel.value ||
+        transaction.transferType == TransferType.jarAllocationSpend.value;
 
     final targetJarName = transaction.toWalletId == null
         ? null
@@ -60,15 +69,7 @@ class SharedTransactionCard extends StatelessWidget {
             .cast<String?>()
             .firstWhere((_) => true, orElse: () => null);
 
-    final label = switch (transaction.transferType) {
-      'jar-allocation' => 'تخصيص للحصالة',
-      'jar-allocation-cancel' => 'إلغاء تخصيص',
-      'jar-allocation-spend' => 'سحب من المحجوز',
-      'jar-funding' => 'حجز لحصالة ${targetJarName ?? 'التوفير'}',
-      'wallet-to-wallet' => 'تحويل بين المحافظ',
-      'jar-funding-physical' => 'خصم لحصالة ${targetJarName ?? 'التوفير'}',
-      _ => transaction.notes ?? _typeLabel(),
-    };
+    final label = _transferLabel(targetJarName);
 
     final displayTitle = cat?.name ?? label;
 
@@ -245,5 +246,27 @@ class SharedTransactionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _transferLabel(String? targetJarName) {
+    if (transaction.transferType == TransferType.jarAllocation.value) {
+      return 'تخصيص للحصالة';
+    }
+    if (transaction.transferType == TransferType.jarAllocationCancel.value) {
+      return 'إلغاء تخصيص';
+    }
+    if (transaction.transferType == TransferType.jarAllocationSpend.value) {
+      return 'سحب من المحجوز';
+    }
+    if (transaction.transferType == TransferType.jarFunding.value) {
+      return 'حجز لحصالة ${targetJarName ?? 'التوفير'}';
+    }
+    if (transaction.transferType == TransferType.walletToWallet.value) {
+      return 'تحويل بين المحافظ';
+    }
+    if (transaction.transferType == TransferType.jarFundingPhysical.value) {
+      return 'خصم لحصالة ${targetJarName ?? 'التوفير'}';
+    }
+    return transaction.notes ?? _typeLabel();
   }
 }

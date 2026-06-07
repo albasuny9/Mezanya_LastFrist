@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/constants/transaction_types.dart';
+
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../goals/domain/entities/goal_entity.dart';
@@ -19,38 +21,40 @@ class AppCubit extends Cubit<AppStateEntity> {
   final AppRepository _repository;
 
   Future<void> initialize() async {
-    emit(await _repository.loadState());
-    await ensureDefaultSavingsJar();
-    await syncSavingsJarWithReserved();
-    await _migrateOrphanedDebtRecurring();
+    var appState = await _repository.loadState();
+    appState = _ensureDefaultSavingsJarSync(appState);
+    appState = _syncSavingsJarWithReservedSync(appState);
+    appState = _migrateOrphanedDebtRecurringSync(appState);
     final key = _monthKey();
-    if (!state.monthlyBudgetSnapshots.containsKey(key)) {
-      final next = _withMonthlySnapshot(state, state.budgetSetup);
-      await _repository.saveState(next);
-      emit(next);
+    if (!appState.monthlyBudgetSnapshots.containsKey(key)) {
+      appState = _withMonthlySnapshot(appState, appState.budgetSetup);
     }
+    await _repository.saveState(appState);
+    emit(appState);
   }
 
   /// مزامنة الديون/الاشتراكات القديمة التي تُحفظ كـ RecurringTransaction
   /// بدون DebtEntity مقابلة في budget.debts
-  Future<void> _migrateOrphanedDebtRecurring() async {
-    final linkedIds = state.budgetSetup.debts
+  AppStateEntity _migrateOrphanedDebtRecurringSync(AppStateEntity source) {
+    final linkedIds = source.budgetSetup.debts
         .map((d) => d.recurringTransactionId)
         .where((id) => id != null && id.isNotEmpty)
         .toSet();
 
-    final orphaned = state.recurringTransactions.where(
-      (r) =>
-          r.isDebtOrSubscription &&
-          r.type == 'expense' &&
-          r.budgetScope == 'within-budget' &&
-          !linkedIds.contains(r.id),
-    );
+    final orphaned = source.recurringTransactions
+        .where(
+          (r) =>
+              r.isDebtOrSubscription &&
+              r.type == TransactionType.expense.value &&
+              r.budgetScope == BudgetScope.withinBudget.value &&
+              !linkedIds.contains(r.id),
+        )
+        .toList();
 
-    if (orphaned.isEmpty) return;
+    if (orphaned.isEmpty) return source;
 
-    final fallbackFundingSource = state.budgetSetup.incomeSources.isNotEmpty
-        ? state.budgetSetup.incomeSources.first.id
+    final fallbackFundingSource = source.budgetSetup.incomeSources.isNotEmpty
+        ? source.budgetSetup.incomeSources.first.id
         : '';
 
     final newDebts = orphaned.map((r) => DebtEntity(
@@ -61,20 +65,19 @@ class AppCubit extends Cubit<AppStateEntity> {
           type: r.executionType,
           fundingSource: fallbackFundingSource,
           recurringTransactionId: r.id,
-          kind: r.expensePlanKind == 'installment'
-              ? 'installment'
-              : 'subscription',
+          kind: r.expensePlanKind == ExpensePlanKind.installment.value
+              ? ExpensePlanKind.installment.value
+              : ExpensePlanKind.subscription.value,
           principalTotal: r.debtPrincipalTotal,
           recurrencePattern: r.recurrencePattern,
           monthOfYear: r.monthOfYear,
         ));
 
-    final nextSetup = state.budgetSetup.copyWith(
-      debts: [...state.budgetSetup.debts, ...newDebts],
+    return source.copyWith(
+      budgetSetup: source.budgetSetup.copyWith(
+        debts: [...source.budgetSetup.debts, ...newDebts],
+      ),
     );
-    final next = state.copyWith(budgetSetup: nextSetup);
-    await _repository.saveState(next);
-    emit(next);
   }
 
   String _id(String prefix) =>
@@ -244,7 +247,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       createdAt: createdAt ?? DateTime.now(),
     );
     await _applyAndLog(
-      action: type == 'transfer' ? 'transfer' : 'add',
+      action: type == TransactionType.transfer.value ? 'transfer' : 'add',
       entityType: 'transaction',
       entityId: transaction.id,
       details: details ??
@@ -258,7 +261,9 @@ class AppCubit extends Cubit<AppStateEntity> {
           ),
       titleOverride: notes?.isNotEmpty == true
           ? notes
-          : incomeName ?? walletName ?? (type == 'income' ? 'دخل' : 'مصروف'),
+          : incomeName ??
+              walletName ??
+              (type == TransactionType.income.value ? 'دخل' : 'مصروف'),
       apply: () => _repository.addTransaction(transaction),
     );
   }
@@ -271,14 +276,15 @@ class AppCubit extends Cubit<AppStateEntity> {
     String? allocationName,
     String? budgetScope,
   }) {
-    if (type == 'income') {
+    if (type == TransactionType.income.value) {
       final source = incomeName ?? 'مصدر غير محدد';
       final wallet = walletName ?? 'محفظة غير محددة';
       return 'معاملة دخل بقيمة ${amount.toStringAsFixed(2)} من $source إلى $wallet';
     }
-    if (type == 'expense') {
-      final budgetLabel =
-          budgetScope == 'within-budget' ? 'داخل الميزانية' : 'خارج الميزانية';
+    if (type == TransactionType.expense.value) {
+      final budgetLabel = budgetScope == BudgetScope.withinBudget.value
+          ? 'داخل الميزانية'
+          : 'خارج الميزانية';
       final alloc = allocationName == null ? '' : ' ضمن مخصص $allocationName';
       final wallet = walletName ?? 'محفظة غير محددة';
       return 'معاملة مصروف بقيمة ${amount.toStringAsFixed(2)} من $wallet ($budgetLabel)$alloc';
@@ -334,7 +340,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       }
     }
 
-    if (transaction.type == 'transfer') {
+    if (transaction.type == TransactionType.transfer.value) {
       final isPhysicalFrom =
           wallets.any((w) => w.id == transaction.fromWalletId);
       final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
@@ -352,7 +358,7 @@ class AppCubit extends Cubit<AppStateEntity> {
         }).toList();
       } else if (isPhysicalFrom &&
           !isPhysicalTo &&
-          transaction.transferType == 'jar-funding-physical') {
+          transaction.transferType == TransferType.jarFundingPhysical.value) {
         wallets = wallets.map((w) {
           if (w.id != transaction.fromWalletId) return w;
           return w.copyWith(balance: w.balance + transaction.amount);
@@ -382,7 +388,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           );
         }
       }
-    } else if (transaction.type == 'income') {
+    } else if (transaction.type == TransactionType.income.value) {
       // Reverse physical income
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
@@ -394,14 +400,14 @@ class AppCubit extends Cubit<AppStateEntity> {
       // Actually, auto-txns are separate TransactionEntity objects.
       // Deleting the parent income should probably NOT automatically delete them unless we want that.
       // In current logic, they remain. If user wants to delete them, they delete them one by one.
-    } else if (transaction.type == 'expense') {
+    } else if (transaction.type == TransactionType.expense.value) {
       // Reverse physical expense
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
         return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
 
-      if (transaction.transferType == 'jar-funding-physical' &&
+      if (transaction.transferType == TransferType.jarFundingPhysical.value &&
           transaction.toWalletId != null) {
         reverseVirtualBalance(
           id: transaction.toWalletId!,
@@ -646,12 +652,16 @@ class AppCubit extends Cubit<AppStateEntity> {
           : null,
       toWalletId: jar.id,
       amount: amount,
-      type: isPhysical ? 'expense' : 'transfer',
-      budgetScope: 'within-budget',
+      type: isPhysical
+          ? TransactionType.expense.value
+          : TransactionType.transfer.value,
+      budgetScope: BudgetScope.withinBudget.value,
       incomeSourceId: jar.pendingDistributionSourceId.isNotEmpty
           ? jar.pendingDistributionSourceId
           : null,
-      transferType: isPhysical ? 'jar-funding-physical' : 'jar-funding',
+      transferType: isPhysical
+          ? TransferType.jarFundingPhysical.value
+          : TransferType.jarFunding.value,
       notes: null,
       details:
           'تم تأكيد ${isPhysical ? 'خصم فعلي' : 'حجز'} ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
@@ -1005,9 +1015,10 @@ class AppCubit extends Cubit<AppStateEntity> {
                   ? state.budgetSetup.incomeSources.first.id
                   : '',
               recurringTransactionId: recurring.id,
-              kind: recurring.expensePlanKind == 'installment'
-                  ? 'installment'
-                  : 'subscription',
+              kind:
+                  recurring.expensePlanKind == ExpensePlanKind.installment.value
+                      ? ExpensePlanKind.installment.value
+                      : ExpensePlanKind.subscription.value,
               principalTotal: recurring.debtPrincipalTotal,
               installmentCount: recurring.installmentCount,
               downPayment: recurring.installmentDownPayment,
@@ -1061,9 +1072,9 @@ class AppCubit extends Cubit<AppStateEntity> {
           amount: recurring.amount,
           executionDay: recurring.dayOfMonth.clamp(1, 28),
           type: recurring.executionType,
-          kind: recurring.expensePlanKind == 'installment'
-              ? 'installment'
-              : 'subscription',
+          kind: recurring.expensePlanKind == ExpensePlanKind.installment.value
+              ? ExpensePlanKind.installment.value
+              : ExpensePlanKind.subscription.value,
           principalTotal: recurring.debtPrincipalTotal,
           installmentCount: recurring.installmentCount,
           downPayment: recurring.installmentDownPayment,
@@ -1095,7 +1106,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       id: _id('txn'),
       walletId: recurring.walletId,
       amount: amount,
-      type: 'expense',
+      type: TransactionType.expense.value,
       budgetScope: recurring.budgetScope,
       allocationId: recurring.allocationId,
       categoryId:
@@ -1195,7 +1206,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       id: _id('txn'),
       walletId: walletId,
       amount: amount,
-      type: 'expense',
+      type: TransactionType.expense.value,
       notes: 'سلفة لـ $personName',
       createdAt: effectiveLentDate,
     );
@@ -1226,13 +1237,13 @@ class AppCubit extends Cubit<AppStateEntity> {
       final person = RecurringTransactionEntity(
         id: personId,
         name: personName,
-        type: 'expense',
+        type: TransactionType.expense.value,
         amount: amount,
         dayOfMonth: 1,
-        executionType: 'confirm',
+        executionType: AutomationType.confirm.value,
         walletId: walletId,
-        budgetScope: 'outside-budget',
-        recurrencePattern: 'manual-variable',
+        budgetScope: BudgetScope.outsideBudget.value,
+        recurrencePattern: RecurrencePattern.manualVariable.value,
         icon: 'handshake',
         iconColor: '#1a7a4a',
         isLent: true,
@@ -1286,7 +1297,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       id: _id('txn'),
       walletId: person.walletId,
       amount: entryAmount,
-      type: 'income',
+      type: TransactionType.income.value,
       notes: 'استرداد سلفة من ${person.lentPersonName ?? person.name}',
       createdAt: DateTime.now(),
     );
@@ -1439,41 +1450,37 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   String _transactionTypeLabel(String type) {
-    return switch (type) {
-      'income' => 'دخل',
-      'expense' => 'مصروف',
-      'transfer' => 'تحويل',
-      _ => type,
-    };
+    if (type == TransactionType.income.value) return 'دخل';
+    if (type == TransactionType.expense.value) return 'مصروف';
+    if (type == TransactionType.transfer.value) return 'تحويل';
+    return type;
   }
 
   String _executionTypeLabel(String type) {
-    return switch (type) {
-      'auto' => 'تلقائي',
-      'confirm' => 'يحتاج تأكيد',
-      'manual' => 'يدوي',
-      _ => type,
-    };
+    if (type == AutomationType.auto.value) return 'تلقائي';
+    if (type == AutomationType.confirm.value) return 'يحتاج تأكيد';
+    if (type == AutomationType.manual.value) return 'يدوي';
+    return type;
   }
 
   String _budgetScopeLabel(String scope) {
-    return scope == 'within-budget' ? 'داخل الميزانية' : 'خارج الميزانية';
+    return scope == BudgetScope.withinBudget.value
+        ? 'داخل الميزانية'
+        : 'خارج الميزانية';
   }
 
   String _recurrenceLabel(String pattern) {
-    return switch (pattern) {
-      'daily' => 'يومي',
-      'weekly' => 'أسبوعي',
-      'biweekly' => 'كل أسبوعين',
-      'every_3_weeks' => 'كل 3 أسابيع',
-      'monthly' => 'شهري',
-      'every_2_months' => 'كل شهرين',
-      'every_3_months' => 'كل 3 شهور',
-      'every_6_months' => 'كل 6 شهور',
-      'yearly' => 'سنوي',
-      'manual-variable' => 'يدوي متغير',
-      _ => pattern,
-    };
+    if (pattern == RecurrencePattern.daily.value) return 'يومي';
+    if (pattern == RecurrencePattern.weekly.value) return 'أسبوعي';
+    if (pattern == RecurrencePattern.biweekly.value) return 'كل أسبوعين';
+    if (pattern == RecurrencePattern.every3Weeks.value) return 'كل 3 أسابيع';
+    if (pattern == RecurrencePattern.monthly.value) return 'شهري';
+    if (pattern == RecurrencePattern.every2Months.value) return 'كل شهرين';
+    if (pattern == RecurrencePattern.every3Months.value) return 'كل 3 شهور';
+    if (pattern == RecurrencePattern.every6Months.value) return 'كل 6 شهور';
+    if (pattern == RecurrencePattern.yearly.value) return 'سنوي';
+    if (pattern == RecurrencePattern.manualVariable.value) return 'يدوي متغير';
+    return pattern;
   }
 
   String _recurringTransactionDetails(
@@ -1485,9 +1492,9 @@ class AppCubit extends Cubit<AppStateEntity> {
         ? 'دخل متغير'
         : recurring.amount.toStringAsFixed(2);
     final debtLabel = recurring.isDebtOrSubscription
-        ? recurring.expensePlanKind == 'installment'
+        ? recurring.expensePlanKind == ExpensePlanKind.installment.value
             ? ' · تقسيط'
-            : recurring.expensePlanKind == 'subscription'
+            : recurring.expensePlanKind == ExpensePlanKind.subscription.value
                 ? ' · اشتراك'
                 : ' · دين أو اشتراك'
         : '';
@@ -1495,36 +1502,27 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   Future<void> ensureDefaultSavingsJar() async {
-    final defaultIndex = state.budgetSetup.linkedWallets
+    final next = _ensureDefaultSavingsJarSync(state);
+    if (identical(next, state)) return;
+    await _repository.saveState(next);
+    emit(next);
+  }
+
+  AppStateEntity _ensureDefaultSavingsJarSync(AppStateEntity source) {
+    final defaultIndex = source.budgetSetup.linkedWallets
         .indexWhere((w) => w.id == 'linked-savings-default');
     if (defaultIndex != -1) {
-      final current = state.budgetSetup.linkedWallets[defaultIndex];
-      if (current.name != 'التوفير') {
-        final linkedWallets =
-            List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
-        linkedWallets[defaultIndex] = LinkedWalletEntity(
-          id: current.id,
-          name: 'التوفير',
-          balance: current.balance,
-          monthlyAmount: current.monthlyAmount,
-          executionDay: current.executionDay,
-          fundingSource: current.fundingSource,
-          funding: current.funding,
-          icon: current.icon,
-          iconColor: current.iconColor,
-          automationType: current.automationType,
-          categories: current.categories,
-        );
-        final next = state.copyWith(
-          budgetSetup: state.budgetSetup.copyWith(linkedWallets: linkedWallets),
-        );
-        await _repository.saveState(next);
-        emit(next);
-      }
-      return;
+      final current = source.budgetSetup.linkedWallets[defaultIndex];
+      if (current.name == 'التوفير') return source;
+      final linkedWallets =
+          List<LinkedWalletEntity>.from(source.budgetSetup.linkedWallets);
+      linkedWallets[defaultIndex] = current.copyWith(name: 'التوفير');
+      return source.copyWith(
+        budgetSetup: source.budgetSetup.copyWith(linkedWallets: linkedWallets),
+      );
     }
-    final fallbackIncomeId = state.budgetSetup.incomeSources.isNotEmpty
-        ? state.budgetSetup.incomeSources.first.id
+    final fallbackIncomeId = source.budgetSetup.incomeSources.isNotEmpty
+        ? source.budgetSetup.incomeSources.first.id
         : '';
     final defaultJar = LinkedWalletEntity(
       id: 'linked-savings-default',
@@ -1544,51 +1542,39 @@ class AppCubit extends Cubit<AppStateEntity> {
             ],
       icon: 'savings',
       iconColor: '#0f766e',
-      automationType: 'confirm',
+      automationType: AutomationType.confirm.value,
       categories: const [],
     );
-    final nextSetup = state.budgetSetup.copyWith(
-      linkedWallets: [...state.budgetSetup.linkedWallets, defaultJar],
-    );
-    await _applyAndLog(
-      action: 'add',
-      entityType: 'linked-wallet',
-      entityId: defaultJar.id,
-      details: 'تم إنشاء حصالة التوفير الافتراضية',
-      apply: () async => state.copyWith(budgetSetup: nextSetup),
+    return source.copyWith(
+      budgetSetup: source.budgetSetup.copyWith(
+        linkedWallets: [...source.budgetSetup.linkedWallets, defaultJar],
+      ),
     );
   }
 
   Future<void> syncSavingsJarWithReserved() async {
-    final totalReserved =
-        state.wallets.fold<double>(0, (sum, w) => sum + w.reservedForSavings);
-    final idx = state.budgetSetup.linkedWallets
-        .indexWhere((w) => w.id == 'linked-savings-default');
-    if (idx == -1) return;
-    final current = state.budgetSetup.linkedWallets[idx];
-    if ((current.balance - totalReserved).abs() < 0.0001) {
-      return;
-    }
-    final linked =
-        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
-    linked[idx] = LinkedWalletEntity(
-      id: current.id,
-      name: current.name,
-      balance: totalReserved,
-      monthlyAmount: current.monthlyAmount,
-      executionDay: current.executionDay,
-      fundingSource: current.fundingSource,
-      funding: current.funding,
-      icon: current.icon,
-      iconColor: current.iconColor,
-      automationType: current.automationType,
-      categories: current.categories,
-    );
-    final next = state.copyWith(
-      budgetSetup: state.budgetSetup.copyWith(linkedWallets: linked),
-    );
+    final next = _syncSavingsJarWithReservedSync(state);
+    if (identical(next, state)) return;
     await _repository.saveState(next);
     emit(next);
+  }
+
+  AppStateEntity _syncSavingsJarWithReservedSync(AppStateEntity source) {
+    final totalReserved = source.wallets
+        .fold<double>(0, (sum, wallet) => sum + wallet.reservedForSavings);
+    final idx = source.budgetSetup.linkedWallets
+        .indexWhere((w) => w.id == 'linked-savings-default');
+    if (idx == -1) return source;
+    final current = source.budgetSetup.linkedWallets[idx];
+    if ((current.balance - totalReserved).abs() < 0.0001) {
+      return source;
+    }
+    final linked =
+        List<LinkedWalletEntity>.from(source.budgetSetup.linkedWallets);
+    linked[idx] = current.copyWith(balance: totalReserved);
+    return source.copyWith(
+      budgetSetup: source.budgetSetup.copyWith(linkedWallets: linked),
+    );
   }
 
   Future<void> addGoal({

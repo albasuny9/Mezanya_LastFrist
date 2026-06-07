@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -48,7 +49,8 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
     );
     _selectedIcon = widget.current?.icon ?? 'savings';
     _selectedColor = widget.current?.iconColor ?? '#0f766e';
-    _automationType = widget.current?.automationType ?? 'confirm';
+    _automationType =
+        widget.current?.automationType ?? AutomationType.confirm.value;
     _funding = List<LinkedWalletEntityFunding>.from(
       widget.current?.funding ?? [],
     );
@@ -440,11 +442,16 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                   decoration: const InputDecoration(
                     labelText: 'نوع التنفيذ',
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
+                  items: [
                     DropdownMenuItem(
-                        value: 'confirm', child: Text('يحتاج تأكيد')),
-                    DropdownMenuItem(value: 'manual', child: Text('يدوي')),
+                        value: AutomationType.auto.value,
+                        child: Text('تلقائي')),
+                    DropdownMenuItem(
+                        value: AutomationType.confirm.value,
+                        child: Text('يحتاج تأكيد')),
+                    DropdownMenuItem(
+                        value: AutomationType.manual.value,
+                        child: Text('يدوي')),
                   ],
                   onChanged: (value) {
                     if (value == null) {
@@ -627,7 +634,8 @@ class _JarFundingCard extends StatelessWidget {
   final LinkedWalletEntityFunding item;
   final List<IncomeSourceEntity> incomeSources;
   final bool canDelete;
-  final void Function({String? incomeSourceId, double? amount, bool? isPhysical}) onChanged;
+  final void Function(
+      {String? incomeSourceId, double? amount, bool? isPhysical}) onChanged;
   final VoidCallback onDelete;
 
   @override

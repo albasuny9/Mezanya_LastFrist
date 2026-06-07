@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -64,10 +65,12 @@ class CycleAnalysisScreen extends StatelessWidget {
       buf.write(
           'حتى الآن في دورة $_cycleLabel، وصل الدخل الفعلي إلى ${totalIncomeActual.toStringAsFixed(0)} وهو ');
       if (totalIncomeActual >= plannedIncome) {
-        buf.write('ما يساوي أو يتجاوز الدخل المخطط — وهذا مؤشر جيد على الاستقرار. ');
+        buf.write(
+            'ما يساوي أو يتجاوز الدخل المخطط — وهذا مؤشر جيد على الاستقرار. ');
       } else {
         final gap = (plannedIncome - totalIncomeActual).toStringAsFixed(0);
-        buf.write('أقل من المخطط بفارق $gap — قد تحتاج لمتابعة مصادر الدخل المتبقية. ');
+        buf.write(
+            'أقل من المخطط بفارق $gap — قد تحتاج لمتابعة مصادر الدخل المتبقية. ');
       }
     }
 
@@ -95,7 +98,8 @@ class CycleAnalysisScreen extends StatelessWidget {
     } else if (savePct == 0) {
       buf.write('لا يوجد فائض واضح للتوفير حتى الآن في هذه الدورة. ');
     } else {
-      buf.write('يوجد عجز مالي حالي قدره ${remainingIncome.abs().toStringAsFixed(0)}. ');
+      buf.write(
+          'يوجد عجز مالي حالي قدره ${remainingIncome.abs().toStringAsFixed(0)}. ');
     }
 
     // Plan coverage
@@ -118,7 +122,7 @@ class CycleAnalysisScreen extends StatelessWidget {
     final state = cubit.state;
     final txs = state.transactions
         .where((t) =>
-            t.type == 'expense' &&
+            t.type == TransactionType.expense.value &&
             !t.createdAt.isBefore(cycleStart) &&
             !t.createdAt.isAfter(cycleEnd))
         .toList();
@@ -147,8 +151,7 @@ class CycleAnalysisScreen extends StatelessWidget {
     final state = cubit.state;
     final txs = state.transactions
         .where((t) =>
-            !t.createdAt.isBefore(cycleStart) &&
-            !t.createdAt.isAfter(cycleEnd))
+            !t.createdAt.isBefore(cycleStart) && !t.createdAt.isAfter(cycleEnd))
         .toList();
 
     final Map<int, double> incomeByDay = {};
@@ -156,9 +159,9 @@ class CycleAnalysisScreen extends StatelessWidget {
 
     for (final tx in txs) {
       final dayIndex = tx.createdAt.difference(cycleStart).inDays;
-      if (tx.type == 'income') {
+      if (tx.type == TransactionType.income.value) {
         incomeByDay[dayIndex] = (incomeByDay[dayIndex] ?? 0) + tx.amount;
-      } else if (tx.type == 'expense') {
+      } else if (tx.type == TransactionType.expense.value) {
         expenseByDay[dayIndex] = (expenseByDay[dayIndex] ?? 0) + tx.amount;
       }
     }
@@ -368,9 +371,7 @@ class _KpiCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(value,
                 style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    color: color)),
+                    fontWeight: FontWeight.w900, fontSize: 16, color: color)),
             const SizedBox(height: 2),
             Text(label,
                 style: const TextStyle(
@@ -458,7 +459,8 @@ class _DonutCard extends StatelessWidget {
                 _DonutLegend(
                     color: const Color(0xFF4A7C59),
                     label: 'متبقي',
-                    value: remaining.clamp(0, double.infinity).toStringAsFixed(0)),
+                    value:
+                        remaining.clamp(0, double.infinity).toStringAsFixed(0)),
                 const SizedBox(height: 8),
                 _DonutLegend(
                     color: const Color(0xFFDDD5C4),
@@ -697,8 +699,7 @@ class _BarLegend extends StatelessWidget {
 
 // ── Category breakdown ───────────────────────────────────────────────────────
 class _CategoryBreakdownCard extends StatelessWidget {
-  const _CategoryBreakdownCard(
-      {required this.breakdown, required this.total});
+  const _CategoryBreakdownCard({required this.breakdown, required this.total});
   final Map<String, double> breakdown;
   final double total;
 
@@ -766,8 +767,7 @@ class _CategoryBreakdownCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: ratio,
                     minHeight: 6,
-                    backgroundColor:
-                        color.withValues(alpha: 0.12),
+                    backgroundColor: color.withValues(alpha: 0.12),
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                 ),
@@ -813,7 +813,8 @@ class _PlanVsActualCard extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
                           color: Color(0xFF2C2416)))),
-              Text('${actual.toStringAsFixed(0)} / ${planned.toStringAsFixed(0)}',
+              Text(
+                  '${actual.toStringAsFixed(0)} / ${planned.toStringAsFixed(0)}',
                   style: const TextStyle(
                       fontSize: 12,
                       color: Color(0xFF7A6E5F),
@@ -837,19 +838,17 @@ class _PlanVsActualCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
             child: Stack(
               children: [
-                Container(
-                    height: 7,
-                    color: const Color(0xFFE8E0D0)),
+                Container(height: 7, color: const Color(0xFFE8E0D0)),
                 FractionallySizedBox(
-                  widthFactor: planned <= 0
-                      ? 0
-                      : (actual / planned).clamp(0.0, 1.0),
+                  widthFactor:
+                      planned <= 0 ? 0 : (actual / planned).clamp(0.0, 1.0),
                   child: Container(
                     height: 7,
                     decoration: BoxDecoration(
-                      color: (actual / math.max(planned, 1)).clamp(0.0, 1.1) > 1.0
-                          ? const Color(0xFFC65D2E)
-                          : const Color(0xFF4A7C59),
+                      color:
+                          (actual / math.max(planned, 1)).clamp(0.0, 1.1) > 1.0
+                              ? const Color(0xFFC65D2E)
+                              : const Color(0xFF4A7C59),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),

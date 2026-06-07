@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'package:intl/date_symbol_data_local.dart';
+
 import 'package:intl/intl.dart';
+
+import '../../../../core/constants/transaction_types.dart';
 
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -169,7 +173,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
           !transaction.createdAt.isAfter(cycleEnd);
     }).toList();
     final incomeTransactions = monthTransactions
-        .where((transaction) => transaction.type == 'income')
+        .where(
+            (transaction) => transaction.type == TransactionType.income.value)
         .toList();
     var count = 0;
 
@@ -183,19 +188,17 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
       final recurringTransactions = state.recurringTransactions.where(
         (item) =>
-            item.type == 'income' &&
-            item.budgetScope == 'within-budget' &&
+            item.type == TransactionType.income.value &&
+            item.budgetScope == BudgetScope.withinBudget.value &&
             item.incomeSourceId == income.id,
       );
-      final recurring = recurringTransactions.isEmpty
-          ? null
-          : recurringTransactions.first;
+      final recurring =
+          recurringTransactions.isEmpty ? null : recurringTransactions.first;
       final dueDate =
           DateTime(month.year, month.month, income.date.clamp(1, 28));
       final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
       final today = DateTime(now.year, now.month, now.day);
-      final reminderDate =
-          dueDate.subtract(Duration(days: reminderLeadDays));
+      final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
       final canRecordEarly = reminderLeadDays > 0 &&
           !today.isBefore(reminderDate) &&
           today.isBefore(dueDate);
@@ -211,11 +214,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
         state.recurringTransactions,
         debt,
       );
-      if (recurring == null || recurring.executionType != 'confirm') {
+      if (recurring == null ||
+          recurring.executionType != AutomationType.confirm.value) {
         continue;
       }
       final paidAmount = cycleTransactions
-          .where((transaction) => transaction.notes?.contains(debt.name) == true)
+          .where(
+              (transaction) => transaction.notes?.contains(debt.name) == true)
           .fold<double>(0, (sum, transaction) => sum + transaction.amount);
       final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
       final remaining = BudgetRecurringPlanService.pendingDecisionAmount(

@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -39,10 +40,10 @@ class _DebtsAndSubscriptionsScreenState
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
 
-
         final subscriptionRecords = state.recurringTransactions
             .where((r) =>
-                r.type == 'expense' && r.expensePlanKind == 'subscription')
+                r.type == TransactionType.expense.value &&
+                r.expensePlanKind == ExpensePlanKind.subscription.value)
             .toList()
           ..sort((a, b) => a.name.compareTo(b.name));
 
@@ -50,15 +51,16 @@ class _DebtsAndSubscriptionsScreenState
         final allLentPersons = state.recurringTransactions
             .where((r) => r.isLent)
             .toList()
-          ..sort((a, b) => (a.lentPersonName ?? a.name).compareTo(b.lentPersonName ?? b.name));
-        final activeLentPersons = allLentPersons
-            .where((r) => !r.isLentArchived)
-            .toList();
-        final archivedLentPersons = allLentPersons
-            .where((r) => r.isLentArchived)
-            .toList();
+          ..sort((a, b) => (a.lentPersonName ?? a.name)
+              .compareTo(b.lentPersonName ?? b.name));
+        final activeLentPersons =
+            allLentPersons.where((r) => !r.isLentArchived).toList();
+        final archivedLentPersons =
+            allLentPersons.where((r) => r.isLentArchived).toList();
         final borrowedRecords = state.recurringTransactions
-            .where((r) => !r.isLent && r.expensePlanKind == 'installment')
+            .where((r) =>
+                !r.isLent &&
+                r.expensePlanKind == ExpensePlanKind.installment.value)
             .toList()
           ..sort((a, b) => a.name.compareTo(b.name));
 
@@ -93,8 +95,7 @@ class _DebtsAndSubscriptionsScreenState
                 if (subscriptionRecords.isEmpty)
                   _emptyCard('لا توجد اشتراكات مسجلة حالياً.')
                 else
-                  ...subscriptionRecords
-                      .map((r) => _recurringCard(state, r)),
+                  ...subscriptionRecords.map((r) => _recurringCard(state, r)),
               ] else ...[
                 // ── زرار الإضافة ─────────────────────────────────────────
                 _actionButton(
@@ -103,7 +104,7 @@ class _DebtsAndSubscriptionsScreenState
                   color: _debtAccent,
                   onTap: () => _openRecurringComposer(
                     mode: 'expense',
-                    initialExpensePlanKind: 'installment',
+                    initialExpensePlanKind: ExpensePlanKind.installment.value,
                     debtOnlyMode: true,
                   ),
                 ),
@@ -145,18 +146,22 @@ class _DebtsAndSubscriptionsScreenState
                 if (archivedLentPersons.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   InkWell(
-                    onTap: () => setState(() => _archiveExpanded = !_archiveExpanded),
+                    onTap: () =>
+                        setState(() => _archiveExpanded = !_archiveExpanded),
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: Colors.grey.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                        border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.archive_outlined, size: 18, color: Colors.grey.shade600),
+                          Icon(Icons.archive_outlined,
+                              size: 18, color: Colors.grey.shade600),
                           const SizedBox(width: 8),
                           Text(
                             'الأرشيف (${archivedLentPersons.length})',
@@ -168,7 +173,9 @@ class _DebtsAndSubscriptionsScreenState
                           ),
                           const Spacer(),
                           Icon(
-                            _archiveExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                            _archiveExpanded
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
                             color: Colors.grey.shade600,
                           ),
                         ],
@@ -177,11 +184,11 @@ class _DebtsAndSubscriptionsScreenState
                   ),
                   if (_archiveExpanded) ...[
                     const SizedBox(height: 8),
-                    ...archivedLentPersons.map((r) => _lentPersonCard(state, r, isArchived: true)),
+                    ...archivedLentPersons.map(
+                        (r) => _lentPersonCard(state, r, isArchived: true)),
                   ],
                 ],
               ],
-
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: () => _openBudgetSetupScreen(context),
@@ -228,7 +235,6 @@ class _DebtsAndSubscriptionsScreenState
     ]);
   }
 
-
   void _openBudgetSetupScreen(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -238,7 +244,8 @@ class _DebtsAndSubscriptionsScreenState
           ),
           body: BudgetSetupScreen(
             cubit: widget.cubit,
-            displayMonth: DateTime(DateTime.now().year, DateTime.now().month, 1),
+            displayMonth:
+                DateTime(DateTime.now().year, DateTime.now().month, 1),
           ),
         ),
       ),
@@ -404,7 +411,8 @@ class _DebtsAndSubscriptionsScreenState
     final personName = person.lentPersonName ?? person.name;
     final outstanding = person.outstandingLentAmount;
     final totalEntries = person.lentEntries.length;
-    final pendingCount = person.lentEntries.where((e) => e['isSettled'] != true).length;
+    final pendingCount =
+        person.lentEntries.where((e) => e['isSettled'] != true).length;
     final walletName = _walletName(state, person.walletId);
 
     DateTime? earliestDue;
@@ -416,7 +424,8 @@ class _DebtsAndSubscriptionsScreenState
         earliestDue = d;
       }
     }
-    final isOverdue = earliestDue != null && earliestDue.isBefore(DateTime.now());
+    final isOverdue =
+        earliestDue != null && earliestDue.isBefore(DateTime.now());
     final dueLbl = earliestDue != null
         ? '${earliestDue.day}/${earliestDue.month}/${earliestDue.year}'
         : '—';
@@ -445,8 +454,8 @@ class _DebtsAndSubscriptionsScreenState
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: (isArchived ? Colors.grey : accent)
-                    .withValues(alpha: 0.14),
+                color:
+                    (isArchived ? Colors.grey : accent).withValues(alpha: 0.14),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -496,8 +505,8 @@ class _DebtsAndSubscriptionsScreenState
                 if (!isArchived) ...[
                   const SizedBox(height: 2),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: isOverdue
                           ? const Color(0xFFFFEDED)
@@ -509,9 +518,7 @@ class _DebtsAndSubscriptionsScreenState
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
-                        color: isOverdue
-                            ? const Color(0xFFC0392B)
-                            : accent,
+                        color: isOverdue ? const Color(0xFFC0392B) : accent,
                       ),
                     ),
                   ),
@@ -549,10 +556,9 @@ class _DebtsAndSubscriptionsScreenState
           final allEntries = currentPerson.lentEntries.toList();
 
           final historyTxs = currentState.transactions
-              .where((t) =>
-                  ((t.notes?.contains('سلفة لـ $personName') ?? false) ||
-                      (t.notes?.contains('استرداد سلفة من $personName') ??
-                          false)))
+              .where((t) => ((t.notes?.contains('سلفة لـ $personName') ??
+                      false) ||
+                  (t.notes?.contains('استرداد سلفة من $personName') ?? false)))
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -629,9 +635,10 @@ class _DebtsAndSubscriptionsScreenState
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => RecurringTransactionComposerScreen(
+                              builder: (_) =>
+                                  RecurringTransactionComposerScreen(
                                 cubit: widget.cubit,
-                                initialType: 'expense',
+                                initialType: TransactionType.expense.value,
                                 initialRecurring: currentPerson,
                                 initialLentMode: true,
                               ),
@@ -697,7 +704,8 @@ class _DebtsAndSubscriptionsScreenState
                           itemCount: historyTxs.length,
                           itemBuilder: (ctx, i) {
                             final tx = historyTxs[i];
-                            final isIncome = tx.type == 'income';
+                            final isIncome =
+                                tx.type == TransactionType.income.value;
                             return ListTile(
                               dense: true,
                               contentPadding:
@@ -705,15 +713,17 @@ class _DebtsAndSubscriptionsScreenState
                               leading: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                    color: (isIncome ? Colors.green : Colors.red)
-                                        .withValues(alpha: 0.1),
+                                    color:
+                                        (isIncome ? Colors.green : Colors.red)
+                                            .withValues(alpha: 0.1),
                                     shape: BoxShape.circle),
                                 child: Icon(
                                     isIncome
                                         ? Icons.south_west_rounded
                                         : Icons.north_east_rounded,
                                     size: 16,
-                                    color: isIncome ? Colors.green : Colors.red),
+                                    color:
+                                        isIncome ? Colors.green : Colors.red),
                               ),
                               title: Text(
                                   isIncome ? 'استرداد مبلغ' : 'إخراج سلفة',
@@ -727,8 +737,9 @@ class _DebtsAndSubscriptionsScreenState
                                   '${isIncome ? '+' : '-'}${tx.amount.toStringAsFixed(0)}',
                                   style: TextStyle(
                                       fontWeight: FontWeight.w900,
-                                      color:
-                                          isIncome ? Colors.green : Colors.red)),
+                                      color: isIncome
+                                          ? Colors.green
+                                          : Colors.red)),
                             );
                           },
                         ),
@@ -752,8 +763,11 @@ class _DebtsAndSubscriptionsScreenState
                                   : Icons.archive_outlined,
                               size: 18),
                           label: Text(
-                              person.isLentArchived ? 'إلغاء الأرشفة' : 'أرشفة الشخص',
-                              style: const TextStyle(fontWeight: FontWeight.w800)),
+                              person.isLentArchived
+                                  ? 'إلغاء الأرشفة'
+                                  : 'أرشفة الشخص',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: theme.colorScheme.onSurfaceVariant,
                             side: BorderSide(
@@ -800,14 +814,17 @@ class _DebtsAndSubscriptionsScreenState
 
   // (تم حذف شاشة الاختيار بطلب من المستخدم لفتح الفورم مباشرة)
 
-  Future<bool> _confirmDialog({required String title, required String content}) async {
+  Future<bool> _confirmDialog(
+      {required String title, required String content}) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
         content: Text(content),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: _lentAccent),
@@ -822,8 +839,6 @@ class _DebtsAndSubscriptionsScreenState
   // ── فورم إضافة سلفة (جديد أو لشخص موجود) ────────────────────────────────
   // (تم حذف _openLentForm المخصص بطلب من المستخدم)
 
-
-
   Widget _recurringCard(
     AppStateEntity state,
     RecurringTransactionEntity record,
@@ -833,8 +848,9 @@ class _DebtsAndSubscriptionsScreenState
         record.isVariableIncome ? 'متغير' : record.amount.toStringAsFixed(2);
     final wallet = _walletName(state, record.walletId);
     final execution = _executionLabel(record.executionType);
-    final scope =
-        record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام';
+    final scope = record.budgetScope == BudgetScope.withinBudget.value
+        ? 'داخل الميزانية'
+        : 'عام';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -916,7 +932,7 @@ class _DebtsAndSubscriptionsScreenState
                         _miniTag(execution),
                         _miniTag(scope),
                         if (wallet != '-') _miniTag(wallet),
-                        if (record.type == 'expense')
+                        if (record.type == TransactionType.expense.value)
                           _miniTag(_expensePlanKindLabel(record)),
                       ],
                     ),
@@ -978,19 +994,20 @@ class _DebtsAndSubscriptionsScreenState
                   .firstWhere((_) => true, orElse: () => null) ??
               record;
 
-          final isDebt = currentRecord.expensePlanKind == 'installment';
+          final isDebt = currentRecord.expensePlanKind ==
+              ExpensePlanKind.installment.value;
 
           final historyTxs = currentState.transactions
-                  .where((t) =>
-                      ((t.notes?.contains('سداد دين: ${currentRecord.name}') ??
-                              false) ||
-                          (t.notes?.contains(
-                                  'تأكيد استحقاق اشتراك: ${currentRecord.name}') ??
-                              false) ||
-                          (t.notes?.contains('خصم تلقائي دين: ${currentRecord.name}') ??
-                              false)))
-                  .toList()
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              .where((t) => ((t.notes
+                          ?.contains('سداد دين: ${currentRecord.name}') ??
+                      false) ||
+                  (t.notes?.contains(
+                          'تأكيد استحقاق اشتراك: ${currentRecord.name}') ??
+                      false) ||
+                  (t.notes?.contains('خصم تلقائي دين: ${currentRecord.name}') ??
+                      false)))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           return SizedBox(
             height: MediaQuery.of(sheetContext).size.height * 0.9,
@@ -1105,7 +1122,9 @@ class _DebtsAndSubscriptionsScreenState
                       ],
 
                       // ── Interactive Card (for Subscriptions) ──────────────
-                      if (!isDebt && currentRecord.expensePlanKind == 'subscription') ...[
+                      if (!isDebt &&
+                          currentRecord.expensePlanKind ==
+                              ExpensePlanKind.subscription.value) ...[
                         _SubscriptionInteractiveCard(
                           record: currentRecord,
                           state: currentState,
@@ -1120,16 +1139,19 @@ class _DebtsAndSubscriptionsScreenState
                       _sectionTitle(context, 'تفاصيل المعاملة',
                           Icons.info_outline_rounded),
                       const SizedBox(height: 10),
-                      _DetailsTable(rows: _detailsRows(currentState, currentRecord)),
+                      _DetailsTable(
+                          rows: _detailsRows(currentState, currentRecord)),
                       const SizedBox(height: 24),
 
                       // ── سجل المعاملات ─────────────────────────────────────────
-                      _sectionTitle(context, 'سجل المعاملات', Icons.history_rounded),
+                      _sectionTitle(
+                          context, 'سجل المعاملات', Icons.history_rounded),
                       const SizedBox(height: 10),
                       if (historyTxs.isEmpty)
                         _emptyCard('لا توجد معاملات مسجلة لهذا البند.')
                       else
-                        ...historyTxs.map((t) => _transactionTile(sheetContext, theme, t)),
+                        ...historyTxs.map(
+                            (t) => _transactionTile(sheetContext, theme, t)),
                       const SizedBox(height: 28),
                     ],
                   ),
@@ -1149,9 +1171,9 @@ class _DebtsAndSubscriptionsScreenState
                               editing: currentRecord,
                               subscriptionOnlyMode:
                                   currentRecord.expensePlanKind ==
-                                      'subscription',
+                                      ExpensePlanKind.subscription.value,
                               debtOnlyMode: currentRecord.expensePlanKind ==
-                                  'installment',
+                                  ExpensePlanKind.installment.value,
                             );
                           },
                           icon: const Icon(Icons.edit_rounded, size: 20),
@@ -1170,12 +1192,15 @@ class _DebtsAndSubscriptionsScreenState
                         onPressed: () async {
                           final confirm = await _confirmDialog(
                             title: 'حذف المعاملة',
-                            content: 'هل أنت متأكد من حذف ${currentRecord.name}؟',
+                            content:
+                                'هل أنت متأكد من حذف ${currentRecord.name}؟',
                           );
                           if (confirm) {
                             await widget.cubit
                                 .deleteRecurringTransaction(currentRecord.id);
-                            if (sheetContext.mounted) Navigator.pop(sheetContext);
+                            if (sheetContext.mounted) {
+                              Navigator.pop(sheetContext);
+                            }
                           }
                         },
                         icon: const Icon(Icons.delete_outline_rounded,
@@ -1227,8 +1252,9 @@ class _DebtsAndSubscriptionsScreenState
           ? 'دخل متغير'
           : record.amount.toStringAsFixed(2),
       'المحفظة': _walletName(state, record.walletId),
-      'النطاق':
-          record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام',
+      'النطاق': record.budgetScope == BudgetScope.withinBudget.value
+          ? 'داخل الميزانية'
+          : 'عام',
       'التكرار': _recurrenceLabel(record),
       'التنفيذ': _executionLabel(record.executionType),
       if (record.reminderLeadDays != null)
@@ -1242,8 +1268,9 @@ class _DebtsAndSubscriptionsScreenState
       if (record.categoryIds.isNotEmpty)
         'الفئات':
             record.categoryIds.map((id) => _categoryName(state, id)).join('، '),
-      if (record.type == 'expense') 'التصنيف': _expensePlanKindLabel(record),
-      if (record.expensePlanKind == 'installment' &&
+      if (record.type == TransactionType.expense.value)
+        'التصنيف': _expensePlanKindLabel(record),
+      if (record.expensePlanKind == ExpensePlanKind.installment.value &&
           record.debtPrincipalTotal != null)
         'إجمالي الأصل': record.debtPrincipalTotal!.toStringAsFixed(2),
       if (record.notes?.trim().isNotEmpty == true)
@@ -1258,49 +1285,68 @@ class _DebtsAndSubscriptionsScreenState
     final weekdayLabel = record.weekdays.isNotEmpty
         ? record.weekdays.map(_weekdayName).join('، ')
         : _weekdayName(record.weekday);
-    return switch (record.recurrencePattern) {
-      'daily' => 'يومي$timeSuffix',
-      'weekly' => 'أسبوعي ($weekdayLabel)$timeSuffix',
-      'biweekly' => 'كل أسبوعين ($weekdayLabel)$timeSuffix',
-      'every_3_weeks' => 'كل 3 أسابيع ($weekdayLabel)$timeSuffix',
-      'every_2_months' => 'كل شهرين يوم ${record.dayOfMonth}$timeSuffix',
-      'every_3_months' => 'كل 3 شهور يوم ${record.dayOfMonth}$timeSuffix',
-      'every_6_months' => 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix',
-      'yearly' =>
-        'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
-      'manual-variable' => 'يدوي / مرة واحدة',
-      _ => 'شهري يوم ${record.dayOfMonth}$timeSuffix',
-    };
+    final pattern = record.recurrencePattern;
+    if (pattern == RecurrencePattern.daily.value) return 'يومي$timeSuffix';
+    if (pattern == RecurrencePattern.weekly.value) {
+      return 'أسبوعي ($weekdayLabel)$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.biweekly.value) {
+      return 'كل أسبوعين ($weekdayLabel)$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every3Weeks.value) {
+      return 'كل 3 أسابيع ($weekdayLabel)$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every2Months.value) {
+      return 'كل شهرين يوم ${record.dayOfMonth}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every3Months.value) {
+      return 'كل 3 شهور يوم ${record.dayOfMonth}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every6Months.value) {
+      return 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.yearly.value) {
+      return 'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.manualVariable.value) {
+      return 'يدوي / مرة واحدة';
+    }
+    return 'شهري يوم ${record.dayOfMonth}$timeSuffix';
   }
 
   String _typeLabel(RecurringTransactionEntity record) {
-    if (record.type == 'income') return 'دخل';
+    if (record.type == TransactionType.income.value) return 'دخل';
     return 'مصروف';
   }
 
   String _expensePlanKindLabel(RecurringTransactionEntity record) {
-    if (record.expensePlanKind == 'installment') return 'قسط / دين';
-    if (record.expensePlanKind == 'subscription') return 'اشتراك';
+    if (record.expensePlanKind == ExpensePlanKind.installment.value) {
+      return 'قسط / دين';
+    }
+    if (record.expensePlanKind == ExpensePlanKind.subscription.value) {
+      return 'اشتراك';
+    }
     if (record.expensePlanKind == 'lent') return 'سلفة';
     return 'مصروف متكرر';
   }
 
-  String _executionLabel(String type) => type == 'auto' ? 'تلقائي' : 'يدوي';
+  String _executionLabel(String type) =>
+      type == AutomationType.auto.value ? 'تلقائي' : 'يدوي';
 
   String _reminderLabel(RecurringTransactionEntity record) {
     final days = record.reminderLeadDays ?? 0;
     if (days == 0) {
-      return record.recurrencePattern == 'daily' ||
-              record.recurrencePattern == 'weekly' ||
-              record.recurrencePattern == 'biweekly' ||
-              record.recurrencePattern == 'every_3_weeks'
+      return record.recurrencePattern == RecurrencePattern.daily.value ||
+              record.recurrencePattern == RecurrencePattern.weekly.value ||
+              record.recurrencePattern == RecurrencePattern.biweekly.value ||
+              record.recurrencePattern == RecurrencePattern.every3Weeks.value
           ? 'في نفس الوقت'
           : 'في نفس اليوم';
     }
-    if (record.recurrencePattern == 'daily' ||
-        record.recurrencePattern == 'weekly' ||
-        record.recurrencePattern == 'biweekly' ||
-        record.recurrencePattern == 'every_3_weeks') {
+    if (record.recurrencePattern == RecurrencePattern.daily.value ||
+        record.recurrencePattern == RecurrencePattern.weekly.value ||
+        record.recurrencePattern == RecurrencePattern.biweekly.value ||
+        record.recurrencePattern == RecurrencePattern.every3Weeks.value) {
       return 'قبلها بـ $days ساعة';
     }
     return 'قبلها بـ $days يوم';
@@ -1398,8 +1444,8 @@ class _DebtsAndSubscriptionsScreenState
     ThemeData theme,
     TransactionEntity item,
   ) {
-    final isIncome = item.type == 'income';
-    final isExpense = item.type == 'expense';
+    final isIncome = item.type == TransactionType.income.value;
+    final isExpense = item.type == TransactionType.expense.value;
     final amtColor = isIncome
         ? const Color(0xFF0F9D7A)
         : (isExpense ? theme.colorScheme.error : theme.colorScheme.primary);
@@ -1517,7 +1563,8 @@ class _LentEntriesExpandingCard extends StatefulWidget {
   final BuildContext sheetCtx;
 
   @override
-  State<_LentEntriesExpandingCard> createState() => _LentEntriesExpandingCardState();
+  State<_LentEntriesExpandingCard> createState() =>
+      _LentEntriesExpandingCardState();
 }
 
 class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
@@ -1527,7 +1574,8 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final accent = widget.accent;
-    final pendingCount = widget.allEntries.where((e) => e['isSettled'] != true).length;
+    final pendingCount =
+        widget.allEntries.where((e) => e['isSettled'] != true).length;
 
     return Container(
       decoration: BoxDecoration(
@@ -1548,22 +1596,29 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
               child: Row(
                 children: [
                   Container(
-                    width: 38, height: 38,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(Icons.receipt_long_rounded, color: accent, size: 20),
+                    child: Icon(Icons.receipt_long_rounded,
+                        color: accent, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('السلفات الفردية', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                        const Text('السلفات الفردية',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900, fontSize: 14)),
                         Text(
                           '$pendingCount معلق · ${widget.allEntries.length} إجمالي',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -1571,7 +1626,8 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
-                    child: Icon(Icons.keyboard_arrow_down_rounded, color: theme.colorScheme.onSurfaceVariant),
+                    child: Icon(Icons.keyboard_arrow_down_rounded,
+                        color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -1582,7 +1638,9 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
           AnimatedCrossFade(
             firstChild: const SizedBox.shrink(),
             secondChild: _buildEntriesList(theme, accent),
-            crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
         ],
@@ -1595,7 +1653,8 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
     if (entries.isEmpty) {
       return const Padding(
         padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Text('لا توجد سلفات مسجلة لهذا الشخص.', style: TextStyle(color: Colors.grey)),
+        child: Text('لا توجد سلفات مسجلة لهذا الشخص.',
+            style: TextStyle(color: Colors.grey)),
       );
     }
     return Padding(
@@ -1609,17 +1668,25 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
             final amount = (entry['amount'] as num?)?.toDouble() ?? 0;
             final lentDateStr = entry['lentDate'] as String?;
             final returnStr = entry['expectedReturnDate'] as String?;
-            final lentDate = lentDateStr != null ? DateTime.tryParse(lentDateStr) : null;
-            final returnDate = returnStr != null ? DateTime.tryParse(returnStr) : null;
-            final isOverdue = !isSettled && returnDate != null && returnDate.isBefore(DateTime.now());
+            final lentDate =
+                lentDateStr != null ? DateTime.tryParse(lentDateStr) : null;
+            final returnDate =
+                returnStr != null ? DateTime.tryParse(returnStr) : null;
+            final isOverdue = !isSettled &&
+                returnDate != null &&
+                returnDate.isBefore(DateTime.now());
             final entryId = entry['id'] as String;
 
             final cardColor = isSettled
                 ? Colors.grey.withValues(alpha: 0.05)
-                : (isOverdue ? const Color(0xFFFFF5F5) : const Color(0xFFF0FAF4));
+                : (isOverdue
+                    ? const Color(0xFFFFF5F5)
+                    : const Color(0xFFF0FAF4));
             final borderColor = isSettled
                 ? Colors.grey.withValues(alpha: 0.2)
-                : (isOverdue ? Colors.red.withValues(alpha: 0.2) : accent.withValues(alpha: 0.2));
+                : (isOverdue
+                    ? Colors.red.withValues(alpha: 0.2)
+                    : accent.withValues(alpha: 0.2));
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -1635,26 +1702,34 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
                   // ── Status badge + Amount ──────────────────────────────
                   Row(children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: isSettled
                             ? Colors.grey.withValues(alpha: 0.1)
-                            : (isOverdue ? Colors.red.withValues(alpha: 0.1) : accent.withValues(alpha: 0.1)),
+                            : (isOverdue
+                                ? Colors.red.withValues(alpha: 0.1)
+                                : accent.withValues(alpha: 0.1)),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        isSettled ? '✓ مسترد' : (isOverdue ? '⚠ متأخر' : 'معلق'),
+                        isSettled
+                            ? '✓ مسترد'
+                            : (isOverdue ? '⚠ متأخر' : 'معلق'),
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: isSettled ? Colors.grey : (isOverdue ? Colors.red : accent),
+                          color: isSettled
+                              ? Colors.grey
+                              : (isOverdue ? Colors.red : accent),
                         ),
                       ),
                     ),
                     const Spacer(),
                     Text(
                       '${amount.toStringAsFixed(2)} ج.م',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 16),
                     ),
                   ]),
                   const SizedBox(height: 8),
@@ -1684,7 +1759,8 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
                         icon: Icons.check_circle_outline,
                         color: accent,
                         onTap: () async {
-                          await widget.cubit.settleLentEntry(widget.person.id, entryId);
+                          await widget.cubit
+                              .settleLentEntry(widget.person.id, entryId);
                           widget.onEntryAction();
                         },
                       ),
@@ -1696,12 +1772,15 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
                         onTap: () async {
                           final d = await showDatePicker(
                             context: widget.sheetCtx,
-                            initialDate: DateTime.now().add(const Duration(days: 7)),
+                            initialDate:
+                                DateTime.now().add(const Duration(days: 7)),
                             firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365 * 5)),
                           );
                           if (d != null) {
-                            await widget.cubit.postponeLentEntry(widget.person.id, entryId, d);
+                            await widget.cubit.postponeLentEntry(
+                                widget.person.id, entryId, d);
                             widget.onEntryAction();
                           }
                         },
@@ -1713,22 +1792,29 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
                         color: Colors.redAccent,
                         onTap: () async {
                           final confirm = await showDialog<bool>(
-                            context: widget.sheetCtx,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('تنازل عن السلفة'),
-                              content: const Text('هل أنت متأكد من التنازل عن هذا المبلغ؟ سيتم اعتباره مصروفاً نهائياً.'),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-                                FilledButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                                  child: const Text('تنازل'),
+                                context: widget.sheetCtx,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('تنازل عن السلفة'),
+                                  content: const Text(
+                                      'هل أنت متأكد من التنازل عن هذا المبلغ؟ سيتم اعتباره مصروفاً نهائياً.'),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('إلغاء')),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.red),
+                                      child: const Text('تنازل'),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ) ?? false;
+                              ) ??
+                              false;
                           if (confirm) {
-                            await widget.cubit.writeOffLentEntry(widget.person.id, entryId);
+                            await widget.cubit
+                                .writeOffLentEntry(widget.person.id, entryId);
                             widget.onEntryAction();
                           }
                         },
@@ -1782,7 +1868,6 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
   }
 }
 
-
 class _DebtInstallmentInteractiveCard extends StatefulWidget {
   const _DebtInstallmentInteractiveCard({
     required this.record,
@@ -1826,19 +1911,25 @@ class _DebtInstallmentInteractiveCardState
         .toList();
 
     final paidAmount = payments.fold(0.0, (sum, t) => sum + t.amount);
-    final paidCount = (paidAmount / (installmentAmt > 0 ? installmentAmt : 1)).floor();
-    final remainingAmount = (totalPrincipal - paidAmount).clamp(0.0, totalPrincipal);
+    final paidCount =
+        (paidAmount / (installmentAmt > 0 ? installmentAmt : 1)).floor();
+    final remainingAmount =
+        (totalPrincipal - paidAmount).clamp(0.0, totalPrincipal);
 
     // Check if paid this month
     final now = DateTime.now();
     final thisMonthStart = DateTime(now.year, now.month, 1);
-    final paidThisMonth = payments.any((t) => t.createdAt.isAfter(thisMonthStart));
+    final paidThisMonth =
+        payments.any((t) => t.createdAt.isAfter(thisMonthStart));
 
-    final progress = totalPrincipal > 0 ? (paidAmount / totalPrincipal).clamp(0.0, 1.0) : 0.0;
+    final progress = totalPrincipal > 0
+        ? (paidAmount / totalPrincipal).clamp(0.0, 1.0)
+        : 0.0;
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -1976,11 +2067,15 @@ class _DebtInstallmentInteractiveCardState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                paidThisMonth ? 'تم سداد قسط هذا الشهر' : 'قسط هذا الشهر',
+                                paidThisMonth
+                                    ? 'تم سداد قسط هذا الشهر'
+                                    : 'قسط هذا الشهر',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 13,
-                                  color: paidThisMonth ? Colors.green.shade800 : null,
+                                  color: paidThisMonth
+                                      ? Colors.green.shade800
+                                      : null,
                                 ),
                               ),
                               Text(
@@ -2002,11 +2097,12 @@ class _DebtInstallmentInteractiveCardState
                               await widget.cubit.addTransaction(
                                 walletId: record.walletId,
                                 amount: installmentAmt,
-                                type: 'expense',
-                                budgetScope: 'within-budget',
+                                type: TransactionType.expense.value,
+                                budgetScope: BudgetScope.withinBudget.value,
                                 createdAt: DateTime.now(),
                                 notes: 'سداد قسط: ${record.name}',
-                                details: 'سداد قسط من صفحة الديون: ${record.name}',
+                                details:
+                                    'سداد قسط من صفحة الديون: ${record.name}',
                               );
                               widget.onPaid();
                             },
@@ -2027,8 +2123,9 @@ class _DebtInstallmentInteractiveCardState
                 ],
               ),
             ),
-            crossFadeState:
-                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
         ],
@@ -2086,13 +2183,15 @@ class _SubscriptionInteractiveCardState
     // هل دُفع هذا الشهر؟
     final now = DateTime.now();
     final thisMonthStart = DateTime(now.year, now.month, 1);
-    final paidThisMonth = payments.any((t) => t.createdAt.isAfter(thisMonthStart));
+    final paidThisMonth =
+        payments.any((t) => t.createdAt.isAfter(thisMonthStart));
 
     final subscriptionAmt = record.amount;
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -2232,11 +2331,12 @@ class _SubscriptionInteractiveCardState
                               await widget.cubit.addTransaction(
                                 walletId: record.walletId,
                                 amount: subscriptionAmt,
-                                type: 'expense',
+                                type: TransactionType.expense.value,
                                 budgetScope: record.budgetScope,
                                 createdAt: DateTime.now(),
                                 notes: 'دفع اشتراك: ${record.name}',
-                                details: 'دفع اشتراك من صفحة الاشتراكات: ${record.name}',
+                                details:
+                                    'دفع اشتراك من صفحة الاشتراكات: ${record.name}',
                               );
                               widget.onPaid();
                             },
@@ -2258,43 +2358,55 @@ class _SubscriptionInteractiveCardState
                   if (payments.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     ...payments.take(5).map((tx) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(children: [
-                        Container(
-                          width: 28, height: 28,
-                          decoration: BoxDecoration(
-                            color: widget.accent.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.check_rounded, size: 14, color: widget.accent),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '${tx.createdAt.day}/${tx.createdAt.month}/${tx.createdAt.year}',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant),
-                          ),
-                        ),
-                        Text(
-                          '${tx.amount.toStringAsFixed(2)} ج.م',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: widget.accent),
-                        ),
-                      ]),
-                    )),
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: widget.accent.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.check_rounded,
+                                  size: 14, color: widget.accent),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '${tx.createdAt.day}/${tx.createdAt.month}/${tx.createdAt.year}',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.onSurfaceVariant),
+                              ),
+                            ),
+                            Text(
+                              '${tx.amount.toStringAsFixed(2)} ج.م',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: widget.accent),
+                            ),
+                          ]),
+                        )),
                     if (payments.length > 5)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           '+${payments.length - 5} دفعة سابقة',
-                          style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600),
                         ),
                       ),
                   ],
                 ],
               ),
             ),
-            crossFadeState:
-                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
         ],

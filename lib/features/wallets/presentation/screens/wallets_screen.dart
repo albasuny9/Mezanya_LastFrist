@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -808,17 +809,18 @@ class _WalletsScreenState extends State<WalletsScreen> {
         .where((t) =>
             t.toWalletId == jar.id ||
             t.walletId == jar.id ||
-            (t.type == 'income' && t.toWalletId == jar.id))
+            (t.type == TransactionType.income.value && t.toWalletId == jar.id))
         .where((t) =>
-            t.transferType == 'jar-allocation' ||
-            t.transferType == 'jar-allocation-cancel' ||
-            t.transferType == 'jar-allocation-spend' ||
-            t.transferType == 'jar-funding' ||
-            t.transferType == 'jar-funding-physical' ||
-            t.transferType == 'deposit-with-jar-label' ||
+            t.transferType == TransferType.jarAllocation.value ||
+            t.transferType == TransferType.jarAllocationCancel.value ||
+            t.transferType == TransferType.jarAllocationSpend.value ||
+            t.transferType == TransferType.jarFunding.value ||
+            t.transferType == TransferType.jarFundingPhysical.value ||
+            t.transferType == TransferType.depositWithJarLabel.value ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
-            (t.type == 'income' && t.budgetScope == 'within-budget'))
+            (t.type == TransactionType.income.value &&
+                t.budgetScope == BudgetScope.withinBudget.value))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -1932,7 +1934,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       } else {
                         // تحويل يشمل مخصص — نستخدم transaction افتراضية
                         await widget.cubit.addTransaction(
-                          type: 'transfer',
+                          type: TransactionType.transfer.value,
                           fromWalletId: sourceId,
                           toWalletId: targetId,
                           walletId: actualWalletId,
@@ -2464,7 +2466,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       if (amount <= 0 || fromId == toId) return;
                       Navigator.of(context).pop();
                       await widget.cubit.addTransaction(
-                        type: 'transfer',
+                        type: TransactionType.transfer.value,
                         amount: amount,
                         fromWalletId: fromId,
                         toWalletId: toId,
@@ -2826,10 +2828,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
-    return transaction.transferType == 'jar-funding' ||
-        transaction.transferType == 'jar-allocation' ||
-        transaction.transferType == 'jar-allocation-cancel' ||
-        transaction.transferType == 'jar-allocation-spend' ||
+    return transaction.transferType == TransferType.jarFunding.value ||
+        transaction.transferType == TransferType.jarAllocation.value ||
+        transaction.transferType == TransferType.jarAllocationCancel.value ||
+        transaction.transferType == TransferType.jarAllocationSpend.value ||
         transaction.transferType == 'allocation-to-jar' ||
         transaction.transferType == 'jar-to-allocation';
   }

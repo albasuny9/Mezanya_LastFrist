@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -109,13 +110,15 @@ class _RecurringTransactionComposerScreenState
         (state.wallets.isNotEmpty ? state.wallets.first.id : '');
     _lentWalletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
     _withinBudget = recurring != null
-        ? recurring.budgetScope == 'within-budget'
+        ? recurring.budgetScope == BudgetScope.withinBudget.value
         : widget.initialWithinBudget;
-    _executionType = recurring?.executionType ?? 'confirm';
-    _recurrencePattern = recurring?.recurrencePattern ?? 'monthly';
-    _iconName = recurring?.icon ?? (_type == 'income' ? 'cash' : 'category');
-    _iconColor =
-        recurring?.iconColor ?? (_type == 'income' ? '#0f9d7a' : '#c65d2e');
+    _executionType = recurring?.executionType ?? AutomationType.confirm.value;
+    _recurrencePattern =
+        recurring?.recurrencePattern ?? RecurrencePattern.monthly.value;
+    _iconName = recurring?.icon ??
+        (_type == TransactionType.income.value ? 'cash' : 'category');
+    _iconColor = recurring?.iconColor ??
+        (_type == TransactionType.income.value ? '#0f9d7a' : '#c65d2e');
     _expensePlanKind =
         recurring?.expensePlanKind ?? widget.initialExpensePlanKind ?? 'normal';
     _nameController.text = recurring?.name ?? '';
@@ -137,8 +140,8 @@ class _RecurringTransactionComposerScreenState
         downPay != null && downPay > 0 ? downPay.toStringAsFixed(2) : '';
     _isVariableIncome = recurring?.isVariableIncome ?? false;
     _isDebtOrSubscription = recurring?.isDebtOrSubscription ??
-        (_expensePlanKind == 'installment' ||
-            _expensePlanKind == 'subscription');
+        (_expensePlanKind == ExpensePlanKind.installment.value ||
+            _expensePlanKind == ExpensePlanKind.subscription.value);
     _monthlyDay = (recurring?.dayOfMonth ?? 1).clamp(1, 28);
     _yearlyDay = (recurring?.dayOfMonth ?? 1).clamp(1, 28);
     _yearlyMonth =
@@ -146,7 +149,7 @@ class _RecurringTransactionComposerScreenState
     _reminderLeadDays = recurring?.reminderLeadDays ?? 0;
     _allocationId = recurring?.allocationId;
     _targetJarId = recurring?.targetJarId;
-    if (_type == 'income') {
+    if (_type == TransactionType.income.value) {
       _allocationId = null;
     }
     _selectedCategoryIds.addAll(recurring?.categoryIds ?? const <String>[]);
@@ -182,7 +185,9 @@ class _RecurringTransactionComposerScreenState
       }
     }
 
-    if (_type == 'income' && _withinBudget && _isVariableIncome) {
+    if (_type == TransactionType.income.value &&
+        _withinBudget &&
+        _isVariableIncome) {
       _executionType = 'manual';
     }
 
@@ -243,26 +248,30 @@ class _RecurringTransactionComposerScreenState
 
   // ── visibility helpers ────────────────────────────────────────────────────
 
-  bool get _showAmount =>
-      !(_type == 'income' && _withinBudget && _isVariableIncome);
+  bool get _showAmount => !(_type == TransactionType.income.value &&
+      _withinBudget &&
+      _isVariableIncome);
 
-  bool get _showRecurrenceDetails =>
-      !(_type == 'income' && _withinBudget && _isVariableIncome);
+  bool get _showRecurrenceDetails => !(_type == TransactionType.income.value &&
+      _withinBudget &&
+      _isVariableIncome);
 
   bool get _isWeekPattern =>
-      _recurrencePattern == 'weekly' ||
-      _recurrencePattern == 'biweekly' ||
-      _recurrencePattern == 'every_3_weeks';
+      _recurrencePattern == RecurrencePattern.weekly.value ||
+      _recurrencePattern == RecurrencePattern.biweekly.value ||
+      _recurrencePattern == RecurrencePattern.every3Weeks.value;
 
   bool get _isMonthPattern =>
-      _recurrencePattern == 'monthly' ||
-      _recurrencePattern == 'every_2_months' ||
-      _recurrencePattern == 'every_3_months' ||
-      _recurrencePattern == 'every_6_months';
+      _recurrencePattern == RecurrencePattern.monthly.value ||
+      _recurrencePattern == RecurrencePattern.every2Months.value ||
+      _recurrencePattern == RecurrencePattern.every3Months.value ||
+      _recurrencePattern == RecurrencePattern.every6Months.value;
 
-  bool get _isExpenseInstallment => _expensePlanKind == 'installment';
+  bool get _isExpenseInstallment =>
+      _expensePlanKind == ExpensePlanKind.installment.value;
 
-  bool get _isExpenseSubscription => _expensePlanKind == 'subscription';
+  bool get _isExpenseSubscription =>
+      _expensePlanKind == ExpensePlanKind.subscription.value;
 
   bool get _canSave {
     if (_isSaving || _nameController.text.trim().isEmpty || _walletId.isEmpty) {
@@ -280,7 +289,7 @@ class _RecurringTransactionComposerScreenState
         return false;
       }
     }
-    if (_type == 'expense' &&
+    if (_type == TransactionType.expense.value &&
         _withinBudget &&
         !_isDebtOrSubscription &&
         _allocationId == null &&
@@ -300,14 +309,16 @@ class _RecurringTransactionComposerScreenState
 
   String _composerTitle() {
     final isNew = widget.initialRecurring == null;
-    if (widget.subscriptionOnlyMode || _expensePlanKind == 'subscription') {
+    if (widget.subscriptionOnlyMode ||
+        _expensePlanKind == ExpensePlanKind.subscription.value) {
       return isNew ? 'إضافة اشتراك' : 'تعديل اشتراك';
     }
-    if (widget.debtOnlyMode || _expensePlanKind == 'installment') {
+    if (widget.debtOnlyMode ||
+        _expensePlanKind == ExpensePlanKind.installment.value) {
       if (_isLentMode) return 'سلّفت حد';
       return isNew ? 'إضافة قسط' : 'تعديل قسط';
     }
-    if (_type == 'income') {
+    if (_type == TransactionType.income.value) {
       return isNew ? 'إضافة دخل متكرر' : 'تعديل دخل متكرر';
     }
     return isNew ? 'إضافة مصروف متكرر' : 'تعديل مصروف متكرر';
@@ -335,7 +346,8 @@ class _RecurringTransactionComposerScreenState
           children: [
             // ── وضع القسط المبسّط ──────────────────────────────────────
             if (_isExpenseInstallment &&
-                (widget.debtOnlyMode || _expensePlanKind == 'installment')) ...[
+                (widget.debtOnlyMode ||
+                    _expensePlanKind == ExpensePlanKind.installment.value)) ...[
               _debtLentToggle(theme),
               const SizedBox(height: 18),
               if (_isLentMode) ...[
@@ -359,7 +371,7 @@ class _RecurringTransactionComposerScreenState
                 ),
               ),
               const SizedBox(height: 12),
-              if (_type == 'income' && _withinBudget) ...[
+              if (_type == TransactionType.income.value && _withinBudget) ...[
                 _surfaceSection(
                   child: SwitchListTile.adaptive(
                     value: _isVariableIncome,
@@ -387,7 +399,7 @@ class _RecurringTransactionComposerScreenState
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    labelText: _type == 'expense' &&
+                    labelText: _type == TransactionType.expense.value &&
                             _withinBudget &&
                             _isExpenseInstallment
                         ? 'مبلغ القسط أو الدفعة'
@@ -397,7 +409,7 @@ class _RecurringTransactionComposerScreenState
                 ),
                 const SizedBox(height: 12),
               ],
-              if (_type == 'expense' &&
+              if (_type == TransactionType.expense.value &&
                   _withinBudget &&
                   _isExpenseInstallment) ...[
                 TextField(
@@ -470,21 +482,34 @@ class _RecurringTransactionComposerScreenState
                     labelText: 'نوع التكرار',
                     prefixIcon: Icon(Icons.repeat_rounded),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'daily', child: Text('يومي')),
-                    DropdownMenuItem(value: 'weekly', child: Text('أسبوعي')),
+                  items: [
                     DropdownMenuItem(
-                        value: 'biweekly', child: Text('كل أسبوعين')),
+                        value: RecurrencePattern.daily.value,
+                        child: Text('يومي')),
                     DropdownMenuItem(
-                        value: 'every_3_weeks', child: Text('كل 3 أسابيع')),
-                    DropdownMenuItem(value: 'monthly', child: Text('شهري')),
+                        value: RecurrencePattern.weekly.value,
+                        child: Text('أسبوعي')),
                     DropdownMenuItem(
-                        value: 'every_2_months', child: Text('كل شهرين')),
+                        value: RecurrencePattern.biweekly.value,
+                        child: Text('كل أسبوعين')),
                     DropdownMenuItem(
-                        value: 'every_3_months', child: Text('كل 3 شهور')),
+                        value: RecurrencePattern.every3Weeks.value,
+                        child: Text('كل 3 أسابيع')),
                     DropdownMenuItem(
-                        value: 'every_6_months', child: Text('كل 6 شهور')),
-                    DropdownMenuItem(value: 'yearly', child: Text('سنوي')),
+                        value: RecurrencePattern.monthly.value,
+                        child: Text('شهري')),
+                    DropdownMenuItem(
+                        value: RecurrencePattern.every2Months.value,
+                        child: Text('كل شهرين')),
+                    DropdownMenuItem(
+                        value: RecurrencePattern.every3Months.value,
+                        child: Text('كل 3 شهور')),
+                    DropdownMenuItem(
+                        value: RecurrencePattern.every6Months.value,
+                        child: Text('كل 6 شهور')),
+                    DropdownMenuItem(
+                        value: RecurrencePattern.yearly.value,
+                        child: Text('سنوي')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -496,7 +521,9 @@ class _RecurringTransactionComposerScreenState
                 _recurrenceDetails(),
                 const SizedBox(height: 12),
               ],
-              if (_type == 'income' && _withinBudget && _isVariableIncome)
+              if (_type == TransactionType.income.value &&
+                  _withinBudget &&
+                  _isVariableIncome)
                 _surfaceSection(
                   child: const ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -514,10 +541,13 @@ class _RecurringTransactionComposerScreenState
                     labelText: 'طريقة التنفيذ',
                     prefixIcon: Icon(Icons.bolt_rounded),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
+                  items: [
                     DropdownMenuItem(
-                        value: 'confirm', child: Text('يحتاج تأكيد')),
+                        value: AutomationType.auto.value,
+                        child: Text('تلقائي')),
+                    DropdownMenuItem(
+                        value: AutomationType.confirm.value,
+                        child: Text('يحتاج تأكيد')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -525,7 +555,7 @@ class _RecurringTransactionComposerScreenState
                     }
                   },
                 ),
-                if (_executionType == 'confirm') ...[
+                if (_executionType == AutomationType.confirm.value) ...[
                   const SizedBox(height: 12),
                   _reminderDropdown(),
                 ],
@@ -1161,9 +1191,12 @@ class _RecurringTransactionComposerScreenState
                 labelText: 'طريقة التنفيذ',
                 prefixIcon: Icon(Icons.bolt_rounded),
               ),
-              items: const [
-                DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
-                DropdownMenuItem(value: 'confirm', child: Text('يحتاج تأكيد')),
+              items: [
+                DropdownMenuItem(
+                    value: AutomationType.auto.value, child: Text('تلقائي')),
+                DropdownMenuItem(
+                    value: AutomationType.confirm.value,
+                    child: Text('يحتاج تأكيد')),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -1171,7 +1204,7 @@ class _RecurringTransactionComposerScreenState
                 }
               },
             ),
-            if (_executionType == 'confirm') ...[
+            if (_executionType == AutomationType.confirm.value) ...[
               const SizedBox(height: 12),
               _reminderDropdown(),
             ],
@@ -1215,12 +1248,14 @@ class _RecurringTransactionComposerScreenState
     return DropdownButtonFormField<int>(
       value: _reminderLeadDays,
       decoration: InputDecoration(
-        labelText: _recurrencePattern == 'daily' || _isWeekPattern
+        labelText: _recurrencePattern == RecurrencePattern.daily.value ||
+                _isWeekPattern
             ? 'وقت الإشعار'
             : 'وقت الإشعار',
         prefixIcon: const Icon(Icons.notifications_active_rounded),
       ),
-      items: (_recurrencePattern == 'daily' || _isWeekPattern)
+      items: (_recurrencePattern == RecurrencePattern.daily.value ||
+              _isWeekPattern)
           ? const [
               DropdownMenuItem(
                 value: 0,
@@ -1283,7 +1318,7 @@ class _RecurringTransactionComposerScreenState
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _typeSwitcher(ThemeData theme) {
-    final isIncome = _type == 'income';
+    final isIncome = _type == TransactionType.income.value;
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
@@ -1300,11 +1335,11 @@ class _RecurringTransactionComposerScreenState
               icon: Icons.arrow_outward_rounded,
               onTap: () {
                 setState(() {
-                  _type = 'expense';
+                  _type = TransactionType.expense.value;
                   if (_withinBudget) {
                     _expensePlanKind = widget.initialExpensePlanKind ??
                         (_expensePlanKind == 'normal'
-                            ? 'installment'
+                            ? ExpensePlanKind.installment.value
                             : _expensePlanKind);
                     _isDebtOrSubscription = _expensePlanKind != 'normal';
                   }
@@ -1320,7 +1355,7 @@ class _RecurringTransactionComposerScreenState
               icon: Icons.arrow_downward_rounded,
               onTap: () {
                 setState(() {
-                  _type = 'income';
+                  _type = TransactionType.income.value;
                   _allocationId = null;
                   _targetJarId = null;
                   _expensePlanKind = 'normal';
@@ -1439,9 +1474,11 @@ class _RecurringTransactionComposerScreenState
 
   String _budgetScopeLabel(BudgetSetupEntity budget) {
     if (!_withinBudget) {
-      return _type == 'income' ? 'دخل للمحفظة فقط' : 'خارج الميزانية';
+      return _type == TransactionType.income.value
+          ? 'دخل للمحفظة فقط'
+          : 'خارج الميزانية';
     }
-    if (_type == 'expense' && _allocationId != null) {
+    if (_type == TransactionType.expense.value && _allocationId != null) {
       final a = budget.allocations.where((a) => a.id == _allocationId).toList();
       if (a.isNotEmpty) return 'مخصص: ${a.first.name}';
     }
@@ -1450,7 +1487,9 @@ class _RecurringTransactionComposerScreenState
           budget.linkedWallets.where((j) => j.id == _targetJarId).toList();
       if (j.isNotEmpty) return 'حصالة: ${j.first.name}';
     }
-    return _type == 'income' ? 'دخل للميزانية الشهرية' : 'داخل الميزانية (عام)';
+    return _type == TransactionType.income.value
+        ? 'دخل للميزانية الشهرية'
+        : 'داخل الميزانية (عام)';
   }
 
   void _openBudgetScopePicker(BudgetSetupEntity budget) {
@@ -1471,20 +1510,20 @@ class _RecurringTransactionComposerScreenState
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
             Text(
-              _type == 'income' ? 'وجهة الدخل' : 'المخصص',
+              _type == TransactionType.income.value ? 'وجهة الدخل' : 'المخصص',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             _ScopeOptionTile(
               isSelected: !_withinBudget,
-              icon: _type == 'income'
+              icon: _type == TransactionType.income.value
                   ? Icons.account_balance_wallet_rounded
                   : Icons.public_off_rounded,
               iconColor: Colors.grey,
-              title: _type == 'income'
+              title: _type == TransactionType.income.value
                   ? 'دخل لمحفظة ${selectedWalletName ?? "مختارة"} فقط'
                   : 'خارج الميزانية',
-              subtitle: _type == 'income'
+              subtitle: _type == TransactionType.income.value
                   ? 'يزود رصيد المحفظة بدون دخوله في خطة الميزانية'
                   : 'لن تُحتسب في خطة الميزانية',
               progress: null,
@@ -1500,7 +1539,7 @@ class _RecurringTransactionComposerScreenState
                 Navigator.pop(ctx);
               },
             ),
-            if (_type == 'income') ...[
+            if (_type == TransactionType.income.value) ...[
               const SizedBox(height: 8),
               _ScopeOptionTile(
                 isSelected: _withinBudget &&
@@ -1552,7 +1591,7 @@ class _RecurringTransactionComposerScreenState
                   );
                 }),
               ],
-            ] else if (_type == 'expense') ...[
+            ] else if (_type == TransactionType.expense.value) ...[
               const SizedBox(height: 14),
               const _ScopeDivider(label: 'المخصصات'),
               const SizedBox(height: 8),
@@ -1735,7 +1774,7 @@ class _RecurringTransactionComposerScreenState
       name: name,
       icon: iconName,
       color: iconColor,
-      scope: _type == 'income' ? 'income' : 'expense',
+      scope: _type == TransactionType.income.value ? 'income' : 'expense',
       allocationId: (_withinBudget &&
               _allocationId != null &&
               _allocationId != 'unallocated')
@@ -1769,7 +1808,7 @@ class _RecurringTransactionComposerScreenState
   }
 
   Widget _recurrenceDetails() {
-    if (_recurrencePattern == 'daily') {
+    if (_recurrencePattern == RecurrencePattern.daily.value) {
       return _timeTile();
     }
     if (_isWeekPattern) {
@@ -1796,7 +1835,7 @@ class _RecurringTransactionComposerScreenState
         ],
       );
     }
-    if (_recurrencePattern == 'yearly') {
+    if (_recurrencePattern == RecurrencePattern.yearly.value) {
       return Column(
         children: [
           Row(
@@ -1901,7 +1940,7 @@ class _RecurringTransactionComposerScreenState
     List<CategoryEntity> allCategories,
     BudgetSetupEntity budget,
   ) {
-    if (_type == 'expense' && _withinBudget) {
+    if (_type == TransactionType.expense.value && _withinBudget) {
       if (_allocationId != null) {
         final allocation =
             budget.allocations.where((item) => item.id == _allocationId);
@@ -1919,7 +1958,6 @@ class _RecurringTransactionComposerScreenState
     }
     return allCategories.where((category) => category.scope == _type).toList();
   }
-
 
   Future<void> _pickIcon() async {
     final picked = await AppIconPickerDialog.show(
@@ -1941,18 +1979,21 @@ class _RecurringTransactionComposerScreenState
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
 
     final effectivePattern = _isExpenseInstallment
-        ? 'monthly'
-        : (_type == 'income' && _withinBudget && _isVariableIncome
-            ? 'manual-variable'
+        ? RecurrencePattern.monthly.value
+        : (_type == TransactionType.income.value &&
+                _withinBudget &&
+                _isVariableIncome
+            ? RecurrencePattern.manualVariable.value
             : _recurrencePattern);
 
-    final effectiveExecutionType =
-        _type == 'income' && _withinBudget && _isVariableIncome
-            ? 'manual'
-            : _executionType;
+    final effectiveExecutionType = _type == TransactionType.income.value &&
+            _withinBudget &&
+            _isVariableIncome
+        ? 'manual'
+        : _executionType;
 
     final principalRaw = double.tryParse(_debtPrincipalController.text.trim());
-    final debtPrincipalTotal = (_type == 'expense' &&
+    final debtPrincipalTotal = (_type == TransactionType.expense.value &&
             _withinBudget &&
             _isExpenseInstallment &&
             principalRaw != null &&
@@ -1975,7 +2016,7 @@ class _RecurringTransactionComposerScreenState
     // اليوم الشهري للأقساط يُستخرج من تاريخ أول دفعة
     final effectiveDayOfMonth = _isExpenseInstallment
         ? _firstPaymentDate.day.clamp(1, 28)
-        : (_recurrencePattern == 'yearly'
+        : (_recurrencePattern == RecurrencePattern.yearly.value
             ? _yearlyDay
             : _isMonthPattern
                 ? _monthlyDay
@@ -1994,25 +2035,32 @@ class _RecurringTransactionComposerScreenState
       executionType: effectiveExecutionType,
       walletId: _walletId,
       budgetScope: _isExpenseInstallment
-          ? 'within-budget'
-          : (_withinBudget ? 'within-budget' : 'outside-budget'),
+          ? BudgetScope.withinBudget.value
+          : (_withinBudget
+              ? BudgetScope.withinBudget.value
+              : BudgetScope.outsideBudget.value),
       recurrencePattern: effectivePattern,
       icon: _iconName,
       iconColor: _iconColor,
       weekday: _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
       weekdays: _selectedWeekdays.toList()..sort(),
-      monthOfYear: _recurrencePattern == 'yearly' ? _yearlyMonth : null,
+      monthOfYear: _recurrencePattern == RecurrencePattern.yearly.value
+          ? _yearlyMonth
+          : null,
       anchorDate: effectiveAnchorDate,
       scheduledTime: _isExpenseInstallment
           ? null
           : (_showRecurrenceDetails ? _formatTime(_selectedTime) : null),
-      reminderLeadDays:
-          effectiveExecutionType == 'confirm' ? _reminderLeadDays : null,
-      allocationId:
-          _type == 'expense' && _withinBudget && !_isDebtOrSubscription
-              ? _allocationId
-              : null,
-      targetJarId: (_type == 'expense' || _type == 'income') &&
+      reminderLeadDays: effectiveExecutionType == AutomationType.confirm.value
+          ? _reminderLeadDays
+          : null,
+      allocationId: _type == TransactionType.expense.value &&
+              _withinBudget &&
+              !_isDebtOrSubscription
+          ? _allocationId
+          : null,
+      targetJarId: (_type == TransactionType.expense.value ||
+                  _type == TransactionType.income.value) &&
               _withinBudget &&
               !_isDebtOrSubscription
           ? _targetJarId
@@ -2021,8 +2069,11 @@ class _RecurringTransactionComposerScreenState
       categoryIds: _selectedCategoryIds.toList(),
       isVariableIncome: _isVariableIncome,
       isDebtOrSubscription: _isExpenseInstallment ||
-          (_type == 'expense' && _withinBudget && _isDebtOrSubscription),
-      expensePlanKind: _type == 'expense' ? _expensePlanKind : null,
+          (_type == TransactionType.expense.value &&
+              _withinBudget &&
+              _isDebtOrSubscription),
+      expensePlanKind:
+          _type == TransactionType.expense.value ? _expensePlanKind : null,
       debtPrincipalTotal: debtPrincipalTotal,
       installmentCount: installmentCount,
       installmentDownPayment: installmentDownPayment,
@@ -2550,7 +2601,6 @@ class _EditorSection extends StatelessWidget {
                   ],
                 ),
               ),
-          
             ],
           ),
           const SizedBox(height: 14),

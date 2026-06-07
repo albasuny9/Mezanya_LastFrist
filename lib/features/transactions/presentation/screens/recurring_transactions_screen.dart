@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -40,10 +41,10 @@ class _RecurringTransactionsScreenState
             return a.dayOfMonth.compareTo(b.dayOfMonth);
           });
         final inBudget = records
-            .where((item) => item.budgetScope == 'within-budget')
+            .where((item) => item.budgetScope == BudgetScope.withinBudget.value)
             .toList();
         final outBudget = records
-            .where((item) => item.budgetScope != 'within-budget')
+            .where((item) => item.budgetScope != BudgetScope.withinBudget.value)
             .toList();
 
         return ListView(
@@ -78,19 +79,17 @@ class _RecurringTransactionsScreenState
 
   bool _matchesTab(RecurringTransactionEntity item) {
     if (_tab == 'income') {
-      return item.type == 'income';
+      return item.type == TransactionType.income.value;
     }
-    return item.type == 'expense' &&
-        item.expensePlanKind != 'subscription' &&
-        item.expensePlanKind != 'installment';
+    return item.type == TransactionType.expense.value &&
+        item.expensePlanKind != ExpensePlanKind.subscription.value &&
+        item.expensePlanKind != ExpensePlanKind.installment.value;
   }
 
   Color get _currentAccent {
     if (_tab == 'income') return _incomeAccent;
     return _expenseAccent;
   }
-
-
 
   String _scopeSubtitle({required bool withinBudget}) {
     if (_tab == 'income') {
@@ -121,7 +120,8 @@ class _RecurringTransactionsScreenState
   Widget _addButtons() {
     final isExpense = _tab == 'expense';
     final color = isExpense ? _expenseAccent : _incomeAccent;
-    final icon = isExpense ? Icons.north_east_rounded : Icons.south_west_rounded;
+    final icon =
+        isExpense ? Icons.north_east_rounded : Icons.south_west_rounded;
     final label = isExpense ? 'إضافة مصروف متكرر' : 'إضافة دخل متكرر';
 
     return GestureDetector(
@@ -167,7 +167,6 @@ class _RecurringTransactionsScreenState
       ),
     );
   }
-
 
   Widget _typeSwitcher() {
     final theme = Theme.of(context);
@@ -345,8 +344,9 @@ class _RecurringTransactionsScreenState
         record.isVariableIncome ? 'متغير' : record.amount.toStringAsFixed(2);
     final wallet = _walletName(state, record.walletId);
     final execution = _executionLabel(record.executionType);
-    final scope =
-        record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام';
+    final scope = record.budgetScope == BudgetScope.withinBudget.value
+        ? 'داخل الميزانية'
+        : 'عام';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -428,7 +428,7 @@ class _RecurringTransactionsScreenState
                         _miniTag(execution),
                         _miniTag(scope),
                         if (wallet != '-') _miniTag(wallet),
-                        if (record.type == 'expense')
+                        if (record.type == TransactionType.expense.value)
                           _miniTag(_expensePlanKindLabel(record)),
                       ],
                     ),
@@ -577,10 +577,10 @@ class _RecurringTransactionsScreenState
                       _openRecurringComposer(
                         mode: record.type,
                         editing: record,
-                        subscriptionOnlyMode:
-                            record.expensePlanKind == 'subscription',
-                        debtOnlyMode:
-                            record.expensePlanKind == 'installment',
+                        subscriptionOnlyMode: record.expensePlanKind ==
+                            ExpensePlanKind.subscription.value,
+                        debtOnlyMode: record.expensePlanKind ==
+                            ExpensePlanKind.installment.value,
                       );
                     },
                     icon: const Icon(Icons.edit_outlined),
@@ -686,8 +686,9 @@ class _RecurringTransactionsScreenState
           ? 'دخل متغير'
           : record.amount.toStringAsFixed(2),
       'المحفظة': _walletName(state, record.walletId),
-      'النطاق':
-          record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام',
+      'النطاق': record.budgetScope == BudgetScope.withinBudget.value
+          ? 'داخل الميزانية'
+          : 'عام',
       'التكرار': _recurrenceLabel(record),
       'التنفيذ': _executionLabel(record.executionType),
       if (record.reminderLeadDays != null)
@@ -701,8 +702,9 @@ class _RecurringTransactionsScreenState
       if (record.categoryIds.isNotEmpty)
         'الفئات':
             record.categoryIds.map((id) => _categoryName(state, id)).join('، '),
-      if (record.type == 'expense') 'التصنيف': _expensePlanKindLabel(record),
-      if (record.expensePlanKind == 'installment' &&
+      if (record.type == TransactionType.expense.value)
+        'التصنيف': _expensePlanKindLabel(record),
+      if (record.expensePlanKind == ExpensePlanKind.installment.value &&
           record.debtPrincipalTotal != null)
         'إجمالي الأصل': record.debtPrincipalTotal!.toStringAsFixed(2),
       if (record.notes?.trim().isNotEmpty == true)
@@ -717,19 +719,33 @@ class _RecurringTransactionsScreenState
     final weekdayLabel = record.weekdays.isNotEmpty
         ? record.weekdays.map(_weekdayName).join('، ')
         : _weekdayName(record.weekday);
-    return switch (record.recurrencePattern) {
-      'daily' => 'يومي$timeSuffix',
-      'weekly' => 'أسبوعي ($weekdayLabel)$timeSuffix',
-      'biweekly' => 'كل أسبوعين ($weekdayLabel)$timeSuffix',
-      'every_3_weeks' => 'كل 3 أسابيع ($weekdayLabel)$timeSuffix',
-      'every_2_months' => 'كل شهرين يوم ${record.dayOfMonth}$timeSuffix',
-      'every_3_months' => 'كل 3 شهور يوم ${record.dayOfMonth}$timeSuffix',
-      'every_6_months' => 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix',
-      'yearly' =>
-        'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
-      'manual-variable' => 'يدوي متغير',
-      _ => 'شهري يوم ${record.dayOfMonth}$timeSuffix',
-    };
+    final pattern = record.recurrencePattern;
+    if (pattern == RecurrencePattern.daily.value) return 'يومي$timeSuffix';
+    if (pattern == RecurrencePattern.weekly.value) {
+      return 'أسبوعي ($weekdayLabel)$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.biweekly.value) {
+      return 'كل أسبوعين ($weekdayLabel)$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every3Weeks.value) {
+      return 'كل 3 أسابيع ($weekdayLabel)$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every2Months.value) {
+      return 'كل شهرين يوم ${record.dayOfMonth}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every3Months.value) {
+      return 'كل 3 شهور يوم ${record.dayOfMonth}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.every6Months.value) {
+      return 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.yearly.value) {
+      return 'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix';
+    }
+    if (pattern == RecurrencePattern.manualVariable.value) {
+      return 'يدوي متغير';
+    }
+    return 'شهري يوم ${record.dayOfMonth}$timeSuffix';
   }
 
   String _weekdayName(int? day) {
@@ -746,22 +762,20 @@ class _RecurringTransactionsScreenState
   }
 
   String _executionLabel(String value) {
-    return switch (value) {
-      'auto' => 'تلقائي',
-      'confirm' => 'يحتاج تأكيد',
-      'manual' => 'يدوي',
-      _ => value,
-    };
+    if (value == AutomationType.auto.value) return 'تلقائي';
+    if (value == AutomationType.confirm.value) return 'يحتاج تأكيد';
+    if (value == 'manual') return 'يدوي';
+    return value;
   }
 
   String _typeLabel(RecurringTransactionEntity record) {
-    if (record.type == 'income') {
+    if (record.type == TransactionType.income.value) {
       return 'دخل';
     }
-    if (record.expensePlanKind == 'subscription') {
+    if (record.expensePlanKind == ExpensePlanKind.subscription.value) {
       return 'اشتراك';
     }
-    if (record.expensePlanKind == 'installment') {
+    if (record.expensePlanKind == ExpensePlanKind.installment.value) {
       return 'قسط';
     }
     return 'مصروف';
@@ -770,10 +784,10 @@ class _RecurringTransactionsScreenState
   String _reminderLabel(RecurringTransactionEntity record) {
     final value = record.reminderLeadDays ?? 0;
     if (value == 0) return 'في نفس الموعد';
-    final isHours = record.recurrencePattern == 'daily' ||
-        record.recurrencePattern == 'weekly' ||
-        record.recurrencePattern == 'biweekly' ||
-        record.recurrencePattern == 'every_3_weeks';
+    final isHours = record.recurrencePattern == RecurrencePattern.daily.value ||
+        record.recurrencePattern == RecurrencePattern.weekly.value ||
+        record.recurrencePattern == RecurrencePattern.biweekly.value ||
+        record.recurrencePattern == RecurrencePattern.every3Weeks.value;
     return isHours ? '$value ساعة' : '$value يوم';
   }
 
@@ -811,10 +825,10 @@ class _RecurringTransactionsScreenState
 
   String _expensePlanKindLabel(RecurringTransactionEntity record) {
     final kind = record.expensePlanKind;
-    if (kind == 'installment') {
+    if (kind == ExpensePlanKind.installment.value) {
       return 'قسط';
     }
-    if (kind == 'subscription') {
+    if (kind == ExpensePlanKind.subscription.value) {
       return 'اشتراك';
     }
     return 'مصروف';
@@ -833,7 +847,7 @@ class _RecurringTransactionsScreenState
       if (transaction.type != record.type) {
         return false;
       }
-      if (record.type == 'income') {
+      if (record.type == TransactionType.income.value) {
         if ((record.incomeSourceId ?? '').isNotEmpty) {
           return transaction.incomeSourceId == record.incomeSourceId;
         }
@@ -879,7 +893,8 @@ class _RecurringTransactionsScreenState
           cubit: widget.cubit,
           initialType: mode,
           initialRecurring: editing,
-          initialWithinBudget: editing?.budgetScope == 'within-budget',
+          initialWithinBudget:
+              editing?.budgetScope == BudgetScope.withinBudget.value,
           initialExpensePlanKind:
               editing?.expensePlanKind ?? initialExpensePlanKind,
           allowDelete: editing != null,
@@ -889,7 +904,6 @@ class _RecurringTransactionsScreenState
       ),
     );
   }
-
 }
 
 class _DetailsTable extends StatelessWidget {

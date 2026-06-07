@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -137,7 +138,7 @@ Future<void> openTransactionDetailsSheet(
             FilledButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
-                if (transaction.transferType == 'jar-funding') {
+                if (transaction.transferType == TransferType.jarFunding.value) {
                   await _openJarReserveEditor(
                     context,
                     cubit: cubit,
@@ -407,10 +408,10 @@ Future<void> _openJarReserveEditor(
                           fromWalletId: selectedWalletId,
                           toWalletId: selectedJarId,
                           amount: amount,
-                          type: 'transfer',
+                          type: TransactionType.transfer.value,
                           budgetScope: transaction.budgetScope,
                           incomeSourceId: transaction.incomeSourceId,
-                          transferType: 'jar-funding',
+                          transferType: TransferType.jarFunding.value,
                           notes: notesController.text.trim().isEmpty
                               ? null
                               : notesController.text.trim(),
@@ -487,8 +488,8 @@ String _editableJarNote(TransactionEntity tx) {
 bool _isGeneratedJarNote(TransactionEntity tx) {
   final note = tx.notes?.trim();
   if (note == null || note.isEmpty) return false;
-  if (tx.transferType != 'jar-funding' &&
-      tx.transferType != 'jar-funding-physical') {
+  if (tx.transferType != TransferType.jarFunding.value &&
+      tx.transferType != TransferType.jarFundingPhysical.value) {
     return false;
   }
   return note.startsWith('حجز للحصالة') ||
@@ -509,10 +510,10 @@ String _transactionDisplayTitle(AppStateEntity state, TransactionEntity tx) {
   }
   final jarName = resolvedJarName ?? 'التوفير';
 
-  if (tx.transferType == 'jar-funding') {
+  if (tx.transferType == TransferType.jarFunding.value) {
     return 'حجز لحصالة $jarName';
   }
-  if (tx.transferType == 'jar-funding-physical') {
+  if (tx.transferType == TransferType.jarFundingPhysical.value) {
     return 'خصم لحصالة $jarName';
   }
   if (tx.notes?.trim().isNotEmpty == true) {
@@ -522,47 +523,27 @@ String _transactionDisplayTitle(AppStateEntity state, TransactionEntity tx) {
 }
 
 String _typeLabel(String type) {
-  switch (type) {
-    case 'income':
-      return 'دخل';
-    case 'expense':
-      return 'مصروف';
-    default:
-      return 'تحويل';
-  }
+  if (type == TransactionType.income.value) return 'دخل';
+  if (type == TransactionType.expense.value) return 'مصروف';
+  return 'تحويل';
 }
 
 String _budgetScopeLabel(String value) {
-  switch (value) {
-    case 'within-budget':
-      return 'داخل الميزانية';
-    case 'outside-budget':
-      return 'خارج الميزانية';
-    default:
-      return value;
-  }
+  if (value == BudgetScope.withinBudget.value) return 'داخل الميزانية';
+  if (value == BudgetScope.outsideBudget.value) return 'خارج الميزانية';
+  return value;
 }
 
 IconData _iconForTransaction(TransactionEntity tx) {
-  switch (tx.type) {
-    case 'income':
-      return Icons.south_west_rounded;
-    case 'expense':
-      return Icons.north_east_rounded;
-    default:
-      return Icons.swap_horiz_rounded;
-  }
+  if (tx.type == TransactionType.income.value) return Icons.south_west_rounded;
+  if (tx.type == TransactionType.expense.value) return Icons.north_east_rounded;
+  return Icons.swap_horiz_rounded;
 }
 
 Color _accentForTransaction(ThemeData theme, TransactionEntity tx) {
-  switch (tx.type) {
-    case 'income':
-      return const Color(0xFF1F8B5F);
-    case 'expense':
-      return const Color(0xFFC86D2B);
-    default:
-      return theme.colorScheme.primary;
-  }
+  if (tx.type == TransactionType.income.value) return const Color(0xFF1F8B5F);
+  if (tx.type == TransactionType.expense.value) return const Color(0xFFC86D2B);
+  return theme.colorScheme.primary;
 }
 
 IconData parseCategoryIcon(String name) {

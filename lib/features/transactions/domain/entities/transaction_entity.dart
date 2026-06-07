@@ -64,7 +64,8 @@ class TransactionEntity {
       transferType: map['transferType'] as String?,
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       type: map['type'] as String? ?? 'expense',
-      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       notes: map['notes'] as String?,
     );
   }

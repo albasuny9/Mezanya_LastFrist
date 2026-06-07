@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -523,10 +524,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
               const SizedBox(height: 14),
               _DetailsTable(
                 rows: [
-                  _DetailRow('المبلغ المستهدف', goal.targetAmount.toStringAsFixed(2)),
-                  _DetailRow('المتوفر في الحصالة', savedAmount.toStringAsFixed(2)),
+                  _DetailRow(
+                      'المبلغ المستهدف', goal.targetAmount.toStringAsFixed(2)),
+                  _DetailRow(
+                      'المتوفر في الحصالة', savedAmount.toStringAsFixed(2)),
                   _DetailRow('المتبقي', remaining.toStringAsFixed(2)),
-                  _DetailRow('نسبة الإنجاز', '${(progress * 100).toStringAsFixed(0)}%'),
+                  _DetailRow('نسبة الإنجاز',
+                      '${(progress * 100).toStringAsFixed(0)}%'),
                   _DetailRow('بداية الهدف', _formatDate(goal.startDate)),
                   _DetailRow('نهاية الهدف', _formatDate(goal.endDate)),
                   if ((goal.notes ?? '').trim().isNotEmpty)
@@ -632,16 +636,17 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         if (amount <= 0 || amount > jar.balance) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('اكتب مبلغًا صحيحًا داخل رصيد الحصالة.'),
+                              content:
+                                  Text('اكتب مبلغًا صحيحًا داخل رصيد الحصالة.'),
                             ),
                           );
                           return;
                         }
                         await widget.cubit.addTransaction(
-                          type: 'expense',
+                          type: TransactionType.expense.value,
                           walletId: jar.id,
                           amount: amount,
-                          budgetScope: 'outside-budget',
+                          budgetScope: BudgetScope.outsideBudget.value,
                           notes: notesController.text.trim().isEmpty
                               ? 'تحقيق هدف ${goal.name}'
                               : notesController.text.trim(),
@@ -805,7 +810,8 @@ class _GoalEditorScreenState extends State<_GoalEditorScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف الهدف'),
-        content: const Text('سيتم حذف هذا الهدف من قائمة الأهداف. هل تريد المتابعة؟'),
+        content: const Text(
+            'سيتم حذف هذا الهدف من قائمة الأهداف. هل تريد المتابعة؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -953,7 +959,8 @@ class _GoalEditorScreenState extends State<_GoalEditorScreen> {
                       ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+                        color:
+                            colorScheme.outlineVariant.withValues(alpha: 0.6),
                       ),
                     ),
                     child: Row(
@@ -1005,7 +1012,8 @@ class _GoalEditorScreenState extends State<_GoalEditorScreen> {
           const SizedBox(height: 14),
           _EditorSection(
             title: 'الخطة المالية',
-            subtitle: 'حدد المبلغ المطلوب والمدة حتى يظهر لك الاحتياج الشهري التقريبي.',
+            subtitle:
+                'حدد المبلغ المطلوب والمدة حتى يظهر لك الاحتياج الشهري التقريبي.',
             child: Column(
               children: [
                 TextField(
@@ -1067,7 +1075,8 @@ class _GoalEditorScreenState extends State<_GoalEditorScreen> {
             const SizedBox(height: 14),
             _EditorSection(
               title: 'إدارة الهدف',
-              subtitle: 'الحذف موجود هنا فقط لتجنب الضغط عليه بالخطأ من القائمة.',
+              subtitle:
+                  'الحذف موجود هنا فقط لتجنب الضغط عليه بالخطأ من القائمة.',
               child: Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: TextButton.icon(
@@ -1141,7 +1150,8 @@ class _GoalMiniData extends StatelessWidget {
         margin: const EdgeInsetsDirectional.only(end: 8),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -1247,7 +1257,8 @@ class _DateTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
@@ -1342,7 +1353,8 @@ class _DetailsTable extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),

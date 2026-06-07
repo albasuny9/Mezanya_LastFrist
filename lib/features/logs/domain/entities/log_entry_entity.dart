@@ -60,10 +60,13 @@ class LogEntryEntity {
         entityType: map['entityType'] as String? ?? '',
         entityId: map['entityId'] as String? ?? '',
         details: map['details'] as String? ?? '',
-        timestamp: DateTime.tryParse(map['timestamp'] as String? ?? '') ?? DateTime.now(),
+        timestamp: DateTime.tryParse(map['timestamp'] as String? ?? '') ??
+            DateTime.now(),
         beforeState: map['beforeState'] as String? ?? '{}',
         afterState: map['afterState'] as String? ?? '{}',
         isReverted: map['isReverted'] as bool? ?? false,
-        revertedAt: map['revertedAt'] != null ? DateTime.tryParse(map['revertedAt'] as String) : null,
+        revertedAt: map['revertedAt'] != null
+            ? DateTime.tryParse(map['revertedAt'] as String)
+            : null,
       );
 }

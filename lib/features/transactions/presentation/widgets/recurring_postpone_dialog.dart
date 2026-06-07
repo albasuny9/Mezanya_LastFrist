@@ -100,7 +100,8 @@ class RecurringPostponeDialog extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.calendar_month_rounded, size: 14, color: colorScheme.onSurfaceVariant),
+                      Icon(Icons.calendar_month_rounded,
+                          size: 14, color: colorScheme.onSurfaceVariant),
                       const SizedBox(width: 5),
                       Text(
                         'استحقاق ${DateFormat('d MMMM yyyy', 'ar').format(occurrence)}',
@@ -151,14 +152,16 @@ class RecurringPostponeDialog extends StatelessWidget {
               label: 'تأجيل حتى الغد',
               subtitle: 'سأقوم بالدفع صباح الغد',
               accent: accent,
-              onTap: () => Navigator.pop(context, atMorning(now.add(const Duration(days: 1)))),
+              onTap: () => Navigator.pop(
+                  context, atMorning(now.add(const Duration(days: 1)))),
             ),
             _OptionTile(
               icon: Icons.event_repeat_rounded,
               label: 'تأجيل 3 أيام',
               subtitle: 'ذكرني لاحقاً في منتصف الأسبوع',
               accent: accent,
-              onTap: () => Navigator.pop(context, atMorning(now.add(const Duration(days: 3)))),
+              onTap: () => Navigator.pop(
+                  context, atMorning(now.add(const Duration(days: 3)))),
             ),
             _OptionTile(
               icon: Icons.edit_calendar_rounded,
@@ -183,7 +186,8 @@ class RecurringPostponeDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('إلغاء', style: TextStyle(fontWeight: FontWeight.w700)),
+          child: const Text('إلغاء',
+              style: TextStyle(fontWeight: FontWeight.w700)),
         ),
       ],
     );
@@ -216,7 +220,8 @@ class _OptionTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -260,7 +265,8 @@ class _OptionTile extends StatelessWidget {
               Icon(
                 Icons.chevron_left_rounded,
                 size: 20,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                color:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
               ),
             ],
           ),

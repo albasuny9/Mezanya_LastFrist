@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -934,8 +935,8 @@ class _LogsScreenState extends State<LogsScreen> {
                         cubit: widget.cubit,
                         initialRecurring: recurring,
                         initialType: recurring.type,
-                        initialWithinBudget:
-                            recurring.budgetScope == 'within-budget',
+                        initialWithinBudget: recurring.budgetScope ==
+                            BudgetScope.withinBudget.value,
                         allowDelete: true,
                       ),
                     ),
@@ -1282,7 +1283,9 @@ class _LogsScreenState extends State<LogsScreen> {
   }
 
   String _budgetScopeName(String scope) {
-    return scope == 'within-budget' ? 'داخل الميزانية' : 'خارج الميزانية';
+    return scope == BudgetScope.withinBudget.value
+        ? 'داخل الميزانية'
+        : 'خارج الميزانية';
   }
 
   String _executionName(String type) {
@@ -1344,7 +1347,6 @@ class _LogsScreenState extends State<LogsScreen> {
     final items = state.categories.where((item) => item.id == id).toList();
     return items.isEmpty ? id : items.first.name;
   }
-
 
   IconData _iconForAction(String action) {
     return switch (action) {

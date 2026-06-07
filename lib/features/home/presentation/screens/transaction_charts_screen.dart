@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -29,9 +30,9 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
   static const _beige = Color(0xFFFFFBF1);
 
   bool _isJarTx(TransactionEntity t) =>
-      t.transferType == 'jar-allocation' ||
-      t.transferType == 'jar-allocation-cancel' ||
-      t.transferType == 'jar-allocation-spend';
+      t.transferType == TransferType.jarAllocation.value ||
+      t.transferType == TransferType.jarAllocationCancel.value ||
+      t.transferType == TransferType.jarAllocationSpend.value;
 
   @override
   void initState() {
@@ -58,10 +59,10 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
     final allTx = _allClean;
 
     final netIncome = monthTx
-        .where((t) => t.type == 'income')
+        .where((t) => t.type == TransactionType.income.value)
         .fold<double>(0, (s, t) => s + t.amount);
     final netExpense = monthTx
-        .where((t) => t.type == 'expense')
+        .where((t) => t.type == TransactionType.expense.value)
         .fold<double>(0, (s, t) => s + t.amount);
     final netSaving = netIncome - netExpense;
 
@@ -243,7 +244,6 @@ class _ChartsPeriodBar extends StatelessWidget {
     );
   }
 }
-
 
 class _KpiRow extends StatelessWidget {
   const _KpiRow({
@@ -558,9 +558,9 @@ class _DailyBarsChart extends StatelessWidget {
     final dailyIn = <int, double>{};
     final dailyOut = <int, double>{};
     for (final t in monthTx) {
-      if (t.type == 'income') {
+      if (t.type == TransactionType.income.value) {
         dailyIn[t.createdAt.day] = (dailyIn[t.createdAt.day] ?? 0) + t.amount;
-      } else if (t.type == 'expense') {
+      } else if (t.type == TransactionType.expense.value) {
         dailyOut[t.createdAt.day] = (dailyOut[t.createdAt.day] ?? 0) + t.amount;
       }
     }
@@ -668,7 +668,8 @@ class _CategoryBreakdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final catMap = <String, double>{};
-    for (final t in monthTx.where((t) => t.type == 'expense')) {
+    for (final t
+        in monthTx.where((t) => t.type == TransactionType.expense.value)) {
       final key = t.categoryId ?? '__none__';
       catMap[key] = (catMap[key] ?? 0) + t.amount;
     }
@@ -774,10 +775,10 @@ class _MonthlyTrendChart extends StatelessWidget {
       final tx = allTx.where(
           (t) => t.createdAt.year == m.year && t.createdAt.month == m.month);
       final inc = tx
-          .where((t) => t.type == 'income')
+          .where((t) => t.type == TransactionType.income.value)
           .fold<double>(0, (s, t) => s + t.amount);
       final exp = tx
-          .where((t) => t.type == 'expense')
+          .where((t) => t.type == TransactionType.expense.value)
           .fold<double>(0, (s, t) => s + t.amount);
       return (m, inc, exp);
     }).toList();
@@ -943,7 +944,9 @@ class _DayOfWeekChart extends StatelessWidget {
     ];
     final dayTotals = List.generate(7, (i) {
       return monthTx
-          .where((t) => t.type == 'expense' && t.createdAt.weekday % 7 == i)
+          .where((t) =>
+              t.type == TransactionType.expense.value &&
+              t.createdAt.weekday % 7 == i)
           .fold<double>(0, (s, t) => s + t.amount);
     });
 
@@ -1013,7 +1016,8 @@ class _IncomeBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final incomeTx = monthTx.where((t) => t.type == 'income').toList();
+    final incomeTx =
+        monthTx.where((t) => t.type == TransactionType.income.value).toList();
     if (incomeTx.isEmpty) {
       return const _EmptyChart(text: 'لا توجد إيرادات هذا الشهر');
     }
@@ -1134,7 +1138,8 @@ class _TopSpendingDays extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final expTx = monthTx.where((t) => t.type == 'expense').toList();
+    final expTx =
+        monthTx.where((t) => t.type == TransactionType.expense.value).toList();
     if (expTx.isEmpty) return const _EmptyChart(text: 'لا توجد مصروفات');
 
     final dayMap = <String, double>{};

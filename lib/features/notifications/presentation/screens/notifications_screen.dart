@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -95,11 +96,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final monthTx = state.transactions.where((t) {
       return t.createdAt.year == month.year && t.createdAt.month == month.month;
     }).toList();
-    final incomeTx = monthTx.where((t) => t.type == 'income').toList();
+    final incomeTx =
+        monthTx.where((t) => t.type == TransactionType.income.value).toList();
     final items = <Widget>[];
 
     for (final source in budget.incomeSources) {
-      final sourceTx = incomeTx.where((t) => t.incomeSourceId == source.id).toList();
+      final sourceTx =
+          incomeTx.where((t) => t.incomeSourceId == source.id).toList();
       final meta = _incomePendingMeta(state, source, sourceTx, month);
       if (meta == null) {
         continue;
@@ -264,7 +267,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _historyCard(AppStateEntity state, NotificationEntity item) {
-    final relatedLog = state.logs.where((log) => log.id == item.relatedLogId).toList();
+    final relatedLog =
+        state.logs.where((log) => log.id == item.relatedLogId).toList();
     final log = relatedLog.isEmpty ? null : relatedLog.first;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -323,8 +327,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   ) {
     final linked = state.recurringTransactions.where(
       (item) =>
-          item.type == 'income' &&
-          item.budgetScope == 'within-budget' &&
+          item.type == TransactionType.income.value &&
+          item.budgetScope == BudgetScope.withinBudget.value &&
           (item.incomeSourceId == source.id ||
               ((item.incomeSourceId ?? '').isEmpty &&
                   item.name == source.name &&
@@ -348,8 +352,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
-    final canEarly =
-        reminderLeadDays > 0 && !today.isBefore(reminderDate) && today.isBefore(dueDate);
+    final canEarly = reminderLeadDays > 0 &&
+        !today.isBefore(reminderDate) &&
+        today.isBefore(dueDate);
     final isDueOrLate = !today.isBefore(dueDate);
     if (!canEarly && !isDueOrLate) {
       return null;
@@ -374,8 +379,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   ) {
     final recurring = state.recurringTransactions.where(
       (item) =>
-          item.type == 'expense' &&
-          item.budgetScope == 'within-budget' &&
+          item.type == TransactionType.expense.value &&
+          item.budgetScope == BudgetScope.withinBudget.value &&
           item.isDebtOrSubscription &&
           (((debt.recurringTransactionId ?? '').isNotEmpty &&
                   item.id == debt.recurringTransactionId) ||
@@ -384,8 +389,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return recurring.isEmpty ? null : recurring.first;
   }
 
-  Map<String, dynamic>? _expensePendingMeta(RecurringTransactionEntity? recurring) {
-    if (recurring == null || recurring.executionType != 'confirm') {
+  Map<String, dynamic>? _expensePendingMeta(
+      RecurringTransactionEntity? recurring) {
+    if (recurring == null ||
+        recurring.executionType != AutomationType.confirm.value) {
       return null;
     }
     final now = DateTime.now();
@@ -397,14 +404,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_occurrenceWasHandled(recurring, occurrence)) {
       return null;
     }
-    final snoozedUntil = recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
-        ? null
-        : DateTime.tryParse(recurring.snoozedUntil!);
+    final snoozedUntil =
+        recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
+            ? null
+            : DateTime.tryParse(recurring.snoozedUntil!);
     final reminderAt = _notificationMoment(recurring, occurrence);
     if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
       return <String, dynamic>{
         'pending': false,
-        'status': 'مؤجل حتى ${DateFormat('d/M HH:mm', 'ar').format(snoozedUntil)}',
+        'status':
+            'مؤجل حتى ${DateFormat('d/M HH:mm', 'ar').format(snoozedUntil)}',
         'occurrence': occurrence,
       };
     }
@@ -448,7 +457,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     DateTime atDate(DateTime day) =>
         DateTime(day.year, day.month, day.day, time.hour, time.minute);
 
-    if (recurring.recurrencePattern == 'daily') {
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
       final today = atDate(now);
       return today.isAfter(now) ? null : today;
     }
@@ -466,7 +475,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return null;
     }
 
-    if (recurring.recurrencePattern == 'yearly') {
+    if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
       final month = recurring.monthOfYear ?? now.month;
       final candidate = DateTime(
         now.year,
@@ -499,10 +508,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     DateTime occurrence,
   ) {
     final lead = recurring.reminderLeadDays ?? 0;
-    if (recurring.recurrencePattern == 'daily' ||
-        recurring.recurrencePattern == 'weekly' ||
-        recurring.recurrencePattern == 'biweekly' ||
-        recurring.recurrencePattern == 'every_3_weeks') {
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value ||
+        recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
       return occurrence.subtract(Duration(hours: lead));
     }
     return occurrence.subtract(Duration(days: lead));
@@ -533,7 +542,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     DateTime atDate(DateTime day) =>
         DateTime(day.year, day.month, day.day, time.hour, time.minute);
 
-    if (recurring.recurrencePattern == 'daily') {
+    if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
       final today = atDate(now);
       return today.isAfter(now) ? today : today.add(const Duration(days: 1));
     }
@@ -567,7 +576,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Future<void> _recordIncome(IncomeSourceEntity source, {bool early = false}) async {
+  Future<void> _recordIncome(IncomeSourceEntity source,
+      {bool early = false}) async {
     double amount = source.amount;
     if (source.isVariable || amount <= 0) {
       final amountController = TextEditingController();
@@ -604,9 +614,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
-      type: 'income',
+      type: TransactionType.income.value,
       incomeSourceId: source.id,
-      budgetScope: 'within-budget',
+      budgetScope: BudgetScope.withinBudget.value,
       createdAt: DateTime(now.year, now.month, now.day, 12),
       notes: early
           ? 'تسجيل دخل مبكر: ${source.name}'
@@ -614,7 +624,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Future<void> _postponeIncome(IncomeSourceEntity source, DateTime month) async {
+  Future<void> _postponeIncome(
+      IncomeSourceEntity source, DateTime month) async {
     final dueDate = _incomeDueDateForMonth(source, month);
     final picked = await showDatePicker(
       context: context,
@@ -642,7 +653,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               : income,
         )
         .toList();
-    await widget.cubit.updateBudgetSetup(setup.copyWith(incomeSources: incomes));
+    await widget.cubit
+        .updateBudgetSetup(setup.copyWith(incomeSources: incomes));
   }
 
   Future<void> _recordDebt(
@@ -653,8 +665,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await widget.cubit.addTransaction(
       walletId: recurring.walletId,
       amount: debt.amount,
-      type: 'expense',
-      budgetScope: 'within-budget',
+      type: TransactionType.expense.value,
+      budgetScope: BudgetScope.withinBudget.value,
       createdAt: DateTime.now(),
       notes: 'سداد دين: ${debt.name}',
     );

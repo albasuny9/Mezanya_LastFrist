@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/transaction_types.dart';
+
 import '../../../../core/storage/shared_prefs_keys.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
@@ -111,7 +113,7 @@ class SharedPrefsAppRepository implements AppRepository {
       }
     }
 
-    if (transaction.type == 'transfer') {
+    if (transaction.type == TransactionType.transfer.value) {
       final isPhysicalFrom =
           wallets.any((w) => w.id == transaction.fromWalletId);
       final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
@@ -129,7 +131,7 @@ class SharedPrefsAppRepository implements AppRepository {
         }).toList();
       } else if (isPhysicalFrom &&
           !isPhysicalTo &&
-          transaction.transferType == 'jar-funding-physical') {
+          transaction.transferType == TransferType.jarFundingPhysical.value) {
         wallets = wallets.map((w) {
           if (w.id != transaction.fromWalletId) return w;
           return w.copyWith(balance: w.balance - transaction.amount);
@@ -160,14 +162,14 @@ class SharedPrefsAppRepository implements AppRepository {
           );
         }
       }
-    } else if (transaction.type == 'income') {
+    } else if (transaction.type == TransactionType.income.value) {
       // 3. Physical Income
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
         return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
 
-      if (transaction.transferType == 'deposit-with-jar-label' &&
+      if (transaction.transferType == TransferType.depositWithJarLabel.value &&
           transaction.toWalletId != null) {
         updateVirtualBalance(
           id: transaction.toWalletId!,
@@ -197,7 +199,7 @@ class SharedPrefsAppRepository implements AppRepository {
           // هل يوجد مصدر تمويل بـ isPhysical لهذا الدخل؟
           final hasPhysicalFunding = matchingFunding.any((f) => f.isPhysical);
 
-          if (jar.automationType == 'auto') {
+          if (jar.automationType == AutomationType.auto.value) {
             // توزيع فوري
             updateVirtualBalance(
               id: jar.id,
@@ -221,17 +223,20 @@ class SharedPrefsAppRepository implements AppRepository {
                 walletId: transaction.walletId,
                 fromWalletId: hasPhysicalFunding ? null : transaction.walletId,
                 toWalletId: jar.id,
-                budgetScope: 'within-budget',
+                budgetScope: BudgetScope.withinBudget.value,
                 incomeSourceId: sourceId,
                 amount: transferAmount,
-                type: hasPhysicalFunding ? 'expense' : 'transfer',
-                transferType:
-                    hasPhysicalFunding ? 'jar-funding-physical' : 'jar-funding',
+                type: hasPhysicalFunding
+                    ? TransactionType.expense.value
+                    : TransactionType.transfer.value,
+                transferType: hasPhysicalFunding
+                    ? TransferType.jarFundingPhysical.value
+                    : TransferType.jarFunding.value,
                 notes: null,
                 createdAt: transaction.createdAt,
               ),
             );
-          } else if (jar.automationType == 'confirm') {
+          } else if (jar.automationType == AutomationType.confirm.value) {
             // معلّق — ينتظر تأكيد اليوزر
             linkedWallets[i] = jar.copyWith(
               pendingDistribution: jar.pendingDistribution + transferAmount,
@@ -256,7 +261,7 @@ class SharedPrefsAppRepository implements AppRepository {
           final transferAmount = allocPlan <= remaining ? allocPlan : remaining;
           remaining -= transferAmount;
 
-          if (alloc.automationType == 'auto') {
+          if (alloc.automationType == AutomationType.auto.value) {
             final nextBalances = Map<String, double>.from(alloc.walletBalances);
             if (transaction.walletId != null) {
               nextBalances[transaction.walletId!] =
@@ -266,7 +271,7 @@ class SharedPrefsAppRepository implements AppRepository {
               balance: alloc.balance + transferAmount,
               walletBalances: nextBalances,
             );
-          } else if (alloc.automationType == 'confirm') {
+          } else if (alloc.automationType == AutomationType.confirm.value) {
             allocations[i] = alloc.copyWith(
               pendingDistribution: alloc.pendingDistribution + transferAmount,
               // Allocation funding is always virtual; no physical wallet debit
@@ -278,14 +283,14 @@ class SharedPrefsAppRepository implements AppRepository {
           // manual: لا شيء يحدث
         }
       }
-    } else if (transaction.type == 'expense') {
+    } else if (transaction.type == TransactionType.expense.value) {
       // 4. Physical Expense
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
         return w.copyWith(balance: w.balance - transaction.amount);
       }).toList();
 
-      if (transaction.transferType == 'jar-funding-physical' &&
+      if (transaction.transferType == TransferType.jarFundingPhysical.value &&
           transaction.toWalletId != null) {
         updateVirtualBalance(
           id: transaction.toWalletId!,

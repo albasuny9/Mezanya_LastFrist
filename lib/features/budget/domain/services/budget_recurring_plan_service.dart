@@ -1,3 +1,4 @@
+import '../../../../core/constants/transaction_types.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
@@ -12,8 +13,8 @@ class BudgetRecurringPlanService {
     if ((debt.recurringTransactionId ?? '').isNotEmpty) {
       final exact = recurringTransactions.where(
         (item) =>
-            item.type == 'expense' &&
-            item.budgetScope == 'within-budget' &&
+            item.type == TransactionType.expense.value &&
+            item.budgetScope == BudgetScope.withinBudget.value &&
             item.isDebtOrSubscription &&
             item.id == debt.recurringTransactionId,
       );
@@ -21,8 +22,8 @@ class BudgetRecurringPlanService {
     }
     final fallback = recurringTransactions.where(
       (item) =>
-          item.type == 'expense' &&
-          item.budgetScope == 'within-budget' &&
+          item.type == TransactionType.expense.value &&
+          item.budgetScope == BudgetScope.withinBudget.value &&
           item.isDebtOrSubscription &&
           item.name == debt.name,
     );
@@ -245,7 +246,9 @@ class BudgetRecurringPlanService {
       int day, int month, DateTime start, DateTime end) {
     var cursor = start;
     while (!cursor.isAfter(end)) {
-      if (cursor.day == day.clamp(1, 28) && cursor.month == month) return cursor;
+      if (cursor.day == day.clamp(1, 28) && cursor.month == month) {
+        return cursor;
+      }
       cursor = cursor.add(const Duration(days: 1));
     }
     return null;

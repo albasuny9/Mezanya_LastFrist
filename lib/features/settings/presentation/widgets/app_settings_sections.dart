@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 
 class ProfileSettingsCard extends StatelessWidget {
@@ -70,10 +71,11 @@ class CurrencySettingsCard extends StatelessWidget {
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: currency,
-              items: const [
+              items: [
                 DropdownMenuItem(value: 'EGP', child: Text('جنيه مصري (EGP)')),
                 DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي (SAR)')),
-                DropdownMenuItem(value: 'USD', child: Text('دولار أمريكي (USD)')),
+                DropdownMenuItem(
+                    value: 'USD', child: Text('دولار أمريكي (USD)')),
                 DropdownMenuItem(value: 'EUR', child: Text('يورو (EUR)')),
               ],
               onChanged: onChanged,
@@ -174,10 +176,13 @@ class BackupManagementCard extends StatelessWidget {
               decoration: const InputDecoration(
                 labelText: 'النسخ الاحتياطي التلقائي',
               ),
-              items: const [
+              items: [
                 DropdownMenuItem(value: 'off', child: Text('إيقاف')),
-                DropdownMenuItem(value: 'daily', child: Text('يومي')),
-                DropdownMenuItem(value: 'weekly', child: Text('أسبوعي')),
+                DropdownMenuItem(
+                    value: RecurrencePattern.daily.value, child: Text('يومي')),
+                DropdownMenuItem(
+                    value: RecurrencePattern.weekly.value,
+                    child: Text('أسبوعي')),
                 DropdownMenuItem(
                   value: 'on-close',
                   child: Text('عند إغلاق التطبيق'),

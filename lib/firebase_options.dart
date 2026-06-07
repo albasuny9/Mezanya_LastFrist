@@ -42,7 +42,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '609040380574',
     projectId: 'mezanya-app',
     storageBucket: 'mezanya-app.firebasestorage.app',
-    iosClientId: '609040380574-gttc94otebsgd89lfvjdepidfaumeggr.apps.googleusercontent.com',
+    iosClientId:
+        '609040380574-gttc94otebsgd89lfvjdepidfaumeggr.apps.googleusercontent.com',
     iosBundleId: 'com.mezanya.app',
   );
 }

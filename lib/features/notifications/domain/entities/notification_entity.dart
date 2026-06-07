@@ -56,10 +56,13 @@ class NotificationEntity {
       id: map['id'] as String? ?? '',
       title: map['title'] as String? ?? '',
       message: map['message'] as String? ?? '',
-      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       type: map['type'] as String? ?? 'general',
       relatedLogId: map['relatedLogId'] as String?,
-      readAt: map['readAt'] != null ? DateTime.tryParse(map['readAt'] as String) : null,
+      readAt: map['readAt'] != null
+          ? DateTime.tryParse(map['readAt'] as String)
+          : null,
     );
   }
 }

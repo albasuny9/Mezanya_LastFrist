@@ -627,9 +627,6 @@ class BudgetSetupEntity {
     required this.allocations,
     required this.linkedWallets,
     required this.debts,
-    required this.totalIncome,
-    required this.totalAllocated,
-    required this.unallocatedAmount,
   });
 
   final int startDay;
@@ -639,9 +636,24 @@ class BudgetSetupEntity {
   final List<AllocationEntity> allocations;
   final List<LinkedWalletEntity> linkedWallets;
   final List<DebtEntity> debts;
-  final double totalIncome;
-  final double totalAllocated;
-  final double unallocatedAmount;
+
+  /// إجمالي الدخل المخطط من كل مصادر الدخل الثابتة
+  double get totalIncome => incomeSources
+      .where((source) => !source.isVariable)
+      .fold(0.0, (sum, source) => sum + source.amount);
+
+  /// إجمالي المبالغ المخصصة عبر allocations
+  double get totalAllocated => allocations.fold(
+        0.0,
+        (sum, allocation) => allocation.funding.fold(
+          sum,
+          (innerSum, funding) => innerSum + funding.plannedAmount,
+        ),
+      );
+
+  /// المبلغ غير المخصص = الدخل الكلي - المخصص
+  double get unallocatedAmount =>
+      (totalIncome - totalAllocated).clamp(0.0, double.infinity);
 
   // ── Cycle helpers ────────────────────────────────────────────────────────
 
@@ -693,9 +705,6 @@ class BudgetSetupEntity {
         allocations: [],
         linkedWallets: [],
         debts: [],
-        totalIncome: 0,
-        totalAllocated: 0,
-        unallocatedAmount: 0,
       );
 
   BudgetSetupEntity copyWith({
@@ -706,9 +715,6 @@ class BudgetSetupEntity {
     List<AllocationEntity>? allocations,
     List<LinkedWalletEntity>? linkedWallets,
     List<DebtEntity>? debts,
-    double? totalIncome,
-    double? totalAllocated,
-    double? unallocatedAmount,
   }) {
     return BudgetSetupEntity(
       startDay: startDay ?? this.startDay,
@@ -718,9 +724,6 @@ class BudgetSetupEntity {
       allocations: allocations ?? this.allocations,
       linkedWallets: linkedWallets ?? this.linkedWallets,
       debts: debts ?? this.debts,
-      totalIncome: totalIncome ?? this.totalIncome,
-      totalAllocated: totalAllocated ?? this.totalAllocated,
-      unallocatedAmount: unallocatedAmount ?? this.unallocatedAmount,
     );
   }
 
@@ -732,9 +735,6 @@ class BudgetSetupEntity {
         'allocations': allocations.map((e) => e.toMap()).toList(),
         'linkedWallets': linkedWallets.map((e) => e.toMap()).toList(),
         'debts': debts.map((e) => e.toMap()).toList(),
-        'totalIncome': totalIncome,
-        'totalAllocated': totalAllocated,
-        'unallocatedAmount': unallocatedAmount,
       };
 
   factory BudgetSetupEntity.fromMap(Map<String, dynamic> map) =>
@@ -758,8 +758,5 @@ class BudgetSetupEntity {
             .whereType<Map<String, dynamic>>()
             .map(DebtEntity.fromMap)
             .toList(),
-        totalIncome: (map['totalIncome'] as num?)?.toDouble() ?? 0,
-        totalAllocated: (map['totalAllocated'] as num?)?.toDouble() ?? 0,
-        unallocatedAmount: (map['unallocatedAmount'] as num?)?.toDouble() ?? 0,
       );
 }

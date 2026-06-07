@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 // ignore_for_file: no_wildcard_variable_uses
 
 import 'dart:convert';
@@ -151,8 +152,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               .any((f) => f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
         }).toList();
         final monthTx = _monthTransactions(state.transactions);
-        final incomeTx = monthTx.where((t) => t.type == 'income').toList();
-        final expenseTx = monthTx.where((t) => t.type == 'expense').toList();
+        final incomeTx = monthTx
+            .where((t) => t.type == TransactionType.income.value)
+            .toList();
+        final expenseTx = monthTx
+            .where((t) => t.type == TransactionType.expense.value)
+            .toList();
         final incomeSectionChildren =
             _incomeInlineCards(state, budget, incomeTx, monthTx);
         final totalIncomeActual =
@@ -1133,18 +1138,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return DateFormat('d MMMM', 'ar').format(date);
   }
 
-  String _recurrenceLabel(String pattern) => switch (pattern) {
-        'daily' => 'يومي',
-        'weekly' => 'أسبوعي',
-        'biweekly' => 'كل أسبوعين',
-        'every_3_weeks' => 'كل 3 أسابيع',
-        'monthly' => 'شهري',
-        'every_2_months' => 'كل شهرين',
-        'every_3_months' => 'كل 3 شهور',
-        'every_6_months' => 'كل 6 شهور',
-        'yearly' => 'سنوي',
-        _ => pattern,
-      };
+  String _recurrenceLabel(String pattern) {
+    if (pattern == RecurrencePattern.daily.value) return 'يومي';
+    if (pattern == RecurrencePattern.weekly.value) return 'أسبوعي';
+    if (pattern == RecurrencePattern.biweekly.value) return 'كل أسبوعين';
+    if (pattern == RecurrencePattern.every3Weeks.value) return 'كل 3 أسابيع';
+    if (pattern == RecurrencePattern.monthly.value) return 'شهري';
+    if (pattern == RecurrencePattern.every2Months.value) return 'كل شهرين';
+    if (pattern == RecurrencePattern.every3Months.value) return 'كل 3 شهور';
+    if (pattern == RecurrencePattern.every6Months.value) return 'كل 6 شهور';
+    if (pattern == RecurrencePattern.yearly.value) return 'سنوي';
+    return pattern;
+  }
 
   Color _colorFromHex(String hex) {
     final cleaned = hex.replaceAll('#', '');
@@ -1252,8 +1257,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     ThemeData theme,
     TransactionEntity item,
   ) {
-    final isIncome = item.type == 'income';
-    final isExpense = item.type == 'expense';
+    final isIncome = item.type == TransactionType.income.value;
+    final isExpense = item.type == TransactionType.expense.value;
     final amtColor = isIncome
         ? const Color(0xFF0F9D7A)
         : (isExpense ? theme.colorScheme.error : theme.colorScheme.primary);
@@ -1588,8 +1593,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) {
     final linked = state.recurringTransactions.where(
       (item) =>
-          item.type == 'income' &&
-          item.budgetScope == 'within-budget' &&
+          item.type == TransactionType.income.value &&
+          item.budgetScope == BudgetScope.withinBudget.value &&
           (item.incomeSourceId == source.id ||
               ((item.incomeSourceId ?? '').isEmpty &&
                   item.name == source.name &&
@@ -1711,8 +1716,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           alloc.funding.fold<double>(0, (s, f) => s + f.plannedAmount);
       if (plannedTotal <= 0) continue;
       final share = fromThis / plannedTotal;
-      for (final t in monthTx
-          .where((x) => x.type == 'expense' && x.allocationId == alloc.id)) {
+      for (final t in monthTx.where((x) =>
+          x.type == TransactionType.expense.value &&
+          x.allocationId == alloc.id)) {
         counted.add(t.id);
         total += t.amount * share;
       }
@@ -1720,8 +1726,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     for (final debt in budget.debts) {
       if (debt.fundingSource != incomeSourceId) continue;
-      for (final t in monthTx.where(
-          (x) => x.type == 'expense' && x.notes?.contains(debt.name) == true)) {
+      for (final t in monthTx.where((x) =>
+          x.type == TransactionType.expense.value &&
+          x.notes?.contains(debt.name) == true)) {
         if (!counted.contains(t.id)) {
           counted.add(t.id);
           total += t.amount;
@@ -1931,8 +1938,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         allocation.funding.fold<double>(0, (s, f) => s + f.plannedAmount);
     final funded = allocation.funding.fold<double>(0, (sum, f) {
       final incomeReceived = monthTx
-          .where(
-              (t) => t.type == 'income' && t.incomeSourceId == f.incomeSourceId)
+          .where((t) =>
+              t.type == TransactionType.income.value &&
+              t.incomeSourceId == f.incomeSourceId)
           .fold<double>(0, (s, t) => s + t.amount);
       return sum +
           (incomeReceived <= f.plannedAmount
@@ -1940,7 +1948,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               : f.plannedAmount);
     });
     final spent = monthTx
-        .where((t) => t.type == 'expense' && t.allocationId == allocation.id)
+        .where((t) =>
+            t.type == TransactionType.expense.value &&
+            t.allocationId == allocation.id)
         .fold<double>(0, (s, t) => s + t.amount);
     final remaining = funded - spent;
     final ratio = funded <= 0 ? 0.0 : (remaining / funded).clamp(0.0, 1.0);
@@ -2063,7 +2073,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ? null
               : (monthTx
                           .where((t) =>
-                              t.type == 'expense' && t.walletId == jar.id)
+                              t.type == TransactionType.expense.value &&
+                              t.walletId == jar.id)
                           .fold<double>(0, (s, t) => s + t.amount) /
                       jar.monthlyAmount)
                   .clamp(0.0, 1.0)
@@ -2074,7 +2085,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ? null
               : _usageProgressColor((monthTx
                           .where((t) =>
-                              t.type == 'expense' && t.walletId == jar.id)
+                              t.type == TransactionType.expense.value &&
+                              t.walletId == jar.id)
                           .fold<double>(0, (s, t) => s + t.amount) /
                       jar.monthlyAmount)
                   .clamp(0.0, 1.0)
@@ -2110,16 +2122,17 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         .where((t) => t.toWalletId == jar.id || t.walletId == jar.id)
         .where((t) =>
             // تحويلات الحصالة الداخلية
-            t.transferType == 'jar-allocation' ||
-            t.transferType == 'jar-allocation-cancel' ||
-            t.transferType == 'jar-allocation-spend' ||
-            t.transferType == 'jar-funding-physical' ||
-            t.transferType == 'deposit-with-jar-label' ||
+            t.transferType == TransferType.jarAllocation.value ||
+            t.transferType == TransferType.jarAllocationCancel.value ||
+            t.transferType == TransferType.jarAllocationSpend.value ||
+            t.transferType == TransferType.jarFundingPhysical.value ||
+            t.transferType == TransferType.depositWithJarLabel.value ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
-            (t.type == 'income' && t.budgetScope == 'within-budget') ||
+            (t.type == TransactionType.income.value &&
+                t.budgetScope == BudgetScope.withinBudget.value) ||
             // مصروفات حقيقية مخصومة من الحصالة
-            (t.type == 'expense' &&
+            (t.type == TransactionType.expense.value &&
                 t.walletId == jar.id &&
                 t.transferType == null))
         .toList()
@@ -2620,7 +2633,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     for (final person in cycleLentPersons) {
       final name = person.lentPersonName ?? person.name;
       final txs = state.transactions.where((t) =>
-          t.type == 'expense' &&
+          t.type == TransactionType.expense.value &&
           (t.notes?.contains('سلفة لـ $name') ?? false) &&
           !t.createdAt.isBefore(_cycleStart) &&
           !t.createdAt.isAfter(cycleEnd));
@@ -2651,10 +2664,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           .toList();
 
       final out = personCycleTxs
-          .where((t) => t.type == 'expense')
+          .where((t) => t.type == TransactionType.expense.value)
           .fold(0.0, (s, t) => s + t.amount);
       final inc = personCycleTxs
-          .where((t) => t.type == 'income')
+          .where((t) => t.type == TransactionType.income.value)
           .fold(0.0, (s, t) => s + t.amount);
 
       final isOverdue = record.hasOutstandingLent &&
@@ -3439,8 +3452,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
     final funded = allocation.funding.fold<double>(0, (sum, f) {
       final incomeReceived = monthTx
-          .where(
-              (t) => t.type == 'income' && t.incomeSourceId == f.incomeSourceId)
+          .where((t) =>
+              t.type == TransactionType.income.value &&
+              t.incomeSourceId == f.incomeSourceId)
           .fold<double>(0, (s, t) => s + t.amount);
       return sum +
           (incomeReceived <= f.plannedAmount
@@ -3448,7 +3462,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               : f.plannedAmount);
     });
     final spent = monthTx
-        .where((t) => t.type == 'expense' && t.allocationId == allocation.id)
+        .where((t) =>
+            t.type == TransactionType.expense.value &&
+            t.allocationId == allocation.id)
         .fold<double>(0, (s, t) => s + t.amount);
     final remaining = funded - spent;
     final ratio = funded <= 0 ? 0.0 : (remaining / funded).clamp(0.0, 1.0);
@@ -3960,15 +3976,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         RecurringTransactionEntity(
           id: '',
           name: current.name,
-          type: 'income',
+          type: TransactionType.income.value,
           amount: current.isVariable ? 0 : current.amount,
           dayOfMonth: current.date.clamp(1, 28),
           executionType: current.isVariable ? 'manual' : current.type,
           walletId: current.targetWalletId.isEmpty
               ? fallbackWalletId
               : current.targetWalletId,
-          budgetScope: 'within-budget',
-          recurrencePattern: 'monthly',
+          budgetScope: BudgetScope.withinBudget.value,
+          recurrencePattern: RecurrencePattern.monthly.value,
           icon: 'cash',
           iconColor: '#0f9d7a',
           incomeSourceId: current.id,
@@ -3981,7 +3997,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
-          initialType: 'income',
+          initialType: TransactionType.income.value,
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
           returnOnSave: true,
@@ -4094,31 +4110,35 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             RecurringTransactionEntity(
               id: current.recurringTransactionId ?? '',
               name: current.name,
-              type: 'expense',
+              type: TransactionType.expense.value,
               amount: current.amount,
               dayOfMonth: current.executionDay.clamp(1, 28),
               executionType: current.type,
               walletId: fallbackWalletId,
-              budgetScope: 'within-budget',
+              budgetScope: BudgetScope.withinBudget.value,
               recurrencePattern: current.recurrencePattern,
               icon: 'receipt',
               iconColor: '#c65d2e',
               monthOfYear: current.monthOfYear,
               isDebtOrSubscription: true,
-              expensePlanKind:
-                  current.isSubscription ? 'subscription' : 'installment',
+              expensePlanKind: current.isSubscription
+                  ? ExpensePlanKind.subscription.value
+                  : ExpensePlanKind.installment.value,
               debtPrincipalTotal: current.principalTotal ??
                   (current.isInstallment && current.amount > 0
                       ? current.amount
                       : null),
             ))
         .copyWith(
-      recurrencePattern: current.recurrencePattern != 'monthly'
+      recurrencePattern: current.recurrencePattern !=
+              RecurrencePattern.monthly.value
           ? current.recurrencePattern
           : (linkedRecurring?.recurrencePattern ?? current.recurrencePattern),
       monthOfYear: current.monthOfYear ?? linkedRecurring?.monthOfYear,
       expensePlanKind: linkedRecurring?.expensePlanKind ??
-          (current.isSubscription ? 'subscription' : 'installment'),
+          (current.isSubscription
+              ? ExpensePlanKind.subscription.value
+              : ExpensePlanKind.installment.value),
       debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
           current.principalTotal ??
           (current.isInstallment && current.amount > 0 ? current.amount : null),
@@ -4128,7 +4148,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
-          initialType: 'expense',
+          initialType: TransactionType.expense.value,
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
           returnOnSave: true,
@@ -4162,7 +4182,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     final recurringId =
         linkedRecurring?.id ?? current.recurringTransactionId ?? _id('rec');
-    final isSubscription = recurring.expensePlanKind == 'subscription';
+    final isSubscription =
+        recurring.expensePlanKind == ExpensePlanKind.subscription.value;
     final principal = recurring.debtPrincipalTotal;
     final updated = DebtEntity(
       id: current.id,
@@ -4172,7 +4193,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       type: recurring.executionType,
       fundingSource: current.fundingSource,
       recurringTransactionId: recurringId,
-      kind: isSubscription ? 'subscription' : 'installment',
+      kind: isSubscription
+          ? ExpensePlanKind.subscription.value
+          : ExpensePlanKind.installment.value,
       principalTotal: isSubscription
           ? null
           : (principal != null && principal > 0 ? principal : null),
@@ -4187,8 +4210,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     final recurringToSave = recurring.copyWith(
       id: recurringId,
-      type: 'expense',
-      budgetScope: 'within-budget',
+      type: TransactionType.expense.value,
+      budgetScope: BudgetScope.withinBudget.value,
       isDebtOrSubscription: true,
       allocationId: null,
       targetJarId: null,
@@ -4237,7 +4260,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     TransactionEntity t,
     DebtEntity debt,
   ) {
-    if (t.type != 'expense') return false;
+    if (t.type != TransactionType.expense.value) return false;
     final n = t.notes ?? '';
     return n.contains(debt.name);
   }
@@ -4333,7 +4356,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       final now = DateTime.now();
       for (final debt in budget.debts) {
         final recurring = _linkedRecurringDebt(state, debt);
-        if (recurring == null || recurring.executionType != 'auto') {
+        if (recurring == null ||
+            recurring.executionType != AutomationType.auto.value) {
           continue;
         }
         final snoozedUntil =
@@ -4373,7 +4397,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         // تحقق إن المعاملة دي مش اتسجلت فعلاً في الدورة الحالية
         final alreadyPaidThisCycle = monthTx
             .where((t) =>
-                t.type == 'expense' &&
+                t.type == TransactionType.expense.value &&
                 t.walletId == recurring.walletId &&
                 t.notes?.contains(debt.name) == true &&
                 RecurringScheduleEngine.isSameCalendarDay(t.createdAt, now))
@@ -4386,8 +4410,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         await widget.cubit.addTransaction(
           walletId: recurring.walletId,
           amount: recurring.amount,
-          type: 'expense',
-          budgetScope: 'within-budget',
+          type: TransactionType.expense.value,
+          budgetScope: BudgetScope.withinBudget.value,
           createdAt: now,
           notes: 'خصم تلقائي دين: ${debt.name}',
         );
@@ -4441,9 +4465,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
-      type: 'income',
+      type: TransactionType.income.value,
       incomeSourceId: source.id,
-      budgetScope: 'within-budget',
+      budgetScope: BudgetScope.withinBudget.value,
       createdAt: DateTime(now.year, now.month, now.day, 12),
       details: early
           ? 'تسجيل دخل مبكر: ${source.name} بقيمة ${amount.toStringAsFixed(2)}'
@@ -4488,8 +4512,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context,
       name: recurring.name,
       amount: recurring.amount,
-      kindLabel:
-          recurring.expensePlanKind == 'subscription' ? 'اشتراك' : 'دفعة دين',
+      kindLabel: recurring.expensePlanKind == ExpensePlanKind.subscription.value
+          ? 'اشتراك'
+          : 'دفعة دين',
       occurrence: occurrence,
       allowSkip: true,
     );
@@ -4531,8 +4556,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     await widget.cubit.addTransaction(
       walletId: recurring.walletId,
       amount: debt.amount,
-      type: 'expense',
-      budgetScope: 'within-budget',
+      type: TransactionType.expense.value,
+      budgetScope: BudgetScope.withinBudget.value,
       createdAt: DateTime.now(),
       notes: 'سداد دين: ${debt.name}',
       details: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
@@ -5014,7 +5039,8 @@ class _DraggableFilterableTxSheetState
   DateTimeRange? _customRange;
 
   static bool _isTransfer(TransactionEntity t) {
-    return t.type != 'expense' && t.type != 'income';
+    return t.type != TransactionType.expense.value &&
+        t.type != TransactionType.income.value;
   }
 
   List<TransactionEntity> get _visible {
@@ -5023,10 +5049,12 @@ class _DraggableFilterableTxSheetState
       case _TxKindFilter.all:
         break;
       case _TxKindFilter.expense:
-        list = list.where((t) => t.type == 'expense').toList();
+        list =
+            list.where((t) => t.type == TransactionType.expense.value).toList();
         break;
       case _TxKindFilter.income:
-        list = list.where((t) => t.type == 'income').toList();
+        list =
+            list.where((t) => t.type == TransactionType.income.value).toList();
         break;
       case _TxKindFilter.transfer:
         list = list.where(_isTransfer).toList();

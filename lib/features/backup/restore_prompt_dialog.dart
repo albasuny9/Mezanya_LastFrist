@@ -55,8 +55,8 @@ class RestorePromptDialog extends StatelessWidget {
                 color: _green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(Icons.cloud_done_rounded,
-                  color: _green, size: 30),
+              child:
+                  const Icon(Icons.cloud_done_rounded, color: _green, size: 30),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -106,8 +106,7 @@ class RestorePromptDialog extends StatelessWidget {
                     onPressed: () => Navigator.pop(context, false),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: BorderSide(
-                          color: _green.withValues(alpha: 0.4)),
+                      side: BorderSide(color: _green.withValues(alpha: 0.4)),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),

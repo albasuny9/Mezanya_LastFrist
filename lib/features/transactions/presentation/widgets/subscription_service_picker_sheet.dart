@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -110,7 +108,8 @@ class _SubscriptionServicePickerSheetState
                     itemCount: subscriptionServiceCategoryOrder.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
-                      final categoryId = subscriptionServiceCategoryOrder[index];
+                      final categoryId =
+                          subscriptionServiceCategoryOrder[index];
                       return ChoiceChip(
                         selected: _selectedCategoryId == categoryId,
                         label: Text(
@@ -172,7 +171,8 @@ class _SubscriptionServicePickerSheetState
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Center(
-                                    child: AppIconPickerDialog.iconWidgetForName(
+                                    child:
+                                        AppIconPickerDialog.iconWidgetForName(
                                       preset.iconName,
                                       color: color,
                                       size: 22,
@@ -182,7 +182,8 @@ class _SubscriptionServicePickerSheetState
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         preset.name,

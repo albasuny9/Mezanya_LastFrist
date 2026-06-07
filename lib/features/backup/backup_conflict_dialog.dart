@@ -78,14 +78,14 @@ class BackupConflictDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _orange.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: _orange.withValues(alpha: 0.2)),
+                border: Border.all(color: _orange.withValues(alpha: 0.2)),
               ),
               child: Column(
                 children: [
                   _compareRow(
                     label: 'المحفوظة على السحابة',
-                    value: '$remoteTxCount معاملة · ${_formatDate(remoteUpdatedAt)}',
+                    value:
+                        '$remoteTxCount معاملة · ${_formatDate(remoteUpdatedAt)}',
                     color: _green,
                   ),
                   const SizedBox(height: 8),
@@ -122,8 +122,8 @@ class BackupConflictDialog extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () =>
                     Navigator.pop(context, BackupConflictChoice.overwrite),
-                icon: Icon(Icons.cloud_upload_rounded,
-                    size: 18, color: _orange),
+                icon:
+                    Icon(Icons.cloud_upload_rounded, size: 18, color: _orange),
                 label: Text(
                   'استبدال النسخة المحفوظة',
                   style: TextStyle(

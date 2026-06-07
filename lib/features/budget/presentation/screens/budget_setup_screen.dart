@@ -1,3 +1,4 @@
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -256,11 +257,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   Future<void> _saveBudget(BudgetSetupEntity next) async {
     final previous = _budget;
-    final normalized = next.copyWith(
-      totalIncome: _totalIncomeFrom(next),
-      totalAllocated: _committedFrom(next),
-      unallocatedAmount: _totalIncomeFrom(next) - _committedFrom(next),
-    );
+    final normalized = next;
     final syncResult = _isCurrentMonthSetup
         ? _buildRetroactiveBudgetSync(
             previous: previous,
@@ -281,7 +278,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }) {
     final cycleIncome = state.transactions
         .where((transaction) =>
-            transaction.type == 'income' &&
+            transaction.type == TransactionType.income.value &&
             !transaction.createdAt.isBefore(_displayCycleStart) &&
             !transaction.createdAt.isAfter(_displayCycleEnd) &&
             transaction.incomeSourceId != null)
@@ -601,39 +598,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     await _saveBudget(_budget.copyWith(startDay: newDay));
   }
 
-  double _totalIncomeFrom(BudgetSetupEntity setup) {
-    return setup.incomeSources.fold<double>(
-      0,
-      (sum, income) => sum + (income.isVariable ? 0 : income.amount),
-    );
-  }
-
-  double _committedFrom(BudgetSetupEntity setup) {
-    final allocationsTotal = setup.allocations.fold<double>(
-      0,
-      (sum, allocation) =>
-          sum +
-          allocation.funding.fold<double>(0, (s, f) => s + f.plannedAmount),
-    );
-    final linkedTotal = setup.linkedWallets.fold<double>(
-      0,
-      (sum, wallet) => sum + wallet.monthlyAmount,
-    );
-    final displayCycleReference = DateTime(
-      _displayMonth.year,
-      _displayMonth.month,
-      setup.startDay.clamp(1, 28),
-    );
-    final cycleStart = setup.cycleStartFor(displayCycleReference);
-    final cycleEnd = setup.cycleEndFor(displayCycleReference);
-    final debtsTotal = setup.debts.fold<double>(
-      0,
-      (sum, debt) =>
-          sum + _debtAmountForCycle(setup, debt, cycleStart, cycleEnd),
-    );
-    return allocationsTotal + linkedTotal + debtsTotal;
-  }
-
   double _debtAmountForCycle(
     BudgetSetupEntity setup,
     DebtEntity debt,
@@ -683,7 +647,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
-          initialType: 'income',
+          initialType: TransactionType.income.value,
           initialWithinBudget: true,
           returnOnSave: true,
         ),
@@ -718,7 +682,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       dayOfMonth: recurring.dayOfMonth,
       executionType: recurring.executionType,
       walletId: recurring.walletId,
-      budgetScope: 'within-budget',
+      budgetScope: BudgetScope.withinBudget.value,
       recurrencePattern: recurring.recurrencePattern,
       icon: recurring.icon,
       iconColor: recurring.iconColor,
@@ -750,15 +714,15 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         RecurringTransactionEntity(
           id: '',
           name: current.name,
-          type: 'income',
+          type: TransactionType.income.value,
           amount: current.isVariable ? 0 : current.amount,
           dayOfMonth: current.date.clamp(1, 28),
           executionType: current.isVariable ? 'manual' : current.type,
           walletId: current.targetWalletId.isEmpty
               ? fallbackWalletId
               : current.targetWalletId,
-          budgetScope: 'within-budget',
-          recurrencePattern: 'monthly',
+          budgetScope: BudgetScope.withinBudget.value,
+          recurrencePattern: RecurrencePattern.monthly.value,
           icon: 'cash',
           iconColor: '#0f9d7a',
           incomeSourceId: current.id,
@@ -771,7 +735,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
-          initialType: 'income',
+          initialType: TransactionType.income.value,
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
           returnOnSave: true,
@@ -1142,34 +1106,38 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             RecurringTransactionEntity(
               id: current?.recurringTransactionId ?? '',
               name: current?.name ?? '',
-              type: 'expense',
+              type: TransactionType.expense.value,
               amount: current?.amount ?? 0,
               dayOfMonth: (current?.executionDay ?? 1).clamp(1, 28),
-              executionType: current?.type ?? 'confirm',
+              executionType: current?.type ?? AutomationType.confirm.value,
               walletId: widget.cubit.state.wallets.isNotEmpty
                   ? widget.cubit.state.wallets.first.id
                   : '',
-              budgetScope: 'within-budget',
-              recurrencePattern: current?.recurrencePattern ?? 'monthly',
+              budgetScope: BudgetScope.withinBudget.value,
+              recurrencePattern:
+                  current?.recurrencePattern ?? RecurrencePattern.monthly.value,
               icon: 'receipt',
               iconColor: '#c65d2e',
               monthOfYear: current?.monthOfYear,
               incomeSourceId: null,
               isDebtOrSubscription: true,
               expensePlanKind: current?.isSubscription == true
-                  ? 'subscription'
-                  : 'installment',
+                  ? ExpensePlanKind.subscription.value
+                  : ExpensePlanKind.installment.value,
               debtPrincipalTotal: current?.principalTotal ??
                   (current?.isInstallment == true ? current!.amount : null),
             ))
         .copyWith(
       recurrencePattern: current?.recurrencePattern != null &&
-              current!.recurrencePattern != 'monthly'
+              current!.recurrencePattern != RecurrencePattern.monthly.value
           ? current.recurrencePattern
-          : (linkedRecurring?.recurrencePattern ?? 'monthly'),
+          : (linkedRecurring?.recurrencePattern ??
+              RecurrencePattern.monthly.value),
       monthOfYear: current?.monthOfYear ?? linkedRecurring?.monthOfYear,
       expensePlanKind: linkedRecurring?.expensePlanKind ??
-          (current?.isSubscription == true ? 'subscription' : 'installment'),
+          (current?.isSubscription == true
+              ? ExpensePlanKind.subscription.value
+              : ExpensePlanKind.installment.value),
       debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
           current?.principalTotal ??
           (current?.isInstallment == true ? current!.amount : null),
@@ -1180,11 +1148,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
-          initialType: 'expense',
+          initialType: TransactionType.expense.value,
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
-          initialExpensePlanKind:
-              draftRecurring.expensePlanKind ?? 'installment',
+          initialExpensePlanKind: draftRecurring.expensePlanKind ??
+              ExpensePlanKind.installment.value,
           debtOnlyMode: true,
           returnOnSave: true,
         ),
@@ -1198,7 +1166,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
     final recurringId =
         linkedRecurring?.id ?? current?.recurringTransactionId ?? _id('rec');
-    final isSubscription = recurring.expensePlanKind == 'subscription';
+    final isSubscription =
+        recurring.expensePlanKind == ExpensePlanKind.subscription.value;
     final principal = recurring.debtPrincipalTotal;
     final debt = DebtEntity(
       id: current?.id ?? _id('debt'),
@@ -1211,7 +1180,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               ? _budget.incomeSources.first.id
               : ''),
       recurringTransactionId: recurringId,
-      kind: isSubscription ? 'subscription' : 'installment',
+      kind: isSubscription
+          ? ExpensePlanKind.subscription.value
+          : ExpensePlanKind.installment.value,
       principalTotal: isSubscription
           ? null
           : (principal != null && principal > 0 ? principal : null),
@@ -1230,8 +1201,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
     final recurringToSave = recurring.copyWith(
       id: recurringId,
-      type: 'expense',
-      budgetScope: 'within-budget',
+      type: TransactionType.expense.value,
+      budgetScope: BudgetScope.withinBudget.value,
       isDebtOrSubscription: true,
       allocationId: null,
       targetJarId: null,
@@ -1520,15 +1491,16 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       }
       return id.isEmpty ? 'غير محدد' : id;
     }();
-    final recurrenceLabel =
-        _recurrenceLabel(recurring?.recurrencePattern ?? 'monthly');
+    final recurrenceLabel = _recurrenceLabel(
+        recurring?.recurrencePattern ?? RecurrencePattern.monthly.value);
     final monthlyDay =
         (recurring?.dayOfMonth ?? debt.executionDay).clamp(1, 28).toString();
     final timeLabel = (recurring?.scheduledTime?.isNotEmpty == true)
         ? _formatClockTime(recurring!.scheduledTime!)
         : 'غير محدد';
     final reminderLabel = _reminderLabel(
-      recurrencePattern: recurring?.recurrencePattern ?? 'monthly',
+      recurrencePattern:
+          recurring?.recurrencePattern ?? RecurrencePattern.monthly.value,
       executionType: recurring?.executionType ?? debt.type,
       reminderLeadDays: recurring?.reminderLeadDays ?? 0,
     );
@@ -1852,10 +1824,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   labelText: 'تجديد الخطة',
                   prefixIcon: Icon(Icons.autorenew_rounded),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
+                items: [
                   DropdownMenuItem(
-                    value: 'confirm',
+                      value: AutomationType.auto.value, child: Text('تلقائي')),
+                  DropdownMenuItem(
+                    value: AutomationType.confirm.value,
                     child: Text('بعد التأكيد'),
                   ),
                 ],
@@ -1872,7 +1845,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   labelText: 'المبلغ غير المخصص آخر الدورة',
                   prefixIcon: Icon(Icons.savings_rounded),
                 ),
-                items: const [
+                items: [
                   DropdownMenuItem(
                       value: 'to-savings', child: Text('يتحول للتوفير')),
                   DropdownMenuItem(
@@ -2565,8 +2538,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     final executionLabel = recurring == null
         ? _incomeTypeLabel(income.type)
         : _incomeTypeLabel(recurring.executionType);
-    final recurrenceLabel =
-        _recurrenceLabel(recurring?.recurrencePattern ?? 'monthly');
+    final recurrenceLabel = _recurrenceLabel(
+        recurring?.recurrencePattern ?? RecurrencePattern.monthly.value);
     final monthlyDay = (recurring?.dayOfMonth ?? income.date).clamp(1, 28);
     final timeLabel = (recurring?.scheduledTime?.isNotEmpty == true)
         ? _formatClockTime(recurring!.scheduledTime!)
@@ -2739,30 +2712,17 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   String _recurrenceLabel(String pattern) {
-    switch (pattern) {
-      case 'daily':
-        return 'يومي';
-      case 'weekly':
-        return 'أسبوعي';
-      case 'biweekly':
-        return 'كل أسبوعين';
-      case 'every_3_weeks':
-        return 'كل 3 أسابيع';
-      case 'monthly':
-        return 'شهري';
-      case 'every_2_months':
-        return 'كل شهرين';
-      case 'every_3_months':
-        return 'كل 3 شهور';
-      case 'every_6_months':
-        return 'كل 6 شهور';
-      case 'yearly':
-        return 'سنوي';
-      case 'manual-variable':
-        return 'يدوي';
-      default:
-        return pattern;
-    }
+    if (pattern == RecurrencePattern.daily.value) return 'يومي';
+    if (pattern == RecurrencePattern.weekly.value) return 'أسبوعي';
+    if (pattern == RecurrencePattern.biweekly.value) return 'كل أسبوعين';
+    if (pattern == RecurrencePattern.every3Weeks.value) return 'كل 3 أسابيع';
+    if (pattern == RecurrencePattern.monthly.value) return 'شهري';
+    if (pattern == RecurrencePattern.every2Months.value) return 'كل شهرين';
+    if (pattern == RecurrencePattern.every3Months.value) return 'كل 3 شهور';
+    if (pattern == RecurrencePattern.every6Months.value) return 'كل 6 شهور';
+    if (pattern == RecurrencePattern.yearly.value) return 'سنوي';
+    if (pattern == RecurrencePattern.manualVariable.value) return 'يدوي';
+    return pattern;
   }
 
   String _formatClockTime(String value) {
@@ -2784,14 +2744,14 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     required String executionType,
     required int reminderLeadDays,
   }) {
-    if (executionType != 'confirm') {
+    if (executionType != AutomationType.confirm.value) {
       return 'لا يوجد';
     }
     final value = reminderLeadDays.clamp(0, 3);
-    final isHourly = recurrencePattern == 'daily' ||
-        recurrencePattern == 'weekly' ||
-        recurrencePattern == 'biweekly' ||
-        recurrencePattern == 'every_3_weeks';
+    final isHourly = recurrencePattern == RecurrencePattern.daily.value ||
+        recurrencePattern == RecurrencePattern.weekly.value ||
+        recurrencePattern == RecurrencePattern.biweekly.value ||
+        recurrencePattern == RecurrencePattern.every3Weeks.value;
     if (isHourly) {
       return value == 0 ? 'في الوقت المحدد' : 'قبلها بـ $value ساعة';
     }
@@ -2976,16 +2936,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   String _incomeTypeLabel(String type) {
-    switch (type) {
-      case 'auto':
-        return 'تلقائي';
-      case 'manual':
-        return 'يدوي';
-      case 'confirm':
-        return 'تأكيد';
-      default:
-        return type;
-    }
+    if (type == AutomationType.auto.value) return 'تلقائي';
+    if (type == AutomationType.confirm.value) return 'تأكيد';
+    if (type == 'manual') return 'يدوي';
+    return type;
   }
 
   Widget _iconBadge({
@@ -3022,8 +2976,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       IncomeSourceEntity source) {
     final linked = widget.cubit.state.recurringTransactions.where(
       (item) =>
-          item.type == 'income' &&
-          item.budgetScope == 'within-budget' &&
+          item.type == TransactionType.income.value &&
+          item.budgetScope == BudgetScope.withinBudget.value &&
           (item.incomeSourceId == source.id ||
               ((item.incomeSourceId ?? '').isEmpty &&
                   item.name == source.name &&
@@ -3075,7 +3029,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   //   if (recurring.recurrencePattern == 'manual-variable') {
   //     return null;
   //   }
-  //   if (recurring.recurrencePattern == 'daily') {
+  //   if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
   //     final today = atDate(now);
   //     return today.isAfter(now) ? today : today.add(const Duration(days: 1));
   //   }
@@ -3090,10 +3044,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   //       }
   //     }
   //   }
-  //   if (recurring.recurrencePattern == 'monthly' ||
-  //       recurring.recurrencePattern == 'every_2_months' ||
-  //       recurring.recurrencePattern == 'every_3_months' ||
-  //       recurring.recurrencePattern == 'every_6_months') {
+  //   if (recurring.recurrencePattern == RecurrencePattern.monthly.value ||
+  //       recurring.recurrencePattern == RecurrencePattern.every2Months.value ||
+  //       recurring.recurrencePattern == RecurrencePattern.every3Months.value ||
+  //       recurring.recurrencePattern == RecurrencePattern.every6Months.value) {
   //     final interval = switch (recurring.recurrencePattern) {
   //       'every_2_months' => 2,
   //       'every_3_months' => 3,
@@ -3114,7 +3068,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   //       }
   //     }
   //   }
-  //   if (recurring.recurrencePattern == 'yearly') {
+  //   if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
   //     final month = recurring.monthOfYear ?? now.month;
   //     final thisYear = DateTime(
   //       now.year,
@@ -3139,10 +3093,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   // Duration _leadDuration(RecurringTransactionEntity recurring) {
   //   final value = recurring.reminderLeadDays ?? 0;
-  //   if (recurring.recurrencePattern == 'daily' ||
-  //       recurring.recurrencePattern == 'weekly' ||
-  //       recurring.recurrencePattern == 'biweekly' ||
-  //       recurring.recurrencePattern == 'every_3_weeks') {
+  //   if (recurring.recurrencePattern == RecurrencePattern.daily.value ||
+  //       recurring.recurrencePattern == RecurrencePattern.weekly.value ||
+  //       recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
+  //       recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
   //     return Duration(hours: value.clamp(0, 3));
   //   }
   //   return Duration(days: value.clamp(0, 3));

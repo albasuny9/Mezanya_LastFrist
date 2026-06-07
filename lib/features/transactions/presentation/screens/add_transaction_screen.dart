@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/transaction_types.dart';
+
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
@@ -29,9 +31,9 @@ class AddTransactionScreen extends StatefulWidget {
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
-  String _type = 'expense';
-  String _budgetScope = 'outside-budget';
-  String _incomeBudgetScope = 'outside-budget';
+  String _type = TransactionType.expense.value;
+  String _budgetScope = BudgetScope.outsideBudget.value;
+  String _incomeBudgetScope = BudgetScope.outsideBudget.value;
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   final _recurringNameController = TextEditingController();
@@ -42,7 +44,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _budgetTargetId = '';
   String _incomeSourceId = 'wallet-only';
   String _incomeJarId = '';
-  String _recurrencePattern = 'monthly';
+  String _recurrencePattern = RecurrencePattern.monthly.value;
   int _recurrenceWeekday = DateTime.now().weekday;
   String _recurringIconName = 'category';
   String _recurringIconColor = '#165b47';
@@ -59,7 +61,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _incomeSourceId = 'wallet-only';
     _incomeJarId = '';
     if (widget.recurringMode) {
-      _type = widget.recurringType ?? 'expense';
+      _type = widget.recurringType ?? TransactionType.expense.value;
       final r = widget.initialRecurring;
       if (r != null) {
         _type = r.type;
@@ -92,8 +94,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _amountController.text = t.amount.toStringAsFixed(2);
       _notesController.text = t.notes ?? '';
       _incomeSourceId = t.incomeSourceId ?? _incomeSourceId;
-      if (t.type == 'expense') {
-        _budgetScope = t.budgetScope ?? 'outside-budget';
+      if (t.type == TransactionType.expense.value) {
+        _budgetScope = t.budgetScope ?? BudgetScope.outsideBudget.value;
         if (t.allocationId != null) {
           _budgetTargetId = 'alloc:${t.allocationId!}';
         } else if (t.toWalletId != null) {
@@ -102,10 +104,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           _budgetTargetId = '';
         }
       }
-      if (t.type == 'income') {
-        _incomeBudgetScope = t.budgetScope == 'within-budget'
-            ? 'within-budget'
-            : 'outside-budget';
+      if (t.type == TransactionType.income.value) {
+        _incomeBudgetScope = t.budgetScope == BudgetScope.withinBudget.value
+            ? BudgetScope.withinBudget.value
+            : BudgetScope.outsideBudget.value;
         _incomeJarId = t.toWalletId ?? '';
       }
       // تحميل الفئة المحددة
@@ -151,9 +153,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }) async {
     var effectiveBalance = wallet.balance;
     if (widget.initialTransaction?.walletId == wallet.id) {
-      if (widget.initialTransaction?.type == 'expense') {
+      if (widget.initialTransaction?.type == TransactionType.expense.value) {
         effectiveBalance += widget.initialTransaction!.amount;
-      } else if (widget.initialTransaction?.type == 'income') {
+      } else if (widget.initialTransaction?.type ==
+          TransactionType.income.value) {
         effectiveBalance -= widget.initialTransaction!.amount;
       }
     }
@@ -218,13 +221,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (_isSaving || amount <= 0 || (_walletId.isEmpty)) {
       return false;
     }
-    if (_type == 'expense' &&
-        _budgetScope == 'within-budget' &&
+    if (_type == TransactionType.expense.value &&
+        _budgetScope == BudgetScope.withinBudget.value &&
         _budgetTargetId.isEmpty) {
       return false;
     }
-    if (_type == 'income' &&
-        _incomeBudgetScope == 'within-budget' &&
+    if (_type == TransactionType.income.value &&
+        _incomeBudgetScope == BudgetScope.withinBudget.value &&
         _incomeSourceId == 'wallet-only' &&
         _incomeJarId.isEmpty) {
       return false;
@@ -292,13 +295,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         .toList();
 
     // Show general categories when outside-budget OR jar selected
-    final visibleCategories =
-        _budgetScope == 'within-budget' && _budgetTargetId.startsWith('alloc:')
-            ? allocationCategories
-            : (_budgetScope == 'within-budget' &&
-                    _budgetTargetId.startsWith('jar:'))
-                ? jarCategories
-                : generalExpenseCategories;
+    final visibleCategories = _budgetScope == BudgetScope.withinBudget.value &&
+            _budgetTargetId.startsWith('alloc:')
+        ? allocationCategories
+        : (_budgetScope == BudgetScope.withinBudget.value &&
+                _budgetTargetId.startsWith('jar:'))
+            ? jarCategories
+            : generalExpenseCategories;
 
     // ── allocation dropdown items ──
     final allocationItems = [
@@ -355,24 +358,28 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       DropdownButtonFormField<String>(
                         value: _recurrencePattern,
                         decoration: const InputDecoration(labelText: 'التكرار'),
-                        items: const [
+                        items: [
                           DropdownMenuItem(
-                              value: 'weekly', child: Text('مرة كل أسبوع')),
+                              value: RecurrencePattern.weekly.value,
+                              child: Text('مرة كل أسبوع')),
                           DropdownMenuItem(
-                              value: 'biweekly', child: Text('مرة كل أسبوعين')),
+                              value: RecurrencePattern.biweekly.value,
+                              child: Text('مرة كل أسبوعين')),
                           DropdownMenuItem(
-                              value: 'monthly', child: Text('مرة كل شهر')),
+                              value: RecurrencePattern.monthly.value,
+                              child: Text('مرة كل شهر')),
                           DropdownMenuItem(
-                              value: 'every_2_months',
+                              value: RecurrencePattern.every2Months.value,
                               child: Text('مرة كل شهرين')),
                           DropdownMenuItem(
-                              value: 'every_3_months',
+                              value: RecurrencePattern.every3Months.value,
                               child: Text('مرة كل 3 شهور')),
                           DropdownMenuItem(
-                              value: 'every_6_months',
+                              value: RecurrencePattern.every6Months.value,
                               child: Text('مرة كل 6 شهور')),
                           DropdownMenuItem(
-                              value: 'yearly', child: Text('مرة كل سنة')),
+                              value: RecurrencePattern.yearly.value,
+                              child: Text('مرة كل سنة')),
                         ],
                         onChanged: (v) {
                           if (v != null) setState(() => _recurrencePattern = v);
@@ -417,13 +424,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
                     // ── Recurring weekday ──
                     if (widget.recurringMode &&
-                        (_recurrencePattern == 'weekly' ||
-                            _recurrencePattern == 'biweekly')) ...[
+                        (_recurrencePattern == RecurrencePattern.weekly.value ||
+                            _recurrencePattern ==
+                                RecurrencePattern.biweekly.value)) ...[
                       DropdownButtonFormField<int>(
                         value: _recurrenceWeekday,
                         decoration: const InputDecoration(
                             labelText: 'اليوم في الأسبوع'),
-                        items: const [
+                        items: [
                           DropdownMenuItem(value: 1, child: Text('الاثنين')),
                           DropdownMenuItem(value: 2, child: Text('الثلاثاء')),
                           DropdownMenuItem(value: 3, child: Text('الأربعاء')),
@@ -440,7 +448,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ],
 
                     // ── EXPENSE fields ──
-                    if (_type == 'expense') ...[
+                    if (_type == TransactionType.expense.value) ...[
                       // Budget target picker (replaces the switch)
                       _RowCard(
                         label: 'المخصص',
@@ -471,7 +479,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ],
 
                     // ── INCOME fields ──
-                    if (_type == 'income') ...[
+                    if (_type == TransactionType.income.value) ...[
                       const SizedBox(height: 4),
                       _RowCard(
                         label: 'هدف الدخل',
@@ -487,7 +495,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             .where((c) => c.scope == 'income')
                             .toList(),
                         onAdd: () => _openAddCategoryDialog(
-                          budgetScope: 'outside-budget',
+                          budgetScope: BudgetScope.outsideBudget.value,
                           allocationId: '',
                           linkedWalletId: '',
                           existing: state.categories
@@ -583,8 +591,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       'اختر محفظة أو اختر "بدون محفظة" أولًا.');
                                   return;
                                 }
-                                if (_type == 'expense' &&
-                                    _budgetScope == 'within-budget' &&
+                                if (_type == TransactionType.expense.value &&
+                                    _budgetScope ==
+                                        BudgetScope.withinBudget.value &&
                                     _budgetTargetId.isEmpty) {
                                   _showValidationError(
                                       'اختر مخصصًا أو حصالة للمعاملة داخل الميزانية.');
@@ -596,8 +605,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       'المبلغ أكبر من المتاح في غير المخصص.');
                                   return;
                                 }
-                                if (_type == 'income' &&
-                                    _incomeBudgetScope == 'within-budget' &&
+                                if (_type == TransactionType.income.value &&
+                                    _incomeBudgetScope ==
+                                        BudgetScope.withinBudget.value &&
                                     _incomeSourceId == 'wallet-only' &&
                                     _incomeJarId.isEmpty) {
                                   _showValidationError(
@@ -614,7 +624,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 }
 
                                 if (!widget.recurringMode &&
-                                    _type == 'expense' &&
+                                    _type == TransactionType.expense.value &&
                                     _walletId == 'no-wallet' &&
                                     _budgetTargetId.startsWith('jar:')) {
                                   final selectedJarId =
@@ -650,7 +660,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 }
 
                                 if (!widget.recurringMode &&
-                                    _type == 'expense' &&
+                                    _type == TransactionType.expense.value &&
                                     _walletId != 'no-wallet') {
                                   final currentWallet = wallets
                                       .where((wallet) => wallet.id == _walletId)
@@ -680,40 +690,53 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     type: _type,
                                     amount: amount,
                                     dayOfMonth: _date.day.clamp(1, 28),
-                                    executionType: 'confirm',
+                                    executionType: AutomationType.confirm.value,
                                     walletId: _walletId == 'no-wallet'
                                         ? ''
                                         : _walletId,
-                                    budgetScope: _type == 'expense'
-                                        ? _budgetScope
-                                        : _incomeBudgetScope,
+                                    budgetScope:
+                                        _type == TransactionType.expense.value
+                                            ? _budgetScope
+                                            : _incomeBudgetScope,
                                     recurrencePattern: _recurrencePattern,
                                     icon: _recurringIconName,
                                     iconColor: _recurringIconColor,
-                                    weekday: (_recurrencePattern == 'weekly' ||
-                                            _recurrencePattern == 'biweekly')
+                                    weekday: (_recurrencePattern ==
+                                                RecurrencePattern
+                                                    .weekly.value ||
+                                            _recurrencePattern ==
+                                                RecurrencePattern
+                                                    .biweekly.value)
                                         ? _recurrenceWeekday
                                         : null,
-                                    allocationId: _type == 'expense' &&
-                                            _budgetScope == 'within-budget' &&
+                                    allocationId: _type ==
+                                                TransactionType.expense.value &&
+                                            _budgetScope ==
+                                                BudgetScope
+                                                    .withinBudget.value &&
                                             _budgetTargetId.startsWith('alloc:')
                                         ? _budgetTargetId.replaceFirst(
                                             'alloc:', '')
                                         : null,
-                                    targetJarId: _type == 'income' &&
-                                            _incomeBudgetScope ==
-                                                'within-budget' &&
-                                            _incomeJarId.isNotEmpty
-                                        ? _incomeJarId
-                                        : (_type == 'expense' &&
-                                                _budgetTargetId
-                                                    .startsWith('jar:')
-                                            ? selectedJarId
-                                            : null),
-                                    incomeSourceId: _type == 'income' &&
-                                            _incomeSourceId != 'wallet-only'
-                                        ? _incomeSourceId
-                                        : null,
+                                    targetJarId:
+                                        _type == TransactionType.income.value &&
+                                                _incomeBudgetScope ==
+                                                    BudgetScope
+                                                        .withinBudget.value &&
+                                                _incomeJarId.isNotEmpty
+                                            ? _incomeJarId
+                                            : (_type ==
+                                                        TransactionType
+                                                            .expense.value &&
+                                                    _budgetTargetId
+                                                        .startsWith('jar:')
+                                                ? selectedJarId
+                                                : null),
+                                    incomeSourceId:
+                                        _type == TransactionType.income.value &&
+                                                _incomeSourceId != 'wallet-only'
+                                            ? _incomeSourceId
+                                            : null,
                                     notes: _notesController.text.trim().isEmpty
                                         ? null
                                         : _notesController.text.trim(),
@@ -756,12 +779,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     walletId: _walletId == 'no-wallet'
                                         ? null
                                         : _walletId,
-                                    toWalletId: _type == 'income' &&
-                                            _incomeBudgetScope ==
-                                                'within-budget' &&
-                                            _incomeJarId.isNotEmpty
-                                        ? _incomeJarId
-                                        : selectedJarId,
+                                    toWalletId:
+                                        _type == TransactionType.income.value &&
+                                                _incomeBudgetScope ==
+                                                    BudgetScope
+                                                        .withinBudget.value &&
+                                                _incomeJarId.isNotEmpty
+                                            ? _incomeJarId
+                                            : selectedJarId,
                                     amount: amount,
                                     type: _type,
                                     createdAt: DateTime(
@@ -771,30 +796,40 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       _time.hour,
                                       _time.minute,
                                     ),
-                                    allocationId: _type == 'expense' &&
-                                            _budgetScope == 'within-budget' &&
+                                    allocationId: _type ==
+                                                TransactionType.expense.value &&
+                                            _budgetScope ==
+                                                BudgetScope
+                                                    .withinBudget.value &&
                                             _budgetTargetId.startsWith('alloc:')
                                         ? _budgetTargetId.replaceFirst(
                                             'alloc:', '')
                                         : null,
-                                    budgetScope: _type == 'expense'
+                                    budgetScope: _type ==
+                                            TransactionType.expense.value
                                         ? _budgetScope
-                                        : _type == 'income'
+                                        : _type == TransactionType.income.value
                                             ? _incomeBudgetScope
                                             : null,
-                                    incomeSourceId: _type == 'income' &&
-                                            _incomeSourceId != 'wallet-only'
-                                        ? _incomeSourceId
-                                        : null,
+                                    incomeSourceId:
+                                        _type == TransactionType.income.value &&
+                                                _incomeSourceId != 'wallet-only'
+                                            ? _incomeSourceId
+                                            : null,
                                     transferType: widget.initialTransaction
                                                 ?.transferType ==
-                                            'jar-funding-physical'
-                                        ? 'jar-funding-physical'
-                                        : _type == 'income' &&
+                                            TransferType
+                                                .jarFundingPhysical.value
+                                        ? TransferType.jarFundingPhysical.value
+                                        : _type ==
+                                                    TransactionType
+                                                        .income.value &&
                                                 _incomeBudgetScope ==
-                                                    'within-budget' &&
+                                                    BudgetScope
+                                                        .withinBudget.value &&
                                                 _incomeJarId.isNotEmpty
-                                            ? 'deposit-with-jar-label'
+                                            ? TransferType
+                                                .depositWithJarLabel.value
                                             : null,
                                     notes: _notesController.text.trim().isEmpty
                                         ? null
@@ -807,7 +842,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   SnackBar(
                                       content: Text(widget.recurringMode
                                           ? 'تم حفظ المعاملة المتكررة.'
-                                          : (_type == 'income'
+                                          : (_type ==
+                                                  TransactionType.income.value
                                               ? 'تم تسجيل الدخل.'
                                               : 'تم تسجيل المعاملة.'))),
                                 );
@@ -829,7 +865,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 : 'تحديث التكرار')
                             : widget.initialTransaction != null
                                 ? 'حفظ التعديل'
-                                : (_type == 'income'
+                                : (_type == TransactionType.income.value
                                     ? 'تسجيل الدخل'
                                     : 'تسجيل المعاملة'),
                         style: const TextStyle(
@@ -850,7 +886,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // TYPE TOGGLE
   // ─────────────────────────────────────────────────────────────────────────
   Widget _typeSegmentedToggle(ThemeData theme) {
-    final activeOnRight = _type == 'income';
+    final activeOnRight = _type == TransactionType.income.value;
     return Container(
       height: 56,
       decoration: BoxDecoration(
@@ -889,7 +925,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   onTap: widget.recurringMode
                       ? null
                       : () => setState(() {
-                            _type = 'expense';
+                            _type = TransactionType.expense.value;
                             _selectedIncomeCategoryId = null;
                           }),
                   child: Center(
@@ -910,7 +946,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   onTap: widget.recurringMode
                       ? null
                       : () => setState(() {
-                            _type = 'income';
+                            _type = TransactionType.income.value;
                             _budgetTargetId = '';
                             _selectedCategoryId = null;
                           }),
@@ -1166,7 +1202,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 onTap: () {
                   setState(() {
                     _budgetTargetId = '';
-                    _budgetScope = 'outside-budget';
+                    _budgetScope = BudgetScope.outsideBudget.value;
                   });
                   Navigator.pop(sheetCtx);
                 },
@@ -1233,7 +1269,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       onTap: () {
                         setState(() {
                           _budgetTargetId = 'unallocated';
-                          _budgetScope = 'within-budget';
+                          _budgetScope = BudgetScope.withinBudget.value;
                         });
                         Navigator.pop(sheetCtx);
                       },
@@ -1263,7 +1299,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _budgetTargetId = id;
-                            _budgetScope = 'within-budget';
+                            _budgetScope = BudgetScope.withinBudget.value;
                           });
                           Navigator.pop(sheetCtx);
                         },
@@ -1296,7 +1332,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           onTap: () {
                             setState(() {
                               _budgetTargetId = id;
-                              _budgetScope = 'within-budget';
+                              _budgetScope = BudgetScope.withinBudget.value;
                             });
                             Navigator.pop(sheetCtx);
                           },
@@ -1378,12 +1414,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           padding: const EdgeInsets.all(14),
           children: [
             _AllocationOption(
-              isSelected: _incomeBudgetScope == 'outside-budget' &&
-                  _incomeSourceId == 'wallet-only' &&
-                  _incomeJarId.isEmpty,
+              isSelected:
+                  _incomeBudgetScope == BudgetScope.outsideBudget.value &&
+                      _incomeSourceId == 'wallet-only' &&
+                      _incomeJarId.isEmpty,
               onTap: () {
                 setState(() {
-                  _incomeBudgetScope = 'outside-budget';
+                  _incomeBudgetScope = BudgetScope.outsideBudget.value;
                   _incomeSourceId = 'wallet-only';
                   _incomeJarId = '';
                 });
@@ -1428,7 +1465,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ],
                     ),
                   ),
-                  if (_incomeBudgetScope == 'outside-budget' &&
+                  if (_incomeBudgetScope == BudgetScope.outsideBudget.value &&
                       _incomeSourceId == 'wallet-only' &&
                       _incomeJarId.isEmpty)
                     const Icon(
@@ -1443,16 +1480,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               const _SheetSectionLabel(label: 'مصادر الدخل'),
               const SizedBox(height: 10),
               ...budget.incomeSources.map((source) {
-                final selected = _incomeBudgetScope == 'within-budget' &&
-                    _incomeJarId.isEmpty &&
-                    _incomeSourceId == source.id;
+                final selected =
+                    _incomeBudgetScope == BudgetScope.withinBudget.value &&
+                        _incomeJarId.isEmpty &&
+                        _incomeSourceId == source.id;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _AllocationOption(
                     isSelected: selected,
                     onTap: () {
                       setState(() {
-                        _incomeBudgetScope = 'within-budget';
+                        _incomeBudgetScope = BudgetScope.withinBudget.value;
                         _incomeSourceId = source.id;
                         _incomeJarId = '';
                       });
@@ -1516,15 +1554,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               const _SheetSectionLabel(label: 'الحصالات'),
               const SizedBox(height: 10),
               ...jars.map((jar) {
-                final selected = _incomeBudgetScope == 'within-budget' &&
-                    _incomeJarId == jar.id;
+                final selected =
+                    _incomeBudgetScope == BudgetScope.withinBudget.value &&
+                        _incomeJarId == jar.id;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _AllocationOption(
                     isSelected: selected,
                     onTap: () {
                       setState(() {
-                        _incomeBudgetScope = 'within-budget';
+                        _incomeBudgetScope = BudgetScope.withinBudget.value;
                         _incomeSourceId = 'wallet-only';
                         _incomeJarId = jar.id;
                       });
@@ -1812,20 +1851,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       icon: selectedIcon,
       color: selectedColor,
       scope: scope,
-      allocationId:
-          budgetScope == 'within-budget' && allocationId != 'unallocated'
-              ? allocationId
-              : null,
+      allocationId: budgetScope == BudgetScope.withinBudget.value &&
+              allocationId != 'unallocated'
+          ? allocationId
+          : null,
     );
 
-    if (budgetScope == 'within-budget' &&
+    if (budgetScope == BudgetScope.withinBudget.value &&
         allocationId.isNotEmpty &&
         allocationId != 'unallocated') {
       await widget.cubit.updateAllocationCategories(
         allocationId: allocationId,
         categories: [...existing, category],
       );
-    } else if (budgetScope == 'within-budget' && linkedWalletId.isNotEmpty) {
+    } else if (budgetScope == BudgetScope.withinBudget.value &&
+        linkedWalletId.isNotEmpty) {
       await widget.cubit.updateLinkedWalletCategories(
         linkedWalletId: linkedWalletId,
         categories: [...existing, category],
