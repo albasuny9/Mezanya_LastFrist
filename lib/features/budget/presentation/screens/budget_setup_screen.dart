@@ -352,14 +352,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
       final triggeredSource =
           _firstTriggeredJarSource(previousPlanned, nextPlanned, incomeTotals);
-      final triggeredFunding =
-          triggeredSource == null ? null : nextPlanned[triggeredSource];
       final fallbackWalletId = triggeredSource == null
           ? ''
           : (incomeWalletIds[triggeredSource] ??
               incomeSourcesById[triggeredSource]?.targetWalletId ??
               '');
-      final isPhysical = triggeredFunding?.isPhysical == true;
       return jar.copyWith(
         pendingDistribution: jar.pendingDistribution + delta,
         pendingDistributionWalletId: fallbackWalletId,
@@ -1289,7 +1286,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     // دين → فتح composer مباشرة
     await _showDebtDialog();
   }
-
 
   Future<void> _openLentSetupManagementSheet(
       RecurringTransactionEntity record) async {
