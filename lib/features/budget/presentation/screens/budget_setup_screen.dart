@@ -878,7 +878,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       (s, f) => s + f.plannedAmount,
     );
     final categoryCount = allocation.categories.length;
-    final rolloverLabel = allocation.rolloverBehavior == 'keep'
+    final rolloverLabel = allocation.rolloverBehavior == RolloverBehavior.keep.value
         ? 'يرحل للدورة التالية'
         : 'يرجع للتوفير';
 
@@ -1847,9 +1847,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 ),
                 items: [
                   DropdownMenuItem(
-                      value: 'to-savings', child: Text('يتحول للتوفير')),
+                      value: RolloverBehavior.toSavings.value, child: Text('يتحول للتوفير')),
                   DropdownMenuItem(
-                      value: 'keep', child: Text('يبقى للدورة الجديدة')),
+                      value: RolloverBehavior.keep.value, child: Text('يبقى للدورة الجديدة')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -1922,7 +1922,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       amountText: allocation.funding
                           .fold<double>(0, (s, f) => s + f.plannedAmount)
                           .toStringAsFixed(2),
-                      detailText: allocation.rolloverBehavior == 'keep'
+                      detailText: allocation.rolloverBehavior == RolloverBehavior.keep.value
                           ? 'يرحل للدورة التالية'
                           : 'يرجع للتوفير',
                       leadingWidget: _iconBadge(
@@ -3144,7 +3144,7 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
     _nameController = TextEditingController(text: widget.current?.name ?? '');
     _selectedIcon = widget.current?.icon ?? 'category';
     _selectedColor = widget.current?.iconColor ?? '#165b47';
-    _rolloverBehavior = widget.current?.rolloverBehavior ?? 'to-savings';
+    _rolloverBehavior = widget.current?.rolloverBehavior ?? RolloverBehavior.toSavings.value;
     _funding = List<AllocationFundingEntity>.from(
       widget.current?.funding ??
           [
@@ -3388,7 +3388,7 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _rolloverBehavior == 'keep'
+                        _rolloverBehavior == RolloverBehavior.keep.value
                             ? 'المتبقي يرحل إلى الشهر التالي'
                             : 'المتبقي يتحول إلى التوفير',
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -3497,15 +3497,15 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
                   title: 'يرحل إلى الشهر التالي',
                   subtitle:
                       'يبقى المبلغ المتبقي داخل نفس المخصص في الدورة الجديدة.',
-                  selected: _rolloverBehavior == 'keep',
-                  onTap: () => setState(() => _rolloverBehavior = 'keep'),
+                  selected: _rolloverBehavior == RolloverBehavior.keep.value,
+                  onTap: () => setState(() => _rolloverBehavior = RolloverBehavior.keep.value),
                 ),
                 const SizedBox(height: 10),
                 _ChoiceTile(
                   title: 'يتحول إلى التوفير',
                   subtitle: 'ينتقل المتبقي تلقائيًا إلى التوفير بدل ترحيله.',
-                  selected: _rolloverBehavior == 'to-savings',
-                  onTap: () => setState(() => _rolloverBehavior = 'to-savings'),
+                  selected: _rolloverBehavior == RolloverBehavior.toSavings.value,
+                  onTap: () => setState(() => _rolloverBehavior = RolloverBehavior.toSavings.value),
                 ),
               ],
             ),

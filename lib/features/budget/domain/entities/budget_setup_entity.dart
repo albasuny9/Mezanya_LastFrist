@@ -1,4 +1,5 @@
 import '../../../categories/domain/entities/category_entity.dart';
+import '../../../../core/constants/transaction_types.dart';
 
 class IncomeSourceEntity {
   const IncomeSourceEntity({
@@ -537,20 +538,20 @@ class DebtEntity {
 
   bool _matchesDay(DateTime day) {
     if (day.day != executionDay.clamp(1, 28)) return false;
-    switch (recurrencePattern) {
-      case 'monthly':
-        return true;
-      case 'yearly':
-        return day.month == (monthOfYear ?? executionDay);
-      case 'every_2_months':
-        return day.month % 2 == executionDay % 2;
-      case 'every_3_months':
-        return day.month % 3 == 0;
-      case 'every_6_months':
-        return day.month % 6 == 0;
-      default:
-        return true;
+    if (recurrencePattern == RecurrencePattern.monthly.value) return true;
+    if (recurrencePattern == RecurrencePattern.yearly.value) {
+      return day.month == (monthOfYear ?? executionDay);
     }
+    if (recurrencePattern == RecurrencePattern.every2Months.value) {
+      return day.month % 2 == executionDay % 2;
+    }
+    if (recurrencePattern == RecurrencePattern.every3Months.value) {
+      return day.month % 3 == 0;
+    }
+    if (recurrencePattern == RecurrencePattern.every6Months.value) {
+      return day.month % 6 == 0;
+    }
+    return true;
   }
 
   DebtEntity copyWith({

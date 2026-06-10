@@ -817,8 +817,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
             t.transferType == TransferType.jarFunding.value ||
             t.transferType == TransferType.jarFundingPhysical.value ||
             t.transferType == TransferType.depositWithJarLabel.value ||
-            t.transferType == 'allocation-to-jar' ||
-            t.transferType == 'jar-to-allocation' ||
+            t.transferType == TransferType.allocationToJar.value ||
+            t.transferType == TransferType.jarToAllocation.value ||
             (t.type == TransactionType.income.value &&
                 t.budgetScope == BudgetScope.withinBudget.value))
         .toList()
@@ -2832,8 +2832,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
         transaction.transferType == TransferType.jarAllocation.value ||
         transaction.transferType == TransferType.jarAllocationCancel.value ||
         transaction.transferType == TransferType.jarAllocationSpend.value ||
-        transaction.transferType == 'allocation-to-jar' ||
-        transaction.transferType == 'jar-to-allocation';
+        transaction.transferType == TransferType.allocationToJar.value ||
+        transaction.transferType == TransferType.jarToAllocation.value;
   }
 
   Widget _glassMetric({

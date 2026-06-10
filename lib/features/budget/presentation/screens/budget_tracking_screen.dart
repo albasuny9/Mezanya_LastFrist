@@ -2127,8 +2127,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             t.transferType == TransferType.jarAllocationSpend.value ||
             t.transferType == TransferType.jarFundingPhysical.value ||
             t.transferType == TransferType.depositWithJarLabel.value ||
-            t.transferType == 'allocation-to-jar' ||
-            t.transferType == 'jar-to-allocation' ||
+            t.transferType == TransferType.allocationToJar.value ||
+            t.transferType == TransferType.jarToAllocation.value ||
             (t.type == TransactionType.income.value &&
                 t.budgetScope == BudgetScope.withinBudget.value) ||
             // مصروفات حقيقية مخصومة من الحصالة
@@ -4637,7 +4637,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   bool _isJarReserveTx(TransactionEntity t) {
-    return t.transferType == 'allocation-to-jar';
+    return t.transferType == TransferType.allocationToJar.value;
   }
 }
 

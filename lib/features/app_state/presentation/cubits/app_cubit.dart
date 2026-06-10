@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/transaction_types.dart';
+import '../../../transactions/domain/services/transaction_processor.dart';
 
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
@@ -188,7 +189,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'wallet',
       entityId: wallet.id,
       details: 'تمت إضافة محفظة جديدة: $name',
-      apply: () => _repository.addWallet(wallet),
+      apply: () async => state.copyWith(
+        wallets: [...state.wallets, wallet],
+      ),
     );
   }
 
@@ -264,7 +267,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           : incomeName ??
               walletName ??
               (type == TransactionType.income.value ? 'دخل' : 'مصروف'),
-      apply: () => _repository.addTransaction(transaction),
+      apply: () async => TransactionProcessor.apply(state, transaction),
     );
   }
 
@@ -459,7 +462,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityId: 'budget-setup',
       details: detailsOverride ?? 'تم تعديل إعدادات الميزانية',
       apply: () async {
-        final raw = await _repository.updateBudgetSetup(setup);
+        final raw = state.copyWith(budgetSetup: setup);
         return _withMonthlySnapshot(raw, setup);
       },
     );
@@ -1128,7 +1131,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       titleOverride: titleOverride ?? recurring.name,
       apply: () async {
         // 1. Add physical transaction (updates balance/allocations)
-        final stateAfterTx = await _repository.addTransaction(transaction);
+        final stateAfterTx = TransactionProcessor.apply(state, transaction);
         // 2. Update recurring state & sync debt in one go
         return _applyRecurringSync(stateAfterTx, updatedRecurring);
       },
@@ -1261,7 +1264,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           'سلفة لـ $personName بمبلغ ${amount.toStringAsFixed(2)} من ${walletName ?? walletId}',
       titleOverride: personName,
       apply: () async {
-        final stateAfterTx = await _repository.addTransaction(txn);
+        final stateAfterTx = TransactionProcessor.apply(state, txn);
         return stateAfterTx.copyWith(recurringTransactions: updatedList);
       },
     );
@@ -1314,7 +1317,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           'استرداد سلفة من ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async {
-        final stateAfterTx = await _repository.addTransaction(txn);
+        final stateAfterTx = TransactionProcessor.apply(state, txn);
         return stateAfterTx.copyWith(recurringTransactions: updatedList);
       },
     );
@@ -1416,10 +1419,51 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
-  // ── Legacy stubs ──────────────────────────────────────────────────────────
-  Future<void> settleLentRecord(String id) async {}
-  Future<void> writeOffLentRecord(String id) async {}
-  Future<void> postponeLentRecord(String id, DateTime d) async {}
+  // ── Legacy stubs — implemented to delegate to per-entry methods ──────────
+  Future<void> settleLentRecord(String personId) async {
+    final person = state.recurringTransactions
+        .where((r) => r.id == personId)
+        .cast<RecurringTransactionEntity?>()
+        .firstWhere((_) => true, orElse: () => null);
+    if (person == null) return;
+    final outstanding = person.lentEntries
+        .where((e) => e['isSettled'] != true)
+        .toList();
+    for (final entry in outstanding) {
+      final entryId = entry['id'] as String?;
+      if (entryId != null) await settleLentEntry(personId, entryId);
+    }
+  }
+
+  Future<void> writeOffLentRecord(String personId) async {
+    final person = state.recurringTransactions
+        .where((r) => r.id == personId)
+        .cast<RecurringTransactionEntity?>()
+        .firstWhere((_) => true, orElse: () => null);
+    if (person == null) return;
+    final outstanding = person.lentEntries
+        .where((e) => e['isSettled'] != true)
+        .toList();
+    for (final entry in outstanding) {
+      final entryId = entry['id'] as String?;
+      if (entryId != null) await writeOffLentEntry(personId, entryId);
+    }
+  }
+
+  Future<void> postponeLentRecord(String personId, DateTime newDate) async {
+    final person = state.recurringTransactions
+        .where((r) => r.id == personId)
+        .cast<RecurringTransactionEntity?>()
+        .firstWhere((_) => true, orElse: () => null);
+    if (person == null) return;
+    final outstanding = person.lentEntries
+        .where((e) => e['isSettled'] != true)
+        .toList();
+    for (final entry in outstanding) {
+      final entryId = entry['id'] as String?;
+      if (entryId != null) await postponeLentEntry(personId, entryId, newDate);
+    }
+  }
 
   Future<void> deleteRecurringTransaction(String id) async {
     final target =

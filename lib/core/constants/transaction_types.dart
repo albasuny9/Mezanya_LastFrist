@@ -111,3 +111,27 @@ enum RecurrencePattern {
     return null;
   }
 }
+
+enum RolloverBehavior {
+  toSavings('to-savings'),
+  keep('keep');
+
+  const RolloverBehavior(this.value);
+  final String value;
+
+  static RolloverBehavior? fromValue(String? value) {
+    for (final r in RolloverBehavior.values) {
+      if (r.value == value) return r;
+    }
+    return null;
+  }
+}
+
+enum AutoBackupMode {
+  off('off'),
+  auto('auto'),
+  manual('manual');
+
+  const AutoBackupMode(this.value);
+  final String value;
+}

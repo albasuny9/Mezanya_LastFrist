@@ -625,27 +625,16 @@ class RecurringScheduleEngine {
   }
 
   static int _weekInterval(String pattern) {
-    switch (pattern) {
-      case 'biweekly':
-        return 2;
-      case 'every_3_weeks':
-        return 3;
-      default:
-        return 1;
-    }
+    if (pattern == RecurrencePattern.biweekly.value) return 2;
+    if (pattern == RecurrencePattern.every3Weeks.value) return 3;
+    return 1;
   }
 
   static int _monthInterval(String pattern) {
-    switch (pattern) {
-      case 'every_2_months':
-        return 2;
-      case 'every_3_months':
-        return 3;
-      case 'every_6_months':
-        return 6;
-      default:
-        return 1;
-    }
+    if (pattern == RecurrencePattern.every2Months.value) return 2;
+    if (pattern == RecurrencePattern.every3Months.value) return 3;
+    if (pattern == RecurrencePattern.every6Months.value) return 6;
+    return 1;
   }
 
   static List<int> _resolvedWeekdays(

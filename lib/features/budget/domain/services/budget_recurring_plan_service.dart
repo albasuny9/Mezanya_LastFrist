@@ -141,29 +141,27 @@ class BudgetRecurringPlanService {
     DateTime cycleEnd,
   ) {
     final pattern = debt.recurrencePattern;
-    switch (pattern) {
-      case 'monthly':
-        // مرة واحدة لو يوم الاستحقاق ضمن الدورة
-        return _dayInRange(debt.executionDay, cycleStart, cycleEnd) ? 1 : 0;
-      case 'yearly':
-        final month = debt.monthOfYear ?? cycleStart.month;
-        return _yearlyDayInRange(debt.executionDay, month, cycleStart, cycleEnd)
-            ? 1
-            : 0;
-      case 'every_2_months':
-      case 'every_3_months':
-      case 'every_6_months':
-        final interval = pattern == 'every_2_months'
-            ? 2
-            : pattern == 'every_3_months'
-                ? 3
-                : 6;
-        return _multiMonthOccurrences(
-            debt.executionDay, interval, cycleStart, cycleEnd);
-      default:
-        // weekly/biweekly بدون recurring = مش قادر نحسب صح → 0
-        return 0;
+    if (pattern == RecurrencePattern.monthly.value) {
+      return _dayInRange(debt.executionDay, cycleStart, cycleEnd) ? 1 : 0;
     }
+    if (pattern == RecurrencePattern.yearly.value) {
+      final month = debt.monthOfYear ?? cycleStart.month;
+      return _yearlyDayInRange(debt.executionDay, month, cycleStart, cycleEnd)
+          ? 1
+          : 0;
+    }
+    if (pattern == RecurrencePattern.every2Months.value ||
+        pattern == RecurrencePattern.every3Months.value ||
+        pattern == RecurrencePattern.every6Months.value) {
+      final interval = pattern == RecurrencePattern.every2Months.value
+          ? 2
+          : pattern == RecurrencePattern.every3Months.value
+              ? 3
+              : 6;
+      return _multiMonthOccurrences(
+          debt.executionDay, interval, cycleStart, cycleEnd);
+    }
+    return 0;
   }
 
   static List<DateTime> _fallbackOccurrenceDates(
@@ -173,30 +171,24 @@ class BudgetRecurringPlanService {
   ) {
     final pattern = debt.recurrencePattern;
     final dates = <DateTime>[];
-    switch (pattern) {
-      case 'monthly':
-        final d = _getDateInRange(debt.executionDay, cycleStart, cycleEnd);
-        if (d != null) dates.add(d);
-        break;
-      case 'yearly':
-        final month = debt.monthOfYear ?? cycleStart.month;
-        final d = _getYearlyDateInRange(
-            debt.executionDay, month, cycleStart, cycleEnd);
-        if (d != null) dates.add(d);
-        break;
-      case 'every_2_months':
-      case 'every_3_months':
-      case 'every_6_months':
-        final interval = pattern == 'every_2_months'
-            ? 2
-            : pattern == 'every_3_months'
-                ? 3
-                : 6;
-        dates.addAll(_getMultiMonthOccurrenceDates(
-            debt.executionDay, interval, cycleStart, cycleEnd));
-        break;
-      default:
-        break;
+    if (pattern == RecurrencePattern.monthly.value) {
+      final d = _getDateInRange(debt.executionDay, cycleStart, cycleEnd);
+      if (d != null) dates.add(d);
+    } else if (pattern == RecurrencePattern.yearly.value) {
+      final month = debt.monthOfYear ?? cycleStart.month;
+      final d = _getYearlyDateInRange(
+          debt.executionDay, month, cycleStart, cycleEnd);
+      if (d != null) dates.add(d);
+    } else if (pattern == RecurrencePattern.every2Months.value ||
+        pattern == RecurrencePattern.every3Months.value ||
+        pattern == RecurrencePattern.every6Months.value) {
+      final interval = pattern == RecurrencePattern.every2Months.value
+          ? 2
+          : pattern == RecurrencePattern.every3Months.value
+              ? 3
+              : 6;
+      dates.addAll(_getMultiMonthOccurrenceDates(
+          debt.executionDay, interval, cycleStart, cycleEnd));
     }
     return dates;
   }
