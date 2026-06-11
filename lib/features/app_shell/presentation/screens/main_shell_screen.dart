@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:intl/intl.dart';
@@ -84,28 +84,32 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingNotifications = _pendingNotificationCount(widget.cubit.state);
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: _showsAppBar
-          ? MainShellAppBar(
-              todayLabelFuture: _todayLabelFuture,
-              pendingNotifications: pendingNotifications,
-              onOpenNotifications: _openNotifications,
-            )
-          : null,
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: _pages,
-        ),
-      ),
-      bottomNavigationBar: MainShellBottomNavigation(
-        selectedIndex: _currentIndex,
-        destinations: _destinations,
-        onSelected: _handleDestinationSelected,
-      ),
+    return BlocBuilder<AppCubit, AppStateEntity>(
+      bloc: widget.cubit,
+      builder: (context, state) {
+        final pendingNotifications = _pendingNotificationCount(state);
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: _showsAppBar
+              ? MainShellAppBar(
+                  todayLabelFuture: _todayLabelFuture,
+                  pendingNotifications: pendingNotifications,
+                  onOpenNotifications: _openNotifications,
+                )
+              : null,
+          body: SafeArea(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: _pages,
+            ),
+          ),
+          bottomNavigationBar: MainShellBottomNavigation(
+            selectedIndex: _currentIndex,
+            destinations: _destinations,
+            onSelected: _handleDestinationSelected,
+          ),
+        );
+      },
     );
   }
 

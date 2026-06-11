@@ -576,10 +576,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
                     // ── Submit ──
                     FilledButton(
-                      onPressed: !_canSubmit
-                          ? null
-                          : () async {
-                              setState(() => _isSaving = true);
+                      onPressed: () async {
+                              // حماية من الضغط المزدوج — synchronous guard
+                              if (_isSaving || !_canSubmit) return;
+                              _isSaving = true; // يتحدد فوراً قبل أي await
+                              setState(() {});   // تحديث الـ UI لتعطيل الزر
                               try {
                                 if (amount <= 0) {
                                   _showValidationError(

@@ -14,7 +14,10 @@ import '../../../transactions/domain/entities/recurring_transaction_entity.dart'
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../domain/repositories/app_repository.dart';
+import '../../../backup/backup_service.dart';
 
 class AppCubit extends Cubit<AppStateEntity> {
   AppCubit(this._repository) : super(AppStateEntity.initial());
@@ -150,6 +153,21 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
     await _repository.saveState(next);
     emit(next);
+    _autoSync(next);
+  }
+
+  /// رفع تلقائي على السحابة بعد كل عملية حفظ (غير blocking)
+  void _autoSync(AppStateEntity appState) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) return;
+    BackupService.upload(
+      email: user.email!,
+      displayName: user.displayName ?? user.email!,
+      jsonData: jsonEncode(appState.toMap()),
+      txCount: appState.transactions.length,
+      walletCount: appState.wallets.length,
+      recurringCount: appState.recurringTransactions.length,
+    ).catchError((_) {});  // لو السحابة مش متاحة، مش بيوقف الـ app
   }
 
   String _notificationTitle(String action, String entityType) {
@@ -939,7 +957,9 @@ class AppCubit extends Cubit<AppStateEntity> {
     final next = state.copyWith(lastAutoBackupAt: at.toIso8601String());
     await _repository.saveState(next);
     emit(next);
+    _autoSync(next);
   }
+
 
   Future<void> addRecurringTransaction({
     String? id,
@@ -1550,7 +1570,9 @@ class AppCubit extends Cubit<AppStateEntity> {
     if (identical(next, state)) return;
     await _repository.saveState(next);
     emit(next);
+    _autoSync(next);
   }
+
 
   AppStateEntity _ensureDefaultSavingsJarSync(AppStateEntity source) {
     final defaultIndex = source.budgetSetup.linkedWallets
@@ -1601,7 +1623,9 @@ class AppCubit extends Cubit<AppStateEntity> {
     if (identical(next, state)) return;
     await _repository.saveState(next);
     emit(next);
+    _autoSync(next);
   }
+
 
   AppStateEntity _syncSavingsJarWithReservedSync(AppStateEntity source) {
     final totalReserved = source.wallets
@@ -1870,7 +1894,9 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
     await _repository.saveState(next);
     emit(next);
+    _autoSync(next);
   }
+
 
   Future<void> markNotificationRead(String notificationId) async {
     final updated = state.notifications
@@ -1881,5 +1907,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     final next = state.copyWith(notifications: updated);
     await _repository.saveState(next);
     emit(next);
+    _autoSync(next);
   }
+
 }
