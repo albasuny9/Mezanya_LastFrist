@@ -38,6 +38,19 @@ class _MainShellScreenState extends State<MainShellScreen> {
   int _currentIndex = 0;
   bool _isAddSheetOpen = false;
   late final Future<String> _todayLabelFuture = _buildTodayLabel();
+  late final List<Widget> _pagesCache;
+
+  @override
+  void initState() {
+    super.initState();
+    _pagesCache = [
+      MoneyScreen(cubit: widget.cubit),
+      WalletsScreen(cubit: widget.cubit),
+      const SizedBox.shrink(),
+      BudgetTrackingScreen(cubit: widget.cubit),
+      MoreTabContent(cubit: widget.cubit),
+    ];
+  }
 
   final List<MainShellDestination> _destinations = const [
     MainShellDestination(
@@ -74,13 +87,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   bool get _showsAppBar => _currentIndex != _addTabIndex;
 
-  List<Widget> get _pages => [
-        MoneyScreen(cubit: widget.cubit),
-        WalletsScreen(cubit: widget.cubit),
-        const SizedBox.shrink(),
-        BudgetTrackingScreen(cubit: widget.cubit),
-        MoreTabContent(cubit: widget.cubit),
-      ];
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +106,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           body: SafeArea(
             child: IndexedStack(
               index: _currentIndex,
-              children: _pages,
+              children: _pagesCache,
             ),
           ),
           bottomNavigationBar: MainShellBottomNavigation(
