@@ -1296,8 +1296,8 @@ class _RecurringTransactionComposerScreenState
         child: Text(_isSaving
             ? 'جارٍ الحفظ...'
             : widget.initialRecurring == null
-                ? 'حفظ القسط'
-                : 'تحديث القسط'),
+                ? 'حفظ المعاملة'
+                : 'تحديث المعاملة'),
       ),
     );
   }

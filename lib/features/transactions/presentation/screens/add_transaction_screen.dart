@@ -239,6 +239,38 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // SMART WALLET DEFAULT
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// لما اليوزر يختار مخصص، المحفظة تتحدد تلقائياً من مصدر الدخل المرتبط
+  void _autoSetWalletFromAllocation(String budgetTargetId) {
+    final s = widget.cubit.state;
+    final budget = s.budgetSetup;
+
+    String? incomeSourceId;
+    if (budgetTargetId.startsWith('alloc:')) {
+      final allocId = budgetTargetId.replaceFirst('alloc:', '');
+      final alloc = budget.allocations
+          .where((a) => a.id == allocId)
+          .toList();
+      if (alloc.isEmpty || alloc.first.funding.isEmpty) return;
+      incomeSourceId = alloc.first.funding.first.incomeSourceId;
+    } else if (budgetTargetId.startsWith('jar:')) {
+      final jarId = budgetTargetId.replaceFirst('jar:', '');
+      final jar = budget.linkedWallets
+          .where((j) => j.id == jarId)
+          .toList();
+      if (jar.isEmpty || jar.first.funding.isEmpty) return;
+      incomeSourceId = jar.first.funding.first.incomeSourceId;
+    }
+    if (incomeSourceId == null) return;
+    final src = budget.incomeSources.where((s) => s.id == incomeSourceId).toList();
+    if (src.isEmpty) return;
+    final walletExists = s.wallets.any((w) => w.id == src.first.walletId);
+    if (walletExists) setState(() => _walletId = src.first.walletId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // BUILD
   // ─────────────────────────────────────────────────────────────────────────
   @override
@@ -413,6 +445,42 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     _AmountField(controller: _amountController),
                     const SizedBox(height: 10),
 
+                    // ── EXPENSE: المخصص + الفئات (قبل المحفظة) ──
+                    if (_type == TransactionType.expense.value) ...[
+                      _RowCard(
+                        label: 'المخصص',
+                        value: _budgetTargetId.isEmpty
+                            ? 'خارج الميزانية'
+                            : selectedAllocationName,
+                        icon: Icons.pie_chart_outline_rounded,
+                        onTap: () async {
+                          await _openAllocationPicker(allocationItems, budget);
+                          // بعد اختيار المخصص — حدد المحفظة تلقائياً
+                          if (_budgetTargetId.isNotEmpty) {
+                            _autoSetWalletFromAllocation(_budgetTargetId);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 8),
+
+                      if (visibleCategories.isNotEmpty || _budgetTargetId.isNotEmpty)
+                        _categoriesBlock(
+                          title: 'الفئة',
+                          categories: visibleCategories,
+                          onAdd: () => _openAddCategoryDialog(
+                            budgetScope: _budgetScope,
+                            allocationId: _budgetTargetId.startsWith('alloc:')
+                                ? _budgetTargetId.replaceFirst('alloc:', '')
+                                : '',
+                            linkedWalletId: _budgetTargetId.startsWith('jar:')
+                                ? _budgetTargetId.replaceFirst('jar:', '')
+                                : '',
+                            existing: visibleCategories,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+
                     // ── Wallet picker ──
                     _RowCard(
                       label: 'المحفظة',
@@ -445,37 +513,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         },
                       ),
                       const SizedBox(height: 8),
-                    ],
-
-                    // ── EXPENSE fields ──
-                    if (_type == TransactionType.expense.value) ...[
-                      // Budget target picker (replaces the switch)
-                      _RowCard(
-                        label: 'المخصص',
-                        value: _budgetTargetId.isEmpty
-                            ? 'خارج الميزانية'
-                            : selectedAllocationName,
-                        icon: Icons.pie_chart_outline_rounded,
-                        onTap: () =>
-                            _openAllocationPicker(allocationItems, budget),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Categories
-                      _categoriesBlock(
-                        title: 'الفئات',
-                        categories: visibleCategories,
-                        onAdd: () => _openAddCategoryDialog(
-                          budgetScope: _budgetScope,
-                          allocationId: _budgetTargetId.startsWith('alloc:')
-                              ? _budgetTargetId.replaceFirst('alloc:', '')
-                              : '',
-                          linkedWalletId: _budgetTargetId.startsWith('jar:')
-                              ? _budgetTargetId.replaceFirst('jar:', '')
-                              : '',
-                          existing: visibleCategories,
-                        ),
-                      ),
                     ],
 
                     // ── INCOME fields ──
@@ -2022,51 +2059,93 @@ class _DateTimeRow extends StatelessWidget {
   final VoidCallback onDateTap;
   final VoidCallback onTimeTap;
 
+  static const _accent = Color(0xFF2F6F5E);
+
+  String get _dateLabel {
+    const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                    'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String get _timeLabel {
+    final h = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final m = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'ص' : 'م';
+    return '$h:$m $period';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final borderColor = theme.colorScheme.outlineVariant.withValues(alpha: 0.6);
+    final border = Border.all(
+      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+    );
 
-    Widget tile({
+    Widget pill({
+      required IconData icon,
       required String label,
       required String value,
-      required IconData icon,
       required VoidCallback onTap,
+      int flex = 1,
     }) {
-      return Material(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 18, color: const Color(0xFF2F6F5E)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label,
-                          style: theme.textTheme.bodySmall?.copyWith(
+      return Expanded(
+        flex: flex,
+        child: Material(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: border,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: _accent.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, size: 17, color: _accent),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 10,
                             color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
-                            fontSize: 10,
-                          )),
-                      const SizedBox(height: 2),
-                      Text(value,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          value,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 13)),
-                    ],
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Icon(
+                    Icons.arrow_drop_down_rounded,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2075,25 +2154,20 @@ class _DateTimeRow extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(
-          flex: 2,
-          child: tile(
-            label: 'التاريخ',
-            value: '${date.day}/${date.month}/${date.year}',
-            icon: Icons.calendar_month_outlined,
-            onTap: onDateTap,
-          ),
+        pill(
+          icon: Icons.calendar_today_rounded,
+          label: 'التاريخ',
+          value: _dateLabel,
+          onTap: onDateTap,
+          flex: 3,
         ),
         const SizedBox(width: 8),
-        Expanded(
-          flex: 1,
-          child: tile(
-            label: 'الوقت',
-            value:
-                '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-            icon: Icons.access_time_rounded,
-            onTap: onTimeTap,
-          ),
+        pill(
+          icon: Icons.schedule_rounded,
+          label: 'الوقت',
+          value: _timeLabel,
+          onTap: onTimeTap,
+          flex: 2,
         ),
       ],
     );
