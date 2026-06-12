@@ -1010,6 +1010,121 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ),
                   ),
 
+                  // ── قسم التخطيط الشهري (مصادر تمويل الحصالة) ─────────────
+                  if (jar.funding.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: accent.withValues(alpha: 0.12)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(Icons.calendar_month_rounded, color: accent, size: 17),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'التخطيط الشهري',
+                                  style: TextStyle(color: accent, fontWeight: FontWeight.w900, fontSize: 15),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  _openJarEditor(current: jar);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: accent.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.edit_outlined, size: 13, color: accent),
+                                      const SizedBox(width: 4),
+                                      Text('تعديل', style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ...jar.funding.map((f) {
+                            final incomeName = state.budgetSetup.incomeSources
+                                .where((s) => s.id == f.incomeSourceId)
+                                .map((s) => s.name)
+                                .firstOrNull ?? 'مصدر دخل';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFFBF1),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: accent.withValues(alpha: 0.12)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(incomeName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            f.isPhysical ? 'خصم فعلي من المحفظة' : 'حجز افتراضي',
+                                            style: TextStyle(fontSize: 11, color: accent.withValues(alpha: 0.7), fontWeight: FontWeight.w600),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '${f.plannedAmount.toStringAsFixed(2)} جنيه',
+                                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: accent),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text('الإجمالي الشهري', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                                const Spacer(),
+                                Text(
+                                  '${jar.funding.fold<double>(0, (s, f) => s + f.plannedAmount).toStringAsFixed(2)} جنيه/دورة',
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: accent),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   // ── Wallet distribution panel (below card) ─────────────
                   AnimatedSize(
                     duration: const Duration(milliseconds: 300),
@@ -1044,14 +1159,59 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 10),
-                                    Text(
-                                      'التخصيصات من المحافظ',
+                                    Expanded(
+                                    child: Text(
+                                      'توزيع الفلوس على المحافظ',
                                       style: TextStyle(
                                         color: accent,
                                         fontWeight: FontWeight.w900,
                                         fontSize: 15,
                                       ),
                                     ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () => _openJarAdjustmentDialog(
+                                      jar: jar,
+                                      mode: _JarAdjustmentMode.allocate,
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: accent.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.add_rounded, size: 13, color: accent),
+                                          const SizedBox(width: 4),
+                                          Text('تخصيص', style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: () => _openJarAdjustmentDialog(
+                                      jar: jar,
+                                      mode: _JarAdjustmentMode.cancel,
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.remove_rounded, size: 13, color: Color(0xFFDC2626)),
+                                          const SizedBox(width: 4),
+                                          const Text('إلغاء', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w800, fontSize: 12)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                   ],
                                 ),
                                 const SizedBox(height: 14),

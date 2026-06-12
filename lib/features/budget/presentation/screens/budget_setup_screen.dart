@@ -258,6 +258,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   Future<void> _saveBudget(BudgetSetupEntity next) async {
     final previous = _budget;
     final normalized = next;
+    // لو في دورة حالية — نحسب الدلتا ونحفظها كـ pendingDistribution
+    // اليوزر هيشوفها في صفحة متابعة الميزانية أو الإشعارات ويقرر بنفسه
     final syncResult = _isCurrentMonthSetup
         ? _buildRetroactiveBudgetSync(
             previous: previous,
@@ -267,8 +269,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         : _RetroactiveBudgetSyncResult(setup: normalized, actions: const []);
     setState(() => _budget = syncResult.setup);
     await widget.cubit.updateBudgetSetup(syncResult.setup);
-    if (!mounted || syncResult.actions.isEmpty) return;
-    await _showRetroactiveBudgetDialog(syncResult.actions);
+    // لا popup فوري — الـ pendingDistribution بيظهر تلقائياً في متابعة الميزانية
   }
 
   _RetroactiveBudgetSyncResult _buildRetroactiveBudgetSync({
