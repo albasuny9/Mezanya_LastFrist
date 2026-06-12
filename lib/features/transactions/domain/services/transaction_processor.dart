@@ -167,6 +167,7 @@ class TransactionProcessor {
             transactions.add(
               TransactionEntity(
                 id: _auditId('txn', transactions.length),
+                parentId: transaction.id,  // ربط بالمعاملة الأم
                 walletId: transaction.walletId,
                 fromWalletId:
                     hasPhysicalFunding ? null : transaction.walletId,
@@ -356,11 +357,49 @@ class TransactionProcessor {
         }
       }
     } else if (transaction.type == TransactionType.income.value) {
+      // 1. عكس رصيد المحفظة
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
         return w.copyWith(balance: w.balance - transaction.amount);
       }).toList();
-      // Auto-generated sub-transactions are separate objects — delete separately.
+
+      // 2. إيجاد وعكس كل الـ sub-transactions المرتبطة بالأم
+      //    أ) بالـ parentId (المعاملات الجديدة)
+      //    ب) بالـ createdAt + incomeSourceId + walletId (backward compat للقديمة)
+      final subTxns = current.transactions.where((t) {
+        if (t.id == transaction.id) return false;
+        if (t.parentId != null) return t.parentId == transaction.id;
+        // Backward compat: sub-transactions قديمة بدون parentId
+        return (t.transferType == TransferType.jarFunding.value ||
+                t.transferType == TransferType.jarFundingPhysical.value) &&
+            t.incomeSourceId == transaction.incomeSourceId &&
+            t.walletId == transaction.walletId &&
+            t.createdAt == transaction.createdAt;
+      }).toList();
+
+      for (final sub in subTxns) {
+        if (sub.transferType == TransferType.jarFunding.value) {
+          // Virtual: بس نخصم من رصيد الحصالة
+          final jarIdx = linkedWallets.indexWhere((j) => j.id == sub.toWalletId);
+          if (jarIdx != -1) {
+            linkedWallets[jarIdx] = linkedWallets[jarIdx].copyWith(
+              balance: linkedWallets[jarIdx].balance - sub.amount,
+            );
+          }
+        } else if (sub.transferType == TransferType.jarFundingPhysical.value) {
+          // Physical: نرجع الفلوس للمحفظة + نخصم من الحصالة
+          wallets = wallets.map((w) {
+            if (w.id != sub.walletId) return w;
+            return w.copyWith(balance: w.balance + sub.amount);
+          }).toList();
+          final jarIdx = linkedWallets.indexWhere((j) => j.id == sub.toWalletId);
+          if (jarIdx != -1) {
+            linkedWallets[jarIdx] = linkedWallets[jarIdx].copyWith(
+              balance: linkedWallets[jarIdx].balance - sub.amount,
+            );
+          }
+        }
+      }
     } else if (transaction.type == TransactionType.expense.value) {
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
@@ -395,7 +434,21 @@ class TransactionProcessor {
         allocations: allocations,
       ),
       transactions: current.transactions
-          .where((t) => t.id != transaction.id)
+          .where((t) {
+            if (t.id == transaction.id) return false;
+            // احذف الـ sub-transactions المرتبطة بالأم
+            if (t.parentId != null && t.parentId == transaction.id) return false;
+            // Backward compat: sub-transactions قديمة بدون parentId
+            if (transaction.type == TransactionType.income.value &&
+                (t.transferType == TransferType.jarFunding.value ||
+                    t.transferType == TransferType.jarFundingPhysical.value) &&
+                t.incomeSourceId == transaction.incomeSourceId &&
+                t.walletId == transaction.walletId &&
+                t.createdAt == transaction.createdAt) {
+              return false;
+            }
+            return true;
+          })
           .toList(),
     );
   }

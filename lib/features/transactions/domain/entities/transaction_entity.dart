@@ -14,6 +14,7 @@ class TransactionEntity {
     this.categoryId,
     this.transferType,
     this.notes,
+    this.parentId,
   });
 
   final String id;
@@ -30,6 +31,8 @@ class TransactionEntity {
   final String type;
   final DateTime createdAt;
   final String? notes;
+  /// ID المعاملة الأم — مضبوط على sub-transactions المولودة تلقائياً
+  final String? parentId;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -47,6 +50,7 @@ class TransactionEntity {
       'type': type,
       'createdAt': createdAt.toIso8601String(),
       'notes': notes,
+      'parentId': parentId,
     };
   }
 
@@ -67,6 +71,7 @@ class TransactionEntity {
       createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
           DateTime.now(),
       notes: map['notes'] as String?,
+      parentId: map['parentId'] as String?,
     );
   }
 }
