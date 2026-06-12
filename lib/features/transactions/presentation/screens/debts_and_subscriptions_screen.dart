@@ -1326,7 +1326,7 @@ class _DebtsAndSubscriptionsScreenState
     if (record.expensePlanKind == ExpensePlanKind.subscription.value) {
       return 'اشتراك';
     }
-    if (record.expensePlanKind == 'lent') return 'سلفة';
+    if (record.isLent) return 'سلفة';
     return 'مصروف متكرر';
   }
 
