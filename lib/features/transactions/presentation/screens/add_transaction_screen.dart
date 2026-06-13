@@ -266,8 +266,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (incomeSourceId == null) return;
     final src = budget.incomeSources.where((s) => s.id == incomeSourceId).toList();
     if (src.isEmpty) return;
-    final walletExists = s.wallets.any((w) => w.id == src.first.walletId);
-    if (walletExists) setState(() => _walletId = src.first.walletId);
+    final walletExists = s.wallets.any((w) => w.id == src.first.targetWalletId);
+    if (walletExists) setState(() => _walletId = src.first.targetWalletId);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
