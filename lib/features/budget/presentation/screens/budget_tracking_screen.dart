@@ -289,60 +289,53 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final budget = widget.cubit.state.budgetSetup;
     final cycleEnd = _cycleEnd;
     final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
-    final endLabel = DateFormat('d MMM yyyy', 'ar').format(cycleEnd);
+    final endLabel = DateFormat('d MMM', 'ar').format(cycleEnd);
     final rangeLabel = '$startLabel — $endLabel';
     final isCurrent = _isCurrentCycle(budget);
 
-    return Container(
+    const green = Color(0xFF165B47);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF165B47).withValues(alpha: 0.07),
+        // الدورة الحالية: خلفية خضرا خفيفة جداً
+        color: isCurrent
+            ? green.withValues(alpha: 0.10)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(18),
-        border:
-            Border.all(color: const Color(0xFF165B47).withValues(alpha: 0.12)),
+        border: Border.all(
+          color: isCurrent
+              ? green.withValues(alpha: 0.22)
+              : green.withValues(alpha: 0.10),
+        ),
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.chevron_right_rounded,
-                color: Color(0xFF165B47)),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Text(
-                  rangeLabel,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: Color(0xFF165B47),
-                  ),
-                ),
-                if (isCurrent)
-                  Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF165B47).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'الدورة الحالية',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF165B47)),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          // زرار الأحدث (يمين في RTL → أول عنصر في الـ Row)
           IconButton(
             onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.chevron_left_rounded,
-                color: Color(0xFF165B47)),
+            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18,
+                color: green),
+            tooltip: 'الدورة التالية',
+          ),
+          Expanded(
+            child: Text(
+              rangeLabel,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                color: isCurrent ? green : green.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+          // زرار الأقدم (يسار في RTL → آخر عنصر في الـ Row)
+          IconButton(
+            onPressed: () => _goToPreviousCycle(budget),
+            icon: const Icon(Icons.arrow_back_ios_rounded, size: 18,
+                color: green),
+            tooltip: 'الدورة السابقة',
           ),
         ],
       ),
@@ -538,24 +531,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _heroMiniStat(
-                      label: 'الدخل',
-                      value: totalIncomeActual,
-                      icon: Icons.south_west_rounded,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _heroMiniStat(
-                      label: 'المصروف',
-                      value: totalExpenseActual,
-                      icon: Icons.north_east_rounded,
-                    ),
-                  ),
-                ],
+              _heroBarChart(
+                income: totalIncomeActual,
+                expense: totalExpenseActual,
               ),
             ],
           ),
@@ -568,7 +546,189 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required String label,
     required double value,
     required IconData icon,
+  }
+
+  Widget _heroBarChart({
+    required double income,
+    required double expense,
   }) {
+    final expenseRatio = income <= 0
+        ? (expense > 0 ? 1.0 : 0.0)
+        : (expense / income).clamp(0.0, 1.0);
+
+    Widget bar({
+      required String label,
+      required double amount,
+      required double ratio,
+      required Color barColor,
+    }) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(label,
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: ratio,
+                  child: Container(
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: barColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(amount.toStringAsFixed(0),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900)),
+        ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        children: [
+          bar(
+            label: 'الدخل',
+            amount: income,
+            ratio: 1.0,
+            barColor: const Color(0xFF4ADE80),
+          ),
+          const SizedBox(height: 8),
+          bar(
+            label: 'المصروف',
+            amount: expense,
+            ratio: expenseRatio,
+            barColor: const Color(0xFFF87171),
+          ),
+        ],
+      ),
+    );
+  }
+) {
+    final maxVal = income <= 0 ? (expense <= 0 ? 1.0 : expense) : income;
+    final incomeRatio = income <= 0 ? 0.0 : 1.0;
+    final expenseRatio = income <= 0
+        ? 1.0
+        : (expense / income).clamp(0.0, 1.0);
+
+    Widget bar({
+      required String label,
+      required double amount,
+      required double ratio,
+      required Color barColor,
+    }) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: ratio,
+                  child: Container(
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: barColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            amount.toStringAsFixed(0),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ColorFilter.mode(
+          Colors.white.withValues(alpha: 0.0),
+          BlendMode.srcOver,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.13),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          ),
+          child: Column(
+            children: [
+              bar(
+                label: 'الدخل',
+                amount: income,
+                ratio: incomeRatio,
+                barColor: const Color(0xFF4ADE80),
+              ),
+              const SizedBox(height: 8),
+              bar(
+                label: 'المصروف',
+                amount: expense,
+                ratio: expenseRatio,
+                barColor: const Color(0xFFF87171),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
