@@ -50,9 +50,19 @@ class AppStateEntity {
     return AppStateEntity(
       wallets: <WalletEntity>[
         const WalletEntity(
-            id: 'wallet-cash-default', name: 'الكاش', balance: 0),
+          id: 'wallet-cash-default',
+          name: 'الكاش',
+          balance: 0,
+          icon: 'payments',
+          iconColor: '#165B47',
+        ),
         const WalletEntity(
-            id: 'wallet-bank-default', name: 'البنك', balance: 0),
+          id: 'wallet-bank-default',
+          name: 'البنك',
+          balance: 0,
+          icon: 'account_balance',
+          iconColor: '#1D4ED8',
+        ),
       ],
       transactions: <TransactionEntity>[],
       budgetSetup: BudgetSetupEntity.initial('wallet-cash-default'),

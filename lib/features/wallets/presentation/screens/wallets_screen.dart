@@ -57,12 +57,36 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       subtitle: 'أضف محفظة فعلية لتسجيل الفلوس الحقيقية.',
                     )
                   : Column(
-                      children: wallets.take(2).map((wallet) {
-                        return Padding(
+                      children: [
+                        ...wallets.take(3).map((wallet) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _compactWalletTile(state, wallet),
-                        );
-                      }).toList(),
+                        )),
+                        if (wallets.length > 3)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: GestureDetector(
+                              onTap: () => _openWalletsPage(state),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: _green.withValues(alpha: 0.07),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: _green.withValues(alpha: 0.15)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text('عرض باقي المحافظ (${wallets.length - 3})',
+                                        style: TextStyle(color: _green, fontWeight: FontWeight.w700, fontSize: 13)),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.expand_more_rounded, size: 16, color: _green),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
             ),
             const SizedBox(height: 16),
@@ -88,12 +112,36 @@ class _WalletsScreenState extends State<WalletsScreen> {
                           'ابدأ بحصالة التوفير أو أنشئ حصالة لتنظيم جزء من فلوسك.',
                     )
                   : Column(
-                      children: jars.take(2).map((jar) {
-                        return Padding(
+                      children: [
+                        ...jars.take(3).map((jar) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _compactJarTile(state, jar),
-                        );
-                      }).toList(),
+                        )),
+                        if (jars.length > 3)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: GestureDetector(
+                              onTap: () => _openJarsPage(state),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: _teal.withValues(alpha: 0.07),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: _teal.withValues(alpha: 0.15)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text('عرض باقي الحصالات (${jars.length - 3})',
+                                        style: TextStyle(color: _teal, fontWeight: FontWeight.w700, fontSize: 13)),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.expand_more_rounded, size: 16, color: _teal),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
             ),
             const SizedBox(height: 16),
@@ -283,88 +331,51 @@ class _WalletsScreenState extends State<WalletsScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: accent.withValues(alpha: 0.18), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          color: accent.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: 0.14)),
         ),
         child: Row(
           children: [
-            // Icon bubble
             Container(
-              width: 50,
-              height: 50,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.11),
-                borderRadius: BorderRadius.circular(16),
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(11),
               ),
               child: Center(
                 child: AppIconPickerDialog.iconWidgetForName(
-                  icon,
-                  color: accent,
-                  size: 24,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Name + subtitle
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: accent.withValues(alpha: 0.65),
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  icon, color: accent, size: 19),
               ),
             ),
             const SizedBox(width: 10),
-            // Amount + chevron
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  amount.toStringAsFixed(2),
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1A1A1A),
                 ),
-                const SizedBox(height: 2),
-                Icon(
-                  Icons.chevron_left_rounded,
-                  color: accent.withValues(alpha: 0.45),
-                  size: 18,
-                ),
-              ],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
+            const SizedBox(width: 8),
+            Text(
+              '${amount.toStringAsFixed(2)} جنيه',
+              style: TextStyle(
+                color: accent,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_left_rounded,
+                color: accent.withValues(alpha: 0.4), size: 16),
           ],
         ),
       ),
@@ -2743,12 +2754,26 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
+  // ألوان عشوائية لإنشاء المحافظ
+  static const _walletPalette = [
+    ('#165B47', 'payments'),
+    ('#1D4ED8', 'account_balance'),
+    ('#7C3AED', 'account_balance_wallet'),
+    ('#B45309', 'savings'),
+    ('#0F766E', 'money'),
+    ('#BE185D', 'credit_card'),
+    ('#0369A1', 'local_atm'),
+    ('#4D7C0F', 'currency_exchange'),
+  ];
+
   void _openWalletEditor({WalletEntity? current}) {
     final nameController = TextEditingController(text: current?.name ?? '');
     final balanceController =
         TextEditingController(text: (current?.balance ?? 0).toStringAsFixed(0));
-    var selectedColor = current?.iconColor ?? '#165b47';
-    var selectedIcon = current?.icon ?? 'account_balance_wallet';
+    // لو محفظة جديدة — اختار لون وأيقونة عشوائية
+    final rndIdx = DateTime.now().microsecond % _walletPalette.length;
+    var selectedColor = current?.iconColor ?? _walletPalette[rndIdx].$1;
+    var selectedIcon = current?.icon ?? _walletPalette[rndIdx].$2;
 
     showModalBottomSheet<void>(
       context: context,
@@ -3444,6 +3469,25 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                     style: TextStyle(fontWeight: FontWeight.w900)),
           ),
           actions: [
+            if (!_reorderMode) ...[
+              IconButton(
+                icon: const Icon(Icons.swap_horiz_rounded),
+                tooltip: 'تحويل بين المحافظ',
+                onPressed: () {
+                  final wallets = widget.cubit.state.wallets;
+                  if (wallets.length < 2) return;
+                  Navigator.pop(context);
+                  // نرجع للشاشة الرئيسية ونفتح التحويل من هناك
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_rounded),
+                tooltip: 'إضافة محفظة',
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ],
             IconButton(
               icon: Icon(
                 _reorderMode ? Icons.check_circle_rounded : Icons.tune_rounded,
@@ -3673,32 +3717,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                 ],
               ),
             ),
-            if (progressVal != null) ...[
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progressVal,
-                  minHeight: 6,
-                  color:
-                      isColored ? Colors.white.withValues(alpha: 0.80) : accent,
-                  backgroundColor: isColored
-                      ? Colors.white.withValues(alpha: 0.20)
-                      : accent.withValues(alpha: 0.15),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${(progressVal * 100).round()}٪ من الهدف الشهري',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isColored
-                      ? Colors.white.withValues(alpha: 0.65)
-                      : accent.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
+            // شريط التقدم أُزيل - الحصالة مش مثل المخصص
           ],
         ),
       ),

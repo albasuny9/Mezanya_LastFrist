@@ -1468,8 +1468,8 @@ class AppCubit extends Cubit<AppStateEntity> {
                 plannedAmount: 0,
               ),
             ],
-      icon: 'savings',
-      iconColor: '#0f766e',
+      icon: 'monetization_on',
+      iconColor: '#D97706',
       automationType: AutomationType.confirm.value,
       categories: const [],
     );

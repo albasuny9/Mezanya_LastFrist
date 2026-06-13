@@ -47,8 +47,20 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
     _dayController = TextEditingController(
       text: (widget.current?.executionDay ?? 1).toString(),
     );
-    _selectedIcon = widget.current?.icon ?? 'savings';
-    _selectedColor = widget.current?.iconColor ?? '#0f766e';
+    // لو حصالة جديدة — اختار لون وأيقونة عشوائية من الباليت
+    const jarPalette = [
+      ('#D97706', 'monetization_on'),
+      ('#0F766E', 'savings'),
+      ('#7C3AED', 'diamond'),
+      ('#BE185D', 'star'),
+      ('#0369A1', 'wb_sunny'),
+      ('#4D7C0F', 'eco'),
+      ('#B45309', 'local_fire_department'),
+      ('#1D4ED8', 'flight_takeoff'),
+    ];
+    final rnd = DateTime.now().microsecond % jarPalette.length;
+    _selectedIcon = widget.current?.icon ?? jarPalette[rnd].$2;
+    _selectedColor = widget.current?.iconColor ?? jarPalette[rnd].$1;
     _automationType =
         widget.current?.automationType ?? AutomationType.confirm.value;
     _funding = List<LinkedWalletEntityFunding>.from(
