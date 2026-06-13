@@ -445,7 +445,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     _AmountField(controller: _amountController),
                     const SizedBox(height: 10),
 
-                    // ── EXPENSE: المخصص + الفئات (قبل المحفظة) ──
+                    // ── EXPENSE: المخصص (قبل المحفظة) ──
                     if (_type == TransactionType.expense.value) ...[
                       _RowCard(
                         label: 'المخصص',
@@ -453,31 +453,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ? 'خارج الميزانية'
                             : selectedAllocationName,
                         icon: Icons.pie_chart_outline_rounded,
-                        onTap: () async {
-                          await _openAllocationPicker(allocationItems, budget);
-                          // بعد اختيار المخصص — حدد المحفظة تلقائياً
+                        onTap: () {
+                          _openAllocationPicker(allocationItems, budget);
                           if (_budgetTargetId.isNotEmpty) {
                             _autoSetWalletFromAllocation(_budgetTargetId);
                           }
                         },
                       ),
-                      const SizedBox(height: 8),
-
-                      if (visibleCategories.isNotEmpty || _budgetTargetId.isNotEmpty)
-                        _categoriesBlock(
-                          title: 'الفئة',
-                          categories: visibleCategories,
-                          onAdd: () => _openAddCategoryDialog(
-                            budgetScope: _budgetScope,
-                            allocationId: _budgetTargetId.startsWith('alloc:')
-                                ? _budgetTargetId.replaceFirst('alloc:', '')
-                                : '',
-                            linkedWalletId: _budgetTargetId.startsWith('jar:')
-                                ? _budgetTargetId.replaceFirst('jar:', '')
-                                : '',
-                            existing: visibleCategories,
-                          ),
-                        ),
                       const SizedBox(height: 8),
                     ],
 
@@ -489,6 +471,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       onTap: () => _openWalletPicker(wallets),
                     ),
                     const SizedBox(height: 8),
+
+                    // ── EXPENSE: الفئات (بعد المحفظة دائماً) ──
+                    if (_type == TransactionType.expense.value) ...[
+                      _CategoriesSection(
+                        categories: visibleCategories,
+                        selectedId: _selectedCategoryId,
+                        onSelectChange: (id) =>
+                            setState(() => _selectedCategoryId = id),
+                        onAdd: () => _openAddCategoryDialog(
+                          budgetScope: _budgetScope,
+                          allocationId: _budgetTargetId.startsWith('alloc:')
+                              ? _budgetTargetId.replaceFirst('alloc:', '')
+                              : '',
+                          linkedWalletId: _budgetTargetId.startsWith('jar:')
+                              ? _budgetTargetId.replaceFirst('jar:', '')
+                              : '',
+                          existing: visibleCategories,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
 
                     // ── Recurring weekday ──
                     if (widget.recurringMode &&
@@ -574,8 +577,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Notes ──
                     TextField(
                       controller: _notesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'ملاحظات'),
+                      maxLines: 1,
+                      decoration: InputDecoration(
+                        labelText: 'ملاحظات',
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -1914,7 +1921,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     if (!mounted) return;
-    setState(() {});
+    // تحديد الفئة الجديدة تلقائياً بعد إضافتها
+    setState(() => _selectedCategoryId = category.id);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1934,6 +1942,140 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 // ═══════════════════════════════════════════════════════════════════════════
 // PRIVATE HELPER WIDGETS
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// قسم الفئات — دائماً ظاهر مع بوكس خضر
+class _CategoriesSection extends StatelessWidget {
+  const _CategoriesSection({
+    required this.categories,
+    required this.selectedId,
+    required this.onSelectChange,
+    required this.onAdd,
+  });
+  final List<CategoryEntity> categories;
+  final String? selectedId;
+  final void Function(String? id) onSelectChange;
+  final VoidCallback onAdd;
+
+  static const _accent = Color(0xFF165b47);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _accent.withValues(alpha: 0.35), width: 1.5),
+        color: _accent.withValues(alpha: 0.03),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.label_outline_rounded, size: 16, color: _accent),
+              const SizedBox(width: 6),
+              const Text(
+                'الفئة',
+                style: TextStyle(
+                  color: _accent,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: onAdd,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.add_rounded, size: 13, color: _accent),
+                      SizedBox(width: 3),
+                      Text('فئة جديدة',
+                          style: TextStyle(
+                              color: _accent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (categories.isEmpty)
+            Center(
+              child: Text(
+                'لا توجد فئات — اضغط + لإضافة فئة',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: _accent.withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w600),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: categories.map((c) {
+                final isSelected = selectedId == c.id;
+                final color = _parseHex(c.color);
+                return GestureDetector(
+                  onTap: () => onSelectChange(isSelected ? null : c.id),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color
+                          : color.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? color
+                            : color.withValues(alpha: 0.25),
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppIconPickerDialog.iconWidgetForName(
+                          c.icon,
+                          color: isSelected ? Colors.white : color,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          c.name,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : color,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static Color _parseHex(String hex) {
+    final v = int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0x165b47;
+    return Color(0xFF000000 | v);
+  }
+}
 
 /// Large amount input at the top
 class _AmountField extends StatelessWidget {
@@ -2064,7 +2206,7 @@ class _DateTimeRow extends StatelessWidget {
   String get _dateLabel {
     const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
                     'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
+    return '${date.day} ${months[date.month - 1]}';
   }
 
   String get _timeLabel {
