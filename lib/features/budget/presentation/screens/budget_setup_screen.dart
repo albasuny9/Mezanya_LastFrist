@@ -497,56 +497,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     return null;
   }
 
-  Future<void> _showRetroactiveBudgetDialog(
-    List<_RetroactiveBudgetAction> actions,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تطبيق عناصر أضيفت بعد نزول الدخل'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'في عناصر اتضافت أو زادت بعد تسجيل الدخل في الدورة الحالية. نقدر نعلّقها الآن للمراجعة أو نطبقها فورًا.',
-            ),
-            const SizedBox(height: 12),
-            ...actions.take(4).map(
-                  (action) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      '• ${action.name}: ${action.amount.toStringAsFixed(2)}'
-                      '${action.isPhysical ? ' (خصم فعلي)' : ' (تخصيص افتراضي)'}',
-                    ),
-                  ),
-                ),
-            if (actions.length > 4)
-              Text('وباقي ${actions.length - 4} عنصر/عناصر أخرى.'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('تأجيل'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('تأكيد الآن'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
 
-    for (final action in actions) {
-      if (action.kind == 'jar') {
-        await widget.cubit.confirmJarDistribution(action.id);
-      } else {
-        await widget.cubit.confirmAllocationDistribution(action.id);
-      }
-    }
-  }
 
   /// لما اليوزر يغير يوم بداية الدورة — نسأله هيبدأ من النهارده ولا الدورة الجاية
   Future<void> _handleStartDayChange(int newDay) async {

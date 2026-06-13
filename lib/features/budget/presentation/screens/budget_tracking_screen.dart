@@ -542,12 +542,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Widget _heroMiniStat({
-    required String label,
-    required double value,
-    required IconData icon,
-  }
-
   Widget _heroBarChart({
     required double income,
     required double expense,
@@ -628,103 +622,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             barColor: const Color(0xFFF87171),
           ),
         ],
-      ),
-    );
-  }
-) {
-    final maxVal = income <= 0 ? (expense <= 0 ? 1.0 : expense) : income;
-    final incomeRatio = income <= 0 ? 0.0 : 1.0;
-    final expenseRatio = income <= 0
-        ? 1.0
-        : (expense / income).clamp(0.0, 1.0);
-
-    Widget bar({
-      required String label,
-      required double amount,
-      required double ratio,
-      required Color barColor,
-    }) {
-      return Row(
-        children: [
-          SizedBox(
-            width: 52,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                Container(
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                FractionallySizedBox(
-                  widthFactor: ratio,
-                  child: Container(
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: barColor,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            amount.toStringAsFixed(0),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ColorFilter.mode(
-          Colors.white.withValues(alpha: 0.0),
-          BlendMode.srcOver,
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.13),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-          ),
-          child: Column(
-            children: [
-              bar(
-                label: 'الدخل',
-                amount: income,
-                ratio: incomeRatio,
-                barColor: const Color(0xFF4ADE80),
-              ),
-              const SizedBox(height: 8),
-              bar(
-                label: 'المصروف',
-                amount: expense,
-                ratio: expenseRatio,
-                barColor: const Color(0xFFF87171),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

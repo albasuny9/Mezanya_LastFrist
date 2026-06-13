@@ -518,22 +518,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       const SizedBox(height: 8),
                     ],
 
-                    // ── INCOME fields ──
+                    // ── INCOME fields ── (نفس ترتيب المصروف)
                     if (_type == TransactionType.income.value) ...[
                       const SizedBox(height: 4),
                       _RowCard(
-                        label: 'هدف الدخل',
+                        label: 'هدف الإيداع',
                         value: incomeTargetLabel,
                         icon: Icons.download_for_offline_rounded,
                         onTap: () =>
                             _openIncomeTargetPicker(budget, selectedWalletName),
                       ),
-                      const SizedBox(height: 10),
-                      _categoriesBlock(
-                        title: 'الفئات',
+                      const SizedBox(height: 8),
+                      _CategoriesSection(
                         categories: state.categories
                             .where((c) => c.scope == 'income')
                             .toList(),
+                        selectedId: _selectedIncomeCategoryId,
+                        onSelectChange: (id) =>
+                            setState(() => _selectedIncomeCategoryId = id),
                         onAdd: () => _openAddCategoryDialog(
                           budgetScope: BudgetScope.outsideBudget.value,
                           allocationId: '',
@@ -543,10 +545,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               .toList(),
                           scope: 'income',
                         ),
-                        selectedId: _selectedIncomeCategoryId,
-                        onSelectChange: (id) =>
-                            setState(() => _selectedIncomeCategoryId = id),
                       ),
+                      const SizedBox(height: 8),
                     ],
 
                     const SizedBox(height: 10),
@@ -2301,7 +2301,7 @@ class _DateTimeRow extends StatelessWidget {
           label: 'التاريخ',
           value: _dateLabel,
           onTap: onDateTap,
-          flex: 3,
+          flex: 1,
         ),
         const SizedBox(width: 8),
         pill(
@@ -2309,7 +2309,7 @@ class _DateTimeRow extends StatelessWidget {
           label: 'الوقت',
           value: _timeLabel,
           onTap: onTimeTap,
-          flex: 2,
+          flex: 1,
         ),
       ],
     );

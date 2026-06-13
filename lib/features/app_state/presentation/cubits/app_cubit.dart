@@ -27,6 +27,7 @@ class AppCubit extends Cubit<AppStateEntity> {
   Future<void> initialize() async {
     var appState = await _repository.loadState();
     appState = _ensureDefaultSavingsJarSync(appState);
+    appState = _migrateDefaultWalletIconsSync(appState);
     appState = _syncSavingsJarWithReservedSync(appState);
     appState = _migrateOrphanedDebtRecurringSync(appState);
     final key = _monthKey();
@@ -1435,6 +1436,62 @@ class AppCubit extends Cubit<AppStateEntity> {
     _autoSync(next);
   }
 
+
+  /// يضمن إن المحافظ والحصالات الافتراضية عندها الأيقونات والألوان الصح
+  AppStateEntity _migrateDefaultWalletIconsSync(AppStateEntity source) {
+    var wallets = List<WalletEntity>.from(source.wallets);
+    bool changed = false;
+
+    for (var i = 0; i < wallets.length; i++) {
+      final w = wallets[i];
+      if (w.id == 'wallet-cash-default' &&
+          (w.icon == null || w.iconColor == null || w.iconColor == '#165b47')) {
+        wallets[i] = WalletEntity(
+          id: w.id,
+          name: w.name,
+          balance: w.balance,
+          icon: 'payments',
+          iconColor: '#165B47',
+          reservedForSavings: w.reservedForSavings,
+        );
+        changed = true;
+      }
+      if (w.id == 'wallet-bank-default' &&
+          (w.icon == null || w.iconColor == null ||
+              w.iconColor == '#165b47' || w.iconColor == '#165B47')) {
+        wallets[i] = WalletEntity(
+          id: w.id,
+          name: w.name,
+          balance: w.balance,
+          icon: 'account_balance',
+          iconColor: '#1D4ED8',
+          reservedForSavings: w.reservedForSavings,
+        );
+        changed = true;
+      }
+    }
+
+    // حصالة التوفير
+    var linkedWallets = List<LinkedWalletEntity>.from(
+        source.budgetSetup.linkedWallets);
+    for (var i = 0; i < linkedWallets.length; i++) {
+      final j = linkedWallets[i];
+      if (j.id == 'linked-savings-default' &&
+          (j.icon == 'savings' || j.iconColor == '#0f766e')) {
+        linkedWallets[i] = j.copyWith(
+          icon: 'monetization_on',
+          iconColor: '#D97706',
+        );
+        changed = true;
+      }
+    }
+
+    if (!changed) return source;
+    return source.copyWith(
+      wallets: wallets,
+      budgetSetup: source.budgetSetup.copyWith(linkedWallets: linkedWallets),
+    );
+  }
 
   AppStateEntity _ensureDefaultSavingsJarSync(AppStateEntity source) {
     final defaultIndex = source.budgetSetup.linkedWallets
