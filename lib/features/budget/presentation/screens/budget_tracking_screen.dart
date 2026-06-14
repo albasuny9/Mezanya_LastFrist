@@ -1,10 +1,10 @@
-import 'package:mezanya_app/core/constants/transaction_types.dart';
 // ignore_for_file: no_wildcard_variable_uses
 
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -300,9 +300,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
         // الدورة الحالية: خلفية خضرا خفيفة جداً
-        color: isCurrent
-            ? green.withValues(alpha: 0.10)
-            : Colors.transparent,
+        color: isCurrent ? green.withValues(alpha: 0.10) : Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isCurrent
@@ -315,8 +313,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           // زرار الأحدث (يمين في RTL → أول عنصر في الـ Row)
           IconButton(
             onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18,
-                color: green),
+            icon: const Icon(Icons.arrow_forward_ios_rounded,
+                size: 18, color: green),
             tooltip: 'الدورة التالية',
           ),
           Expanded(
@@ -333,8 +331,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           // زرار الأقدم (يسار في RTL → آخر عنصر في الـ Row)
           IconButton(
             onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 18,
-                color: green),
+            icon: const Icon(Icons.arrow_back_ios_rounded,
+                size: 18, color: green),
             tooltip: 'الدورة السابقة',
           ),
         ],
@@ -620,43 +618,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             amount: expense,
             ratio: expenseRatio,
             barColor: const Color(0xFFF87171),
-          ),
-        ],
-      ),
-    );
-  }
-) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: Colors.white70, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value.toStringAsFixed(2),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
           ),
         ],
       ),
