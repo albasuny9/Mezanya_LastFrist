@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -218,9 +221,13 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       ? 'إعداد الشهر الحالي'
       : 'خطة إعداد شهر $_displayMonthName';
 
-  String get _screenSubheading => _isCurrentMonthSetup
-      ? 'هذه الصفحة خاصة بتخطيط ميزانية الشهر الحالي.'
-      : 'أنت الآن تعد خطة شهر قادم مسبقًا قبل بداية تنفيذه.';
+  /// نطاق تاريخ الدورة: "إعداد الدورة من ١ يونيو إلى ٣٠ يونيو"
+  String get _cycleRangeLabel {
+    final fmt = DateFormat('d MMMM', 'ar');
+    return 'إعداد الدورة من ${fmt.format(_displayCycleStart)} إلى ${fmt.format(_displayCycleEnd)}';
+  }
+
+  String get _screenSubheading => _cycleRangeLabel;
 
   Future<void> _showFutureMonthNoticeIfNeeded() async {
     if (!mounted || !_isFutureMonthSetup || _futureMonthNoticeShown) {
@@ -3094,25 +3101,76 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.current?.name ?? '');
-    _selectedIcon = widget.current?.icon ?? 'category';
-    _selectedColor = widget.current?.iconColor ?? '#165b47';
+    _selectedIcon = widget.current?.icon ?? _randomAllocationIcon();
+    _selectedColor = widget.current?.iconColor ?? _randomHexColor();
     _rolloverBehavior = widget.current?.rolloverBehavior ?? RolloverBehavior.toSavings.value;
     _funding = List<AllocationFundingEntity>.from(
       widget.current?.funding ??
           [
-            // AllocationFundingEntity(
-            //   id: widget.idFactory('fund'),
-            //   incomeSourceId: widget.incomeSources.first.id,
-            //   plannedAmount: 0,
-            // ),
+            AllocationFundingEntity(
+              id: widget.idFactory('fund'),
+              incomeSourceId: _defaultIncomeSourceId(),
+              plannedAmount: 0,
+            ),
           ],
     );
+  }
+
+  /// أعلى مصدر دخل ثابت (غير متغيّر) بالقيمة — أو فاضي لو مفيش مصادر ثابتة
+  String _defaultIncomeSourceId() {
+    final fixedSources =
+        widget.incomeSources.where((s) => !s.isVariable).toList();
+    if (fixedSources.isEmpty) return '';
+    fixedSources.sort((a, b) => b.amount.compareTo(a.amount));
+    return fixedSources.first.id;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  /// أيقونة عشوائية مناسبة لفئات الميزانية (أكل، مواصلات، بيت، تسوق...)
+  static String _randomAllocationIcon() {
+    const icons = [
+      'restaurant', 'local_cafe', 'fastfood',
+      'car', 'bus', 'taxi', 'bike',
+      'home', 'bed', 'kitchen', 'cleaning',
+      'shopping_cart', 'shopping_bag', 'checkroom',
+      'favorite', 'fitness', 'medication',
+      'movie', 'music', 'sports',
+      'work', 'school', 'pets', 'card_giftcard',
+    ];
+    return icons[Random().nextInt(icons.length)];
+  }
+
+  /// لون عشوائي حقيقي (HSV) بنفس أسلوب المحافظ والحصالات
+  static String _randomHexColor() {
+    final rnd = Random();
+    final h = rnd.nextDouble();
+    final s = 0.55 + rnd.nextDouble() * 0.30;
+    final v = 0.35 + rnd.nextDouble() * 0.30;
+    final i = (h * 6).floor();
+    final f = h * 6 - i;
+    final p = v * (1 - s);
+    final q = v * (1 - f * s);
+    final t = v * (1 - (1 - f) * s);
+    double r, g, b;
+    switch (i % 6) {
+      case 0: r = v; g = t; b = p; break;
+      case 1: r = q; g = v; b = p; break;
+      case 2: r = p; g = v; b = t; break;
+      case 3: r = p; g = q; b = v; break;
+      case 4: r = t; g = p; b = v; break;
+      default: r = v; g = p; b = q; break;
+    }
+    final ri = (r * 255).round();
+    final gi = (g * 255).round();
+    final bi = (b * 255).round();
+    return '#${ri.toRadixString(16).padLeft(2, '0')}'
+        '${gi.toRadixString(16).padLeft(2, '0')}'
+        '${bi.toRadixString(16).padLeft(2, '0')}';
   }
 
   String? incomeSourceId;
@@ -3144,7 +3202,7 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
         ..._funding,
         AllocationFundingEntity(
           id: widget.idFactory('fund'),
-          incomeSourceId: incomeSourceId ?? '',
+          incomeSourceId: incomeSourceId ?? _defaultIncomeSourceId(),
           plannedAmount: 0,
         ),
       ];
