@@ -45,9 +45,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             // ── Wallets section ─────────────────────────────────────────
             _overviewSection(
               title: 'المحافظ',
-              subtitle: 'الأماكن الحقيقية للفلوس: كاش، بنك، أو أي محفظة.',
               accent: _green,
-              sectionIcon: Icons.account_balance_wallet_rounded,
               addTooltip: 'إضافة محفظة',
               transferTooltip: 'تحويل بين المحافظ',
               onAdd: () => _openWalletEditor(),
@@ -96,9 +94,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             // ── Jars section ────────────────────────────────────────────
             _overviewSection(
               title: 'الحصالات',
-              subtitle: 'أوعية تنظيم ذهني للفلوس داخل المحافظ.',
               accent: _teal,
-              sectionIcon: Icons.savings_rounded,
               addTooltip: 'إضافة حصالة',
               transferTooltip: 'تحويل بين الحصالات',
               onAdd: () => _openJarEditor(),
@@ -155,9 +151,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   Widget _overviewSection({
     required String title,
-    required String subtitle,
     required Color accent,
-    required IconData sectionIcon,
     required String addTooltip,
     required String transferTooltip,
     required VoidCallback onAdd,
@@ -187,40 +181,14 @@ class _WalletsScreenState extends State<WalletsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Row(
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(sectionIcon, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: accent.withValues(alpha: 0.65),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

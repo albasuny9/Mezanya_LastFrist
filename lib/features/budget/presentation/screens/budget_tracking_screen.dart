@@ -183,6 +183,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               totalIncomeActual: totalIncomeActual,
               totalExpenseActual: totalExpenseActual,
               remainingIncome: remainingIncome,
+              plannedIncome: budget.totalIncome,
             ),
             if (pastMonth) ...[
               const SizedBox(height: 14),
@@ -432,6 +433,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required double totalIncomeActual,
     required double totalExpenseActual,
     required double remainingIncome,
+    required double plannedIncome,
   }) {
     final theme = Theme.of(context);
 
@@ -534,6 +536,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               _heroBarChart(
                 income: totalIncomeActual,
                 expense: totalExpenseActual,
+                plannedIncome: plannedIncome,
               ),
             ],
           ),
@@ -545,17 +548,29 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   Widget _heroBarChart({
     required double income,
     required double expense,
+    required double plannedIncome,
   }) {
-    final expenseRatio = income <= 0
-        ? (expense > 0 ? 1.0 : 0.0)
-        : (expense / income).clamp(0.0, 1.0);
+    // المقياس المشترك للشريطين = أكبر قيمة بين الدخل المخطط والدخل الفعلي
+    final scale = income > plannedIncome ? income : plannedIncome;
 
-    Widget bar({
-      required String label,
-      required double amount,
-      required double ratio,
-      required Color barColor,
-    }) {
+    double normalIncomeRatio = 0.0;
+    double excessIncomeRatio = 0.0;
+    if (scale > 0) {
+      final withinPlan = income < plannedIncome ? income : plannedIncome;
+      normalIncomeRatio = withinPlan / scale;
+      if (income > plannedIncome) {
+        excessIncomeRatio = (income - plannedIncome) / scale;
+      }
+    }
+
+    final expenseRatio = scale > 0
+        ? (expense / scale).clamp(0.0, 1.0)
+        : (expense > 0 ? 1.0 : 0.0);
+
+    Widget track({required List<(double, Color)> segments, required double amount, required String label}) {
+      final totalRatio =
+          segments.fold<double>(0.0, (s, seg) => s + seg.$1).clamp(0.0, 1.0);
+
       return Row(
         children: [
           SizedBox(
@@ -576,16 +591,25 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                FractionallySizedBox(
-                  widthFactor: ratio,
-                  child: Container(
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: barColor,
+                if (totalRatio > 0)
+                  FractionallySizedBox(
+                    widthFactor: totalRatio,
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(999),
+                      child: Row(
+                        children: segments
+                            .where((seg) => seg.$1 > 0)
+                            .map((seg) => Expanded(
+                                  flex: (seg.$1 * 1000).round().clamp(1, 1000),
+                                  child: Container(
+                                    height: 10,
+                                    color: seg.$2,
+                                  ),
+                                ))
+                            .toList(),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -608,55 +632,21 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       ),
       child: Column(
         children: [
-          bar(
+          track(
             label: 'الدخل',
             amount: income,
-            ratio: 1.0,
-            barColor: const Color(0xFF4ADE80),
-          ),
-          const SizedBox(height: 8),
-          bar(
-            label: 'المصروف',
-            amount: expense,
-            ratio: expenseRatio,
-            barColor: const Color(0xFFF87171),
-          ),
-        ],
-      ),
-    );
-  }
-) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: Colors.white70, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+            segments: [
+              (normalIncomeRatio, const Color(0xFF4ADE80)), // أخضر عادي = حتى الدخل المخطط
+              (excessIncomeRatio, const Color(0xFF15803D)), // أخضر غامق = الزيادة عن المخطط
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            value.toStringAsFixed(2),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
+          const SizedBox(height: 8),
+          track(
+            label: 'المصروف',
+            amount: expense,
+            segments: [
+              (expenseRatio, const Color(0xFFF87171)),
+            ],
           ),
         ],
       ),
@@ -2026,17 +2016,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.schedule_rounded,
                 size: 13, color: Color(0xFFF5A623)),
             const SizedBox(width: 4),
-            Text(
-              'ينتظر تأكيد تحويل ${allocation.pendingDistribution.toStringAsFixed(0)} ج.م',
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFFF5A623),
-                fontWeight: FontWeight.w700,
+            Expanded(
+              child: Text(
+                'ينتظر تأكيد تحويل ${allocation.pendingDistribution.toStringAsFixed(0)} ج.م',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFFF5A623),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -2098,17 +2091,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.schedule_rounded,
                 size: 13, color: Color(0xFFF5A623)),
             const SizedBox(width: 4),
-            Text(
-              'ينتظر تأكيد تحويل ${jar.pendingDistribution.toStringAsFixed(0)} ج.م',
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFFF5A623),
-                fontWeight: FontWeight.w700,
+            Expanded(
+              child: Text(
+                'ينتظر تأكيد تحويل ${jar.pendingDistribution.toStringAsFixed(0)} ج.م',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFFF5A623),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],

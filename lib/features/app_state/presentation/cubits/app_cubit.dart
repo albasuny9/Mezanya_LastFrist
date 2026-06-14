@@ -1442,32 +1442,34 @@ class AppCubit extends Cubit<AppStateEntity> {
     var wallets = List<WalletEntity>.from(source.wallets);
     bool changed = false;
 
+    // ألوان قديمة (سواء الديفولت الأصلي أو نتيجة هجرة سابقة بأيقونة خطأ)
+    const legacyColors = {'#165b47', '#165B47'};
+
     for (var i = 0; i < wallets.length; i++) {
       final w = wallets[i];
-      if (w.id == 'wallet-cash-default' &&
-          (w.icon == null || w.iconColor == null || w.iconColor == '#165b47')) {
-        wallets[i] = WalletEntity(
-          id: w.id,
-          name: w.name,
-          balance: w.balance,
-          icon: 'payments',
-          iconColor: '#165B47',
-          reservedForSavings: w.reservedForSavings,
-        );
-        changed = true;
+      if (w.id == 'wallet-cash-default') {
+        final needsIcon = w.icon == null || w.icon == 'payments';
+        final needsColor =
+            w.iconColor == null || legacyColors.contains(w.iconColor);
+        if (needsIcon || needsColor) {
+          wallets[i] = w.copyWith(
+            icon: needsIcon ? 'cash' : w.icon,
+            iconColor: needsColor ? '#165B47' : w.iconColor,
+          );
+          changed = true;
+        }
       }
-      if (w.id == 'wallet-bank-default' &&
-          (w.icon == null || w.iconColor == null ||
-              w.iconColor == '#165b47' || w.iconColor == '#165B47')) {
-        wallets[i] = WalletEntity(
-          id: w.id,
-          name: w.name,
-          balance: w.balance,
-          icon: 'account_balance',
-          iconColor: '#1D4ED8',
-          reservedForSavings: w.reservedForSavings,
-        );
-        changed = true;
+      if (w.id == 'wallet-bank-default') {
+        final needsIcon = w.icon == null || w.icon == 'account_balance';
+        final needsColor =
+            w.iconColor == null || legacyColors.contains(w.iconColor);
+        if (needsIcon || needsColor) {
+          wallets[i] = w.copyWith(
+            icon: needsIcon ? 'bank' : w.icon,
+            iconColor: needsColor ? '#1D4ED8' : w.iconColor,
+          );
+          changed = true;
+        }
       }
     }
 
