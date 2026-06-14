@@ -1,10 +1,10 @@
-import 'package:mezanya_app/core/constants/transaction_types.dart';
 // ignore_for_file: no_wildcard_variable_uses
 
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -301,9 +301,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
         // الدورة الحالية: خلفية خضرا خفيفة جداً
-        color: isCurrent
-            ? green.withValues(alpha: 0.10)
-            : Colors.transparent,
+        color: isCurrent ? green.withValues(alpha: 0.10) : Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isCurrent
@@ -316,8 +314,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           // زرار الأحدث (يمين في RTL → أول عنصر في الـ Row)
           IconButton(
             onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18,
-                color: green),
+            icon: const Icon(Icons.arrow_forward_ios_rounded,
+                size: 18, color: green),
             tooltip: 'الدورة التالية',
           ),
           Expanded(
@@ -334,8 +332,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           // زرار الأقدم (يسار في RTL → آخر عنصر في الـ Row)
           IconButton(
             onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 18,
-                color: green),
+            icon: const Icon(Icons.arrow_back_ios_rounded,
+                size: 18, color: green),
             tooltip: 'الدورة السابقة',
           ),
         ],
