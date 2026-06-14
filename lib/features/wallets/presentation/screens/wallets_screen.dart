@@ -1,6 +1,7 @@
 import 'dart:math';
-import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -1309,7 +1310,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ),
                 ],
               ),
-            );
+            ),
+          ],
+        ),
+      );
           },
         );
       },
@@ -2919,35 +2923,23 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  // ألوان عشوائية لإنشاء المحافظ
-  static const _walletPalette = [
-    ('#165B47', 'payments'),
-    ('#1D4ED8', 'account_balance'),
-    ('#7C3AED', 'account_balance_wallet'),
-    ('#B45309', 'savings'),
-    ('#0F766E', 'money'),
-    ('#BE185D', 'credit_card'),
-    ('#0369A1', 'local_atm'),
-    ('#4D7C0F', 'currency_exchange'),
-  ];
-
   void _openWalletEditor({WalletEntity? current}) {
     final nameController = TextEditingController(text: current?.name ?? '');
     final balanceController =
         TextEditingController(text: (current?.balance ?? 0).toStringAsFixed(0));
     // لو محفظة جديدة — لون وأيقونة عشوائية حقيقية
-    final _walletRnd = Random();
-    final _rndH = _walletRnd.nextDouble();
-    final _rndS = 0.55 + _walletRnd.nextDouble() * 0.30;
-    final _rndV = 0.35 + _walletRnd.nextDouble() * 0.30;
-    final _rndColor = '#' + _hsvToHex(_rndH, _rndS, _rndV);
-    const _walletIcons = [
+    final walletRnd = Random();
+    final rndH = walletRnd.nextDouble();
+    final rndS = 0.55 + walletRnd.nextDouble() * 0.30;
+    final rndV = 0.35 + walletRnd.nextDouble() * 0.30;
+    final rndColor = '#${_hsvToHex(rndH, rndS, rndV)}';
+    const walletIcons = [
       'payments', 'account_balance_wallet', 'credit_card', 'savings',
       'local_atm', 'monetization_on', 'currency_exchange', 'money',
       'receipt_long', 'price_check', 'attach_money', 'account_balance',
     ];
-    var selectedColor = current?.iconColor ?? _rndColor;
-    var selectedIcon = current?.icon ?? _walletIcons[_walletRnd.nextInt(_walletIcons.length)];
+    var selectedColor = current?.iconColor ?? rndColor;
+    var selectedIcon = current?.icon ?? walletIcons[walletRnd.nextInt(walletIcons.length)];
 
     showModalBottomSheet<void>(
       context: context,
