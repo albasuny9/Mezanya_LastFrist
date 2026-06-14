@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -504,8 +504,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     return null;
   }
 
-
-
   /// لما اليوزر يغير يوم بداية الدورة — نسأله هيبدأ من النهارده ولا الدورة الجاية
   Future<void> _handleStartDayChange(int newDay) async {
     if (!mounted) return;
@@ -837,9 +835,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       (s, f) => s + f.plannedAmount,
     );
     final categoryCount = allocation.categories.length;
-    final rolloverLabel = allocation.rolloverBehavior == RolloverBehavior.keep.value
-        ? 'يرحل للدورة التالية'
-        : 'يرجع للتوفير';
+    final rolloverLabel =
+        allocation.rolloverBehavior == RolloverBehavior.keep.value
+            ? 'يرحل للدورة التالية'
+            : 'يرجع للتوفير';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1806,9 +1805,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 ),
                 items: [
                   DropdownMenuItem(
-                      value: RolloverBehavior.toSavings.value, child: Text('يتحول للتوفير')),
+                      value: RolloverBehavior.toSavings.value,
+                      child: Text('يتحول للتوفير')),
                   DropdownMenuItem(
-                      value: RolloverBehavior.keep.value, child: Text('يبقى للدورة الجديدة')),
+                      value: RolloverBehavior.keep.value,
+                      child: Text('يبقى للدورة الجديدة')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -1881,7 +1882,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       amountText: allocation.funding
                           .fold<double>(0, (s, f) => s + f.plannedAmount)
                           .toStringAsFixed(2),
-                      detailText: allocation.rolloverBehavior == RolloverBehavior.keep.value
+                      detailText: allocation.rolloverBehavior ==
+                              RolloverBehavior.keep.value
                           ? 'يرحل للدورة التالية'
                           : 'يرجع للتوفير',
                       leadingWidget: _iconBadge(
@@ -3103,7 +3105,8 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
     _nameController = TextEditingController(text: widget.current?.name ?? '');
     _selectedIcon = widget.current?.icon ?? _randomAllocationIcon();
     _selectedColor = widget.current?.iconColor ?? _randomHexColor();
-    _rolloverBehavior = widget.current?.rolloverBehavior ?? RolloverBehavior.toSavings.value;
+    _rolloverBehavior =
+        widget.current?.rolloverBehavior ?? RolloverBehavior.toSavings.value;
     _funding = List<AllocationFundingEntity>.from(
       widget.current?.funding ??
           [
@@ -3134,13 +3137,30 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
   /// أيقونة عشوائية مناسبة لفئات الميزانية (أكل، مواصلات، بيت، تسوق...)
   static String _randomAllocationIcon() {
     const icons = [
-      'restaurant', 'local_cafe', 'fastfood',
-      'car', 'bus', 'taxi', 'bike',
-      'home', 'bed', 'kitchen', 'cleaning',
-      'shopping_cart', 'shopping_bag', 'checkroom',
-      'favorite', 'fitness', 'medication',
-      'movie', 'music', 'sports',
-      'work', 'school', 'pets', 'card_giftcard',
+      'restaurant',
+      'local_cafe',
+      'fastfood',
+      'car',
+      'bus',
+      'taxi',
+      'bike',
+      'home',
+      'bed',
+      'kitchen',
+      'cleaning',
+      'shopping_cart',
+      'shopping_bag',
+      'checkroom',
+      'favorite',
+      'fitness',
+      'medication',
+      'movie',
+      'music',
+      'sports',
+      'work',
+      'school',
+      'pets',
+      'card_giftcard',
     ];
     return icons[Random().nextInt(icons.length)];
   }
@@ -3158,12 +3178,36 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
     final t = v * (1 - (1 - f) * s);
     double r, g, b;
     switch (i % 6) {
-      case 0: r = v; g = t; b = p; break;
-      case 1: r = q; g = v; b = p; break;
-      case 2: r = p; g = v; b = t; break;
-      case 3: r = p; g = q; b = v; break;
-      case 4: r = t; g = p; b = v; break;
-      default: r = v; g = p; b = q; break;
+      case 0:
+        r = v;
+        g = t;
+        b = p;
+        break;
+      case 1:
+        r = q;
+        g = v;
+        b = p;
+        break;
+      case 2:
+        r = p;
+        g = v;
+        b = t;
+        break;
+      case 3:
+        r = p;
+        g = q;
+        b = v;
+        break;
+      case 4:
+        r = t;
+        g = p;
+        b = v;
+        break;
+      default:
+        r = v;
+        g = p;
+        b = q;
+        break;
     }
     final ri = (r * 255).round();
     final gi = (g * 255).round();
@@ -3508,14 +3552,17 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
                   subtitle:
                       'يبقى المبلغ المتبقي داخل نفس المخصص في الدورة الجديدة.',
                   selected: _rolloverBehavior == RolloverBehavior.keep.value,
-                  onTap: () => setState(() => _rolloverBehavior = RolloverBehavior.keep.value),
+                  onTap: () => setState(
+                      () => _rolloverBehavior = RolloverBehavior.keep.value),
                 ),
                 const SizedBox(height: 10),
                 _ChoiceTile(
                   title: 'يتحول إلى التوفير',
                   subtitle: 'ينتقل المتبقي تلقائيًا إلى التوفير بدل ترحيله.',
-                  selected: _rolloverBehavior == RolloverBehavior.toSavings.value,
-                  onTap: () => setState(() => _rolloverBehavior = RolloverBehavior.toSavings.value),
+                  selected:
+                      _rolloverBehavior == RolloverBehavior.toSavings.value,
+                  onTap: () => setState(() =>
+                      _rolloverBehavior = RolloverBehavior.toSavings.value),
                 ),
               ],
             ),
