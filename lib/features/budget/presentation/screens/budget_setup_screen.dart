@@ -77,6 +77,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   late BudgetSetupEntity _budget;
   late DateTime _displayMonth;
   bool _futureMonthNoticeShown = false;
+  bool _summaryExpanded = false;
   // static const String _defaultSavingsJarId = 'linked-savings-default';
 
   // static const List<String> _weekdayNames = <String>[
@@ -2112,43 +2113,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          _planDistributionBar(),
           const SizedBox(height: 14),
-          _summaryRow(
-            label: 'إجمالي الدخل',
-            value: _totalIncome,
-            light: true,
-          ),
-          _summaryRow(
-            label: 'إجمالي المخصص',
-            value: _committed,
-            light: true,
-          ),
-          _summaryRow(
-            label: 'المخصصات',
-            value: _allocationsTotal,
-            light: true,
-          ),
-          _summaryRow(
-            label: 'الحصالات',
-            value: _linkedTotal,
-            light: true,
-          ),
-          _summaryRow(
-            label: 'الديون والأقساط',
-            value: _installmentsTotal,
-            light: true,
-          ),
-          _summaryRow(
-            label: 'الاشتراكات',
-            value: _subscriptionsTotal,
-            light: true,
-          ),
-          _summaryRow(
-            label: 'غير المخصص',
-            value: _unallocated,
-            light: true,
-            emphasize: _unallocated < 0,
-          ),
           Divider(
             height: 20,
             thickness: 1,
@@ -2194,17 +2161,207 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               fontSize: 18,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'تقدير أولي — يتحدث مع نشاطك وصرفك خلال الشهر.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.78),
-              fontWeight: FontWeight.w600,
-              height: 1.35,
-            ),
-          ),
+          const SizedBox(height: 14),
+          _expandableSummaryTable(),
         ],
       ),
+    );
+  }
+
+  /// شريط أفقي مقسّم يعكس توزيع الدخل على المخصصات/الحصالات/الديون/الاشتراكات
+  Widget _planDistributionBar() {
+    final allocations = _allocationsTotal;
+    final jars = _linkedTotal;
+    final installments = _installmentsTotal;
+    final subscriptions = _subscriptionsTotal;
+    final unallocated = _unallocated;
+    final freeSpace = unallocated > 0 ? unallocated : 0.0;
+    final overage = unallocated < 0 ? -unallocated : 0.0;
+
+    final scale = _totalIncome > _committed ? _totalIncome : _committed;
+
+    final segments = <(double, Color, String)>[
+      if (allocations > 0)
+        (allocations, Colors.white.withValues(alpha: 0.92), 'المخصصات'),
+      if (jars > 0) (jars, const Color(0xFFFCD34D), 'الحصالات'),
+      if (installments > 0)
+        (installments, const Color(0xFFF87171), 'الأقساط'),
+      if (subscriptions > 0)
+        (subscriptions, const Color(0xFFC4B5FD), 'الاشتراكات'),
+      if (freeSpace > 0)
+        (freeSpace, Colors.white.withValues(alpha: 0.18), 'غير مخصص'),
+      if (overage > 0)
+        (overage, const Color(0xFFDC2626), 'تجاوز الميزانية'),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 14,
+            color: Colors.white.withValues(alpha: 0.14),
+            child: scale <= 0 || segments.isEmpty
+                ? null
+                : Row(
+                    children: segments
+                        .map((seg) => Expanded(
+                              flex: ((seg.$1 / scale) * 1000)
+                                  .round()
+                                  .clamp(1, 1000),
+                              child: Container(color: seg.$2),
+                            ))
+                        .toList(),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (segments.isEmpty)
+          Text(
+            'لسه مفيش دخل أو مخصصات مضافة.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          )
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: segments
+                .map((seg) => _planLegendChip(
+                      color: seg.$2,
+                      label: seg.$3,
+                      value: seg.$1,
+                    ))
+                .toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _planLegendChip({
+    required Color color,
+    required String label,
+    required double value,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$label  ${value.toStringAsFixed(0)}',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.92),
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// كارت "عرض المزيد" قابل للتفرّد — يعرض الأرقام التفصيلية كجدول
+  Widget _expandableSummaryTable() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _summaryExpanded = !_summaryExpanded),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'عرض التفاصيل بالأرقام',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: _summaryExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: !_summaryExpanded
+              ? const SizedBox.shrink()
+              : Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: [
+                      _summaryRow(
+                        label: 'إجمالي الدخل',
+                        value: _totalIncome,
+                        light: true,
+                      ),
+                      _summaryRow(
+                        label: 'إجمالي المخصص',
+                        value: _committed,
+                        light: true,
+                      ),
+                      _summaryRow(
+                        label: 'المخصصات',
+                        value: _allocationsTotal,
+                        light: true,
+                      ),
+                      _summaryRow(
+                        label: 'الحصالات',
+                        value: _linkedTotal,
+                        light: true,
+                      ),
+                      _summaryRow(
+                        label: 'الديون والأقساط',
+                        value: _installmentsTotal,
+                        light: true,
+                      ),
+                      _summaryRow(
+                        label: 'الاشتراكات',
+                        value: _subscriptionsTotal,
+                        light: true,
+                      ),
+                      _summaryRow(
+                        label: 'غير المخصص',
+                        value: _unallocated,
+                        light: true,
+                        emphasize: _unallocated < 0,
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -3737,61 +3894,96 @@ class _FundingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isValid = incomeSources.any(
-      (e) => e.id == item.incomeSourceId,
-    );
+    final isValid = incomeSources.any((e) => e.id == item.incomeSourceId);
+    final selectedSource =
+        isValid ? incomeSources.firstWhere((e) => e.id == item.incomeSourceId) : null;
+    final sourceIcon = selectedSource == null
+        ? Icons.help_outline_rounded
+        : (selectedSource.isVariable
+            ? Icons.trending_up_rounded
+            : Icons.account_balance_wallet_rounded);
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.6),
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          DropdownButtonFormField<String>(
-            value: isValid ? item.incomeSourceId : null,
-            decoration: const InputDecoration(
-              labelText: 'مصدر الدخل',
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E5A47).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(11),
             ),
-            items: incomeSources
-                .map(
-                  (income) => DropdownMenuItem(
-                    value: income.id,
-                    child: Text(income.name),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value == null) {
-                return;
-              }
-              onChanged(incomeSourceId: value);
-            },
+            child: Icon(sourceIcon, size: 18, color: const Color(0xFF0E5A47)),
           ),
-          const SizedBox(height: 12),
-          TextFormField(
-            initialValue: item.plannedAmount == 0
-                ? ''
-                : item.plannedAmount.toStringAsFixed(0),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'المبلغ المخصص',
-              hintText: 'اكتب القيمة التي تريد تخصيصها',
+          const SizedBox(width: 10),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButtonFormField<String>(
+                value: isValid ? item.incomeSourceId : null,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                hint: const Text('اختر مصدر الدخل', overflow: TextOverflow.ellipsis),
+                items: incomeSources
+                    .map(
+                      (income) => DropdownMenuItem(
+                        value: income.id,
+                        child: Text(income.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  onChanged(incomeSourceId: value);
+                },
+              ),
             ),
-            onChanged: (value) =>
-                onChanged(amount: double.tryParse(value) ?? 0),
           ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: canDelete ? onDelete : null,
-              icon: const Icon(Icons.delete_outline_rounded),
-              label: const Text('حذف هذا المصدر'),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 96,
+            child: TextFormField(
+              initialValue: item.plannedAmount == 0
+                  ? ''
+                  : item.plannedAmount.toStringAsFixed(0),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+              decoration: const InputDecoration(
+                isDense: true,
+                hintText: '0',
+                suffixText: 'ج.م',
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) =>
+                  onChanged(amount: double.tryParse(value) ?? 0),
             ),
+          ),
+          const SizedBox(width: 2),
+          IconButton(
+            onPressed: canDelete ? onDelete : null,
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            tooltip: 'حذف هذا المصدر',
+            color: canDelete
+                ? const Color(0xFFC62828)
+                : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
           ),
         ],
       ),
