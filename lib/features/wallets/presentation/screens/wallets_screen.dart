@@ -583,8 +583,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   showJars
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات للحصالات',
+                                      ? 'إخفاء مكان الفلوس'
+                                      : 'مكان الفلوس',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -595,175 +595,184 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Jar allocations panel (below card) ─────────────────
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    child: showJars
-                        ? Container(
-                            margin: const EdgeInsets.only(top: 10),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: accent.withValues(alpha: 0.12),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: accent.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        Icons.savings_rounded,
-                                        color: accent,
-                                        size: 17,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      'التخصيصات للحصالات',
-                                      style: TextStyle(
-                                        color: accent,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                if (reservations.isEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFBF1),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: accent.withValues(alpha: 0.10),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'لا يوجد تخصيص لأي حصالة من هذه المحفظة حتى الآن.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF8A7F72),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ...reservations.entries.map((e) {
-                                    final matchedJars = state
-                                        .budgetSetup.linkedWallets
-                                        .where((j) => j.id == e.key)
-                                        .toList();
-                                    final jarName = matchedJars.isEmpty
-                                        ? 'حصالة'
-                                        : matchedJars.first.name;
-                                    final jarIcon = matchedJars.isEmpty
-                                        ? 'savings'
-                                        : matchedJars.first.icon;
-                                    final jarAccent = matchedJars.isEmpty
-                                        ? accent
-                                        : _parseColor(
-                                            matchedJars.first.iconColor);
-                                    final ratio = reserved <= 0
-                                        ? 0.0
-                                        : (e.value / reserved).clamp(0.0, 1.0);
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFFBF1),
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          border: Border.all(
-                                            color:
-                                                accent.withValues(alpha: 0.14),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          child: showJars
+                              ? Container(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.18),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.savings_rounded,
+                                              color: Colors.white,
+                                              size: 17,
+                                            ),
                                           ),
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Container(
-                                                  width: 36,
-                                                  height: 36,
-                                                  decoration: BoxDecoration(
-                                                    color: jarAccent.withValues(
-                                                        alpha: 0.12),
+                                          const SizedBox(width: 10),
+                                          const Text(
+                                            'توزيع الفلوس',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 14),
+                                      if (reservations.isEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFFBF1),
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            border: Border.all(
+                                              color: accent.withValues(
+                                                  alpha: 0.10),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'لا يوجد تخصيص لأي حصالة من هذه المحفظة حتى الآن.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Color(0xFF8A7F72),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        ...reservations.entries.map((e) {
+                                          final matchedJars = state
+                                              .budgetSetup.linkedWallets
+                                              .where((j) => j.id == e.key)
+                                              .toList();
+                                          final jarName = matchedJars.isEmpty
+                                              ? 'حصالة'
+                                              : matchedJars.first.name;
+                                          final jarIcon = matchedJars.isEmpty
+                                              ? 'savings'
+                                              : matchedJars.first.icon;
+                                          final ratio = reserved <= 0
+                                              ? 0.0
+                                              : (e.value / reserved)
+                                                  .clamp(0.0, 1.0);
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 8),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 12,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                border: Border.all(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.25),
+                                                ),
+                                              ),
+                                              child: Column(
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Container(
+                                                        width: 34,
+                                                        height: 34,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors.white
+                                                              .withValues(
+                                                                  alpha: 0.18),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(10),
+                                                        ),
+                                                        child: Center(
+                                                          child: AppIconPickerDialog
+                                                              .iconWidgetForName(
+                                                            jarIcon,
+                                                            color: Colors.white,
+                                                            size: 17,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: Text(
+                                                          jarName,
+                                                          style:
+                                                              const TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            fontSize: 14,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        '${e.value.toStringAsFixed(2)} جنيه',
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.w900,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  ClipRRect(
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                            11),
-                                                  ),
-                                                  child: Center(
-                                                    child: AppIconPickerDialog
-                                                        .iconWidgetForName(
-                                                      jarIcon,
-                                                      color: jarAccent,
-                                                      size: 18,
+                                                            999),
+                                                    child:
+                                                        LinearProgressIndicator(
+                                                      value: ratio,
+                                                      minHeight: 5,
+                                                      backgroundColor: Colors
+                                                          .white
+                                                          .withValues(
+                                                              alpha: 0.16),
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation(
+                                                        Colors.white.withValues(
+                                                            alpha: 0.78),
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    jarName,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  e.value.toStringAsFixed(2),
-                                                  style: TextStyle(
-                                                    color: jarAccent,
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 10),
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                              child: LinearProgressIndicator(
-                                                value: ratio,
-                                                minHeight: 5,
-                                                backgroundColor: accent
-                                                    .withValues(alpha: 0.12),
-                                                valueColor:
-                                                    AlwaysStoppedAnimation(
-                                                        jarAccent),
+                                                ],
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                                          );
+                                        }),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 20),
@@ -916,15 +925,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 Navigator.of(ctx).pop();
                                 _openJarEditor(current: jar);
                               }, tooltip: 'تعديل'),
-                              const SizedBox(width: 6),
-                              _iconAction(
-                                Icons.add_circle_outline_rounded,
-                                onTap: () => _openJarAdjustmentDialog(
-                                  jar: jar,
-                                  mode: _JarAdjustmentMode.allocate,
-                                ),
-                                tooltip: 'تحديد مصدر الحجز',
-                              ),
                             ],
                           ),
                         ),
@@ -990,8 +990,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   showWallets
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات من المحافظ',
+                                      ? 'إخفاء مكان الفلوس'
+                                      : 'مكان الفلوس',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -1009,18 +1009,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
                           child: showWallets
                               ? Container(
                                   // نفس الكارت بيكبر من تحت
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        accent.withValues(alpha: 0.72),
-                                        accent.withValues(alpha: 0.55),
-                                      ],
-                                      begin: Alignment.topRight,
-                                      end: Alignment.bottomLeft,
-                                    ),
-                                    borderRadius: const BorderRadius.vertical(
-                                        bottom: Radius.circular(26)),
-                                  ),
                                   padding:
                                       const EdgeInsets.fromLTRB(18, 0, 18, 20),
                                   child: Column(
@@ -1033,24 +1021,24 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                             width: 32,
                                             height: 32,
                                             decoration: BoxDecoration(
-                                              color: accent.withValues(
-                                                  alpha: 0.12),
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.18),
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
                                             child: Icon(
                                               Icons
                                                   .account_balance_wallet_rounded,
-                                              color: accent,
+                                              color: Colors.white,
                                               size: 17,
                                             ),
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
-                                            child: Text(
-                                              'توزيع الفلوس على المحافظ',
+                                            child: const Text(
+                                              'توزيع الفلوس',
                                               style: TextStyle(
-                                                color: accent,
+                                                color: Colors.white,
                                                 fontWeight: FontWeight.w900,
                                                 fontSize: 15,
                                               ),
@@ -1068,20 +1056,21 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                                       horizontal: 10,
                                                       vertical: 5),
                                               decoration: BoxDecoration(
-                                                color: accent.withValues(
-                                                    alpha: 0.12),
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.18),
                                                 borderRadius:
                                                     BorderRadius.circular(10),
                                               ),
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Icon(Icons.add_rounded,
-                                                      size: 13, color: accent),
+                                                  const Icon(Icons.add_rounded,
+                                                      size: 13,
+                                                      color: Colors.white),
                                                   const SizedBox(width: 4),
-                                                  Text('تخصيص',
+                                                  const Text('تخصيص',
                                                       style: TextStyle(
-                                                          color: accent,
+                                                          color: Colors.white,
                                                           fontWeight:
                                                               FontWeight.w800,
                                                           fontSize: 12)),

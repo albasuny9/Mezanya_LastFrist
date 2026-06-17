@@ -2340,8 +2340,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   showWallets
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات من المحافظ',
+                                      ? 'إخفاء مكان الفلوس'
+                                      : 'مكان الفلوس',
                                   style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,
@@ -2351,151 +2351,170 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                             ),
                           ),
                         ),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          child: showWallets
+                              ? Container(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(children: [
+                                        Container(
+                                          width: 32,
+                                          height: 32,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.18),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          child: const Icon(
+                                              Icons
+                                                  .account_balance_wallet_rounded,
+                                              color: Colors.white,
+                                              size: 17),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text('توزيع الفلوس',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 15)),
+                                      ]),
+                                      const SizedBox(height: 14),
+                                      if (distribution.isEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFFBF1),
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            border: Border.all(
+                                                color: accent.withValues(
+                                                    alpha: 0.10)),
+                                          ),
+                                          child: const Text(
+                                            'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                color: Color(0xFF8A7F72),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13),
+                                          ),
+                                        )
+                                      else
+                                        ...distribution.entries.map((e) {
+                                          final currentState =
+                                              widget.cubit.state;
+                                          final matchedWallets = currentState
+                                              .wallets
+                                              .where((w) => w.id == e.key)
+                                              .toList();
+                                          final walletName =
+                                              matchedWallets.isEmpty
+                                                  ? 'محفظة'
+                                                  : matchedWallets.first.name;
+                                          final walletIcon = matchedWallets
+                                                  .isEmpty
+                                              ? 'account_balance_wallet'
+                                              : (matchedWallets.first.icon ??
+                                                  'account_balance_wallet');
+                                          final ratio = jar.balance <= 0
+                                              ? 0.0
+                                              : (e.value / jar.balance)
+                                                  .clamp(0.0, 1.0);
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 8),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(14),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                border: Border.all(
+                                                    color: Colors.white
+                                                        .withValues(
+                                                            alpha: 0.25)),
+                                              ),
+                                              child: Column(children: [
+                                                Row(children: [
+                                                  Container(
+                                                    width: 34,
+                                                    height: 34,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white
+                                                          .withValues(
+                                                              alpha: 0.18),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10),
+                                                    ),
+                                                    child: Center(
+                                                      child: AppIconPickerDialog
+                                                          .iconWidgetForName(
+                                                              walletIcon,
+                                                              color:
+                                                                  Colors.white,
+                                                              size: 17),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                      child: Text(walletName,
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w800,
+                                                                  fontSize:
+                                                                      14))),
+                                                  Text(
+                                                      '${e.value.toStringAsFixed(2)} جنيه',
+                                                      style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.w900,
+                                                          fontSize: 15)),
+                                                ]),
+                                                const SizedBox(height: 10),
+                                                ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          999),
+                                                  child:
+                                                      LinearProgressIndicator(
+                                                    value: ratio,
+                                                    minHeight: 5,
+                                                    backgroundColor:
+                                                        Colors.white.withValues(
+                                                            alpha: 0.16),
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation(
+                                                            Colors.white
+                                                                .withValues(
+                                                                    alpha:
+                                                                        0.78)),
+                                                  ),
+                                                ),
+                                              ]),
+                                            ),
+                                          );
+                                        }),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                       ],
                     ),
-                  ),
-
-                  // ── Wallet distribution ────────────────────────────────
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    child: showWallets
-                        ? Container(
-                            margin: const EdgeInsets.only(top: 10),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                  color: accent.withValues(alpha: 0.12)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(children: [
-                                  Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: accent.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                        Icons.account_balance_wallet_rounded,
-                                        color: accent,
-                                        size: 17),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text('التخصيصات من المحافظ',
-                                      style: TextStyle(
-                                          color: accent,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 15)),
-                                ]),
-                                const SizedBox(height: 14),
-                                if (distribution.isEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFBF1),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                          color:
-                                              accent.withValues(alpha: 0.10)),
-                                    ),
-                                    child: const Text(
-                                      'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                          color: Color(0xFF8A7F72),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13),
-                                    ),
-                                  )
-                                else
-                                  ...distribution.entries.map((e) {
-                                    final currentState = widget.cubit.state;
-                                    final matchedWallets = currentState.wallets
-                                        .where((w) => w.id == e.key)
-                                        .toList();
-                                    final walletName = matchedWallets.isEmpty
-                                        ? 'محفظة'
-                                        : matchedWallets.first.name;
-                                    final walletIcon = matchedWallets.isEmpty
-                                        ? 'account_balance_wallet'
-                                        : (matchedWallets.first.icon ??
-                                            'account_balance_wallet');
-                                    final ratio = jar.balance <= 0
-                                        ? 0.0
-                                        : (e.value / jar.balance)
-                                            .clamp(0.0, 1.0);
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFFBF1),
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          border: Border.all(
-                                              color: accent.withValues(
-                                                  alpha: 0.14)),
-                                        ),
-                                        child: Column(children: [
-                                          Row(children: [
-                                            Container(
-                                              width: 36,
-                                              height: 36,
-                                              decoration: BoxDecoration(
-                                                color: accent.withValues(
-                                                    alpha: 0.10),
-                                                borderRadius:
-                                                    BorderRadius.circular(11),
-                                              ),
-                                              child: Center(
-                                                child: AppIconPickerDialog
-                                                    .iconWidgetForName(
-                                                        walletIcon,
-                                                        color: accent,
-                                                        size: 18),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                                child: Text(walletName,
-                                                    style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 14))),
-                                            Text(e.value.toStringAsFixed(2),
-                                                style: TextStyle(
-                                                    color: accent,
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 15)),
-                                          ]),
-                                          const SizedBox(height: 10),
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            child: LinearProgressIndicator(
-                                              value: ratio,
-                                              minHeight: 5,
-                                              backgroundColor: accent
-                                                  .withValues(alpha: 0.12),
-                                              valueColor:
-                                                  AlwaysStoppedAnimation(
-                                                      accent),
-                                            ),
-                                          ),
-                                        ]),
-                                      ),
-                                    );
-                                  }),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
                   ),
 
                   const SizedBox(height: 20),
