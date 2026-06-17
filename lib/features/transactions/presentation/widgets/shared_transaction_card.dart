@@ -30,6 +30,11 @@ class SharedTransactionCard extends StatelessWidget {
   }
 
   Color _typeColor() {
+    // معاملات تمويل الحصالة من الميزانية الشهرية — أزرق دايماً (فيزيكال أو فيرشوال)
+    if (transaction.transferType == TransferType.jarFunding.value ||
+        transaction.transferType == TransferType.jarFundingPhysical.value) {
+      return const Color(0xFF2563EB);
+    }
     if (transaction.type == TransactionType.income.value) {
       return const Color(0xFF16A34A);
     }
@@ -258,14 +263,12 @@ class SharedTransactionCard extends StatelessWidget {
     if (transaction.transferType == TransferType.jarAllocationSpend.value) {
       return 'سحب من المحجوز';
     }
-    if (transaction.transferType == TransferType.jarFunding.value) {
-      return 'حجز لحصالة ${targetJarName ?? 'التوفير'}';
+    if (transaction.transferType == TransferType.jarFunding.value ||
+        transaction.transferType == TransferType.jarFundingPhysical.value) {
+      return 'معاملة تمويل حصالة';
     }
     if (transaction.transferType == TransferType.walletToWallet.value) {
       return 'تحويل بين المحافظ';
-    }
-    if (transaction.transferType == TransferType.jarFundingPhysical.value) {
-      return 'خصم لحصالة ${targetJarName ?? 'التوفير'}';
     }
     return transaction.notes ?? _typeLabel();
   }
