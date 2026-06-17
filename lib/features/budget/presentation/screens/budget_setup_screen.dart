@@ -3951,7 +3951,7 @@ class _FundingCard extends StatelessWidget {
             : Icons.account_balance_wallet_rounded);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
         borderRadius: BorderRadius.circular(18),
@@ -3959,78 +3959,86 @@ class _FundingCard extends StatelessWidget {
           color: colorScheme.outlineVariant.withValues(alpha: 0.6),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0E5A47).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(sourceIcon, size: 18, color: const Color(0xFF0E5A47)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButtonFormField<String>(
-                value: isValid ? item.incomeSourceId : null,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
+          // ── الصف الأول: أيقونة + اسم المصدر (مساحة كاملة) + حذف ──
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E5A47).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                hint: const Text('اختر مصدر الدخل', overflow: TextOverflow.ellipsis),
-                items: incomeSources
-                    .map(
-                      (income) => DropdownMenuItem(
-                        value: income.id,
-                        child: Text(income.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  onChanged(incomeSourceId: value);
-                },
+                child: Icon(sourceIcon, size: 16, color: const Color(0xFF0E5A47)),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButtonFormField<String>(
+                    value: isValid ? item.incomeSourceId : null,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    hint: const Text('اختر مصدر الدخل',
+                        overflow: TextOverflow.ellipsis),
+                    items: incomeSources
+                        .map(
+                          (income) => DropdownMenuItem(
+                            value: income.id,
+                            child: Text(income.name,
+                                overflow: TextOverflow.ellipsis,
+                                style:
+                                    const TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      onChanged(incomeSourceId: value);
+                    },
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: canDelete ? onDelete : null,
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                tooltip: 'حذف هذا المصدر',
+                visualDensity: VisualDensity.compact,
+                color: canDelete
+                    ? const Color(0xFFC62828)
+                    : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 96,
+          const SizedBox(height: 4),
+          // ── الصف الثاني: المبلغ المخصص (سطر مستقل، مساحة كافية) ──
+          Padding(
+            padding: const EdgeInsets.only(right: 42),
             child: TextFormField(
               initialValue: item.plannedAmount == 0
                   ? ''
                   : item.plannedAmount.toStringAsFixed(0),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
               decoration: const InputDecoration(
                 isDense: true,
-                hintText: '0',
+                hintText: 'المبلغ المخصص',
                 suffixText: 'ج.م',
                 contentPadding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 border: OutlineInputBorder(),
               ),
               onChanged: (value) =>
                   onChanged(amount: double.tryParse(value) ?? 0),
             ),
-          ),
-          const SizedBox(width: 2),
-          IconButton(
-            onPressed: canDelete ? onDelete : null,
-            icon: const Icon(Icons.delete_outline_rounded, size: 20),
-            tooltip: 'حذف هذا المصدر',
-            color: canDelete
-                ? const Color(0xFFC62828)
-                : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
           ),
         ],
       ),
