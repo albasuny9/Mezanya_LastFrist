@@ -400,6 +400,17 @@ class TransactionProcessor {
           }
         }
       }
+
+      // 3. عكس الحجز الفيرشوال لو المعاملة كانت إيداع بتحديد حصالة
+      //    (هذا الجزء كان ناقصاً — كان بيرجّع رصيد المحفظة بس مش رصيد الحصالة)
+      if (transaction.transferType == TransferType.depositWithJarLabel.value &&
+          transaction.toWalletId != null) {
+        reverseVirtualBalance(
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
+          physicalWalletId: transaction.walletId,
+        );
+      }
     } else if (transaction.type == TransactionType.expense.value) {
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;

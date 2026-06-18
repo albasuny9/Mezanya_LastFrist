@@ -805,6 +805,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
         .where((t) =>
             t.toWalletId == jar.id ||
             t.walletId == jar.id ||
+            t.fromWalletId == jar.id ||
             (t.type == TransactionType.income.value && t.toWalletId == jar.id))
         .where((t) =>
             t.transferType == TransferType.jarAllocation.value ||
@@ -815,6 +816,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             t.transferType == TransferType.depositWithJarLabel.value ||
             t.transferType == TransferType.allocationToJar.value ||
             t.transferType == TransferType.jarToAllocation.value ||
+            t.transferType == TransferType.jarToJar.value ||
             (t.type == TransactionType.income.value &&
                 t.budgetScope == BudgetScope.withinBudget.value))
         .toList()
@@ -1270,7 +1272,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
       return t.transferType == TransferType.jarAllocation.value ||
           t.transferType == TransferType.jarAllocationCancel.value ||
           t.transferType == TransferType.jarFunding.value ||
-          t.transferType == TransferType.jarFundingPhysical.value;
+          t.transferType == TransferType.jarFundingPhysical.value ||
+          t.transferType == TransferType.depositWithJarLabel.value ||
+          t.transferType == TransferType.jarToJar.value;
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -1449,12 +1453,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
     String? initialWalletId,
   }) async {
     final state = widget.cubit.state;
-    final sourceDistribution = _jarDistribution(state, jar.id);
-    final availableWallets = mode == _JarAdjustmentMode.allocate
-        ? state.wallets
-        : state.wallets
-            .where((wallet) => (sourceDistribution[wallet.id] ?? 0) > 0)
-            .toList();
+    final availableWallets = state.wallets;
     if (availableWallets.isEmpty) return;
 
     final accent = _parseColor(jar.iconColor);
@@ -1478,9 +1477,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
           final unallocatedAmount =
               _jarUnallocatedAmount(widget.cubit.state, jar);
           final selectedReserved = distribution[walletId] ?? 0;
-          final isAllocate = mode == _JarAdjustmentMode.allocate;
-          final title =
-              isAllocate ? 'تحديد مصدر أموال الحصالة' : 'إلغاء ربط من المحفظة';
+          const title = 'تحديد مصدر أموال الحصالة';
 
           return Padding(
             padding: EdgeInsets.only(
@@ -1569,9 +1566,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isAllocate
-                              ? 'اختر محفظة لربطها بالرصيد:'
-                              : 'اختر محفظة لإلغاء الربط منها:',
+                          'اختر محفظة لربطها بالرصيد:',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -1626,9 +1621,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   size: 14, color: accent),
                               const SizedBox(width: 6),
                               Text(
-                                isAllocate
-                                    ? 'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} جنيه'
-                                    : 'المتاح للإلغاء: ${selectedReserved.toStringAsFixed(2)} جنيه',
+                                'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} جنيه',
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w700,
@@ -1762,63 +1755,27 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 .cubit.state.budgetSetup.linkedWallets
                                 .firstWhere((j) => j.id == jar.id);
 
-                            if (isAllocate) {
-                              if (amount > currentJar.unlabeledAmount + 0.01) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'لا يمكن تخصيص مبلغ أكبر من الرصيد غير المحدد في الحصالة.')),
-                                );
-                                return;
-                              }
-                              // إضافة أو زيادة label المحفظة
-                              final existing =
-                                  currentJar.walletSources.firstWhere(
-                                (s) => s.walletId == walletId,
-                                orElse: () => JarWalletSource(
-                                    walletId: walletId, amount: 0),
+                            if (amount > currentJar.unlabeledAmount + 0.01) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'لا يمكن تخصيص مبلغ أكبر من الرصيد غير المحدد في الحصالة.')),
                               );
-                              final newSources = [
-                                ...currentJar.walletSources
-                                    .where((s) => s.walletId != walletId),
-                                JarWalletSource(
-                                    walletId: walletId,
-                                    amount: existing.amount + amount),
-                              ];
-                              await widget.cubit.updateJarWalletSources(
-                                jarId: jar.id,
-                                sources: newSources,
-                              );
-                            } else {
-                              if (amount > selectedReserved + 0.01) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'لا يمكن إلغاء تخصيص مبلغ أكبر من المربوط حالياً بهذه المحفظة.')),
-                                );
-                                return;
-                              }
-                              // تخفيض أو حذف label المحفظة
-                              final existing =
-                                  currentJar.walletSources.firstWhere(
-                                (s) => s.walletId == walletId,
-                                orElse: () => JarWalletSource(
-                                    walletId: walletId, amount: 0),
-                              );
-                              final newAmt = (existing.amount - amount)
-                                  .clamp(0.0, double.infinity);
-                              final newSources = [
-                                ...currentJar.walletSources
-                                    .where((s) => s.walletId != walletId),
-                                if (newAmt > 0)
-                                  JarWalletSource(
-                                      walletId: walletId, amount: newAmt),
-                              ];
-                              await widget.cubit.updateJarWalletSources(
-                                jarId: jar.id,
-                                sources: newSources,
-                              );
+                              return;
                             }
+
+                            // معاملة حقيقية: محفظة حقيقية → الحصالة (حجز)
+                            await widget.cubit.addTransaction(
+                              walletId: walletId,
+                              fromWalletId: walletId,
+                              toWalletId: jar.id,
+                              amount: amount,
+                              type: TransactionType.transfer.value,
+                              transferType: TransferType.jarAllocation.value,
+                              notes: notesController.text.trim().isEmpty
+                                  ? null
+                                  : notesController.text.trim(),
+                            );
 
                             if (!mounted) return;
                             Navigator.of(ctx).pop();
@@ -1831,9 +1788,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: Text(
-                            isAllocate ? 'تأكيد التخصيص' : 'تأكيد الإلغاء',
-                            style: const TextStyle(
+                          child: const Text(
+                            'تأكيد التخصيص',
+                            style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 15,
                             ),
@@ -2128,12 +2085,17 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               : selectedWalletId;
 
                       if (sourceType == 'jar' && targetType == 'jar') {
-                        // تحويل بين حصالتين — label فقط بدون transaction
-                        await widget.cubit.transferBetweenJars(
-                          sourceJarId: sourceId,
-                          targetJarId: targetId,
+                        // تحويل بين حصالتين — معاملة حقيقية ظاهرة في تاريخ الاتنين
+                        await widget.cubit.addTransaction(
+                          type: TransactionType.transfer.value,
+                          fromWalletId: sourceId,
+                          toWalletId: targetId,
+                          walletId: actualWalletId,
                           amount: amount,
-                          physicalWalletId: actualWalletId,
+                          transferType: TransferType.jarToJar.value,
+                          notes: notesController.text.trim().isEmpty
+                              ? null
+                              : notesController.text.trim(),
                         );
                       } else {
                         // تحويل يشمل مخصص — نستخدم transaction افتراضية

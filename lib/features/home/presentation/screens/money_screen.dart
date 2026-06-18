@@ -30,7 +30,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
   bool _isJarTx(TransactionEntity t) =>
       t.transferType == TransferType.jarAllocation.value ||
       t.transferType == TransferType.jarAllocationCancel.value ||
-      t.transferType == TransferType.jarAllocationSpend.value;
+      t.transferType == TransferType.jarAllocationSpend.value ||
+      t.transferType == TransferType.jarToJar.value;
 
   @override
   Widget build(BuildContext context) {

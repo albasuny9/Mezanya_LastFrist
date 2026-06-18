@@ -51,6 +51,9 @@ class SharedTransactionCard extends StatelessWidget {
     if (transaction.type == TransactionType.expense.value) {
       return Icons.arrow_upward_rounded;
     }
+    if (transaction.transferType == TransferType.jarToJar.value) {
+      return Icons.compare_arrows_rounded;
+    }
     return Icons.swap_horiz_rounded;
   }
 
@@ -74,7 +77,15 @@ class SharedTransactionCard extends StatelessWidget {
             .cast<String?>()
             .firstWhere((_) => true, orElse: () => null);
 
-    final label = _transferLabel(targetJarName);
+    final sourceJarName = transaction.fromWalletId == null
+        ? null
+        : appState.budgetSetup.linkedWallets
+            .where((jar) => jar.id == transaction.fromWalletId)
+            .map((jar) => jar.name)
+            .cast<String?>()
+            .firstWhere((_) => true, orElse: () => null);
+
+    final label = _transferLabel(targetJarName, sourceJarName);
 
     final displayTitle = cat?.name ?? label;
 
@@ -253,7 +264,7 @@ class SharedTransactionCard extends StatelessWidget {
     );
   }
 
-  String _transferLabel(String? targetJarName) {
+  String _transferLabel(String? targetJarName, [String? sourceJarName]) {
     if (transaction.transferType == TransferType.jarAllocation.value) {
       return 'تخصيص للحصالة';
     }
@@ -266,6 +277,9 @@ class SharedTransactionCard extends StatelessWidget {
     if (transaction.transferType == TransferType.jarFunding.value ||
         transaction.transferType == TransferType.jarFundingPhysical.value) {
       return 'معاملة تمويل حصالة';
+    }
+    if (transaction.transferType == TransferType.jarToJar.value) {
+      return 'تحويل: من حصالة ${sourceJarName ?? '—'} إلى حصالة ${targetJarName ?? '—'}';
     }
     if (transaction.transferType == TransferType.walletToWallet.value) {
       return 'تحويل بين المحافظ';
