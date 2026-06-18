@@ -2468,27 +2468,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     return;
                                   }
 
-                                  final currentJar = widget
-                                      .cubit.state.budgetSetup.linkedWallets
-                                      .firstWhere((jar) => jar.id == jarId);
-                                  final existing =
-                                      currentJar.walletSources.firstWhere(
-                                    (source) => source.walletId == wallet.id,
-                                    orElse: () => JarWalletSource(
-                                        walletId: wallet.id, amount: 0),
-                                  );
-                                  final newSources = [
-                                    ...currentJar.walletSources.where(
-                                      (source) => source.walletId != wallet.id,
-                                    ),
-                                    JarWalletSource(
-                                      walletId: wallet.id,
-                                      amount: existing.amount + amount,
-                                    ),
-                                  ];
-                                  await widget.cubit.updateJarWalletSources(
-                                    jarId: currentJar.id,
-                                    sources: newSources,
+                                  // معاملة حقيقية: محفظة → الحصالة (حجز)
+                                  await widget.cubit.addTransaction(
+                                    walletId: wallet.id,
+                                    fromWalletId: wallet.id,
+                                    toWalletId: jarId,
+                                    amount: amount,
+                                    type: TransactionType.transfer.value,
+                                    transferType:
+                                        TransferType.jarAllocation.value,
                                   );
                                   if (!mounted) return;
                                   Navigator.of(ctx).pop();
