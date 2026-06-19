@@ -1355,7 +1355,13 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: Container(
+                          child: GestureDetector(
+                            onTap: () => openTransactionDetailsSheet(
+                              bCtx,
+                              cubit: widget.cubit,
+                              transaction: t,
+                            ),
+                            child: Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: accent.withValues(alpha: 0.06),
@@ -1426,6 +1432,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               ),
                             ]),
                           ),
+                        ),
                         );
                       },
                     ),

@@ -140,6 +140,8 @@ Future<void> openTransactionDetailsSheet(
                 Navigator.pop(context);
                 if (transaction.transferType == TransferType.jarFunding.value ||
                     transaction.transferType ==
+                        TransferType.jarFundingPhysical.value ||
+                    transaction.transferType ==
                         TransferType.jarAllocation.value) {
                   await _openJarReserveEditor(
                     context,
@@ -413,10 +415,9 @@ Future<void> _openJarReserveEditor(
                           type: TransactionType.transfer.value,
                           budgetScope: transaction.budgetScope,
                           incomeSourceId: transaction.incomeSourceId,
-                          transferType: transaction.transferType ==
-                                  TransferType.jarAllocation.value
-                              ? TransferType.jarAllocation.value
-                              : TransferType.jarFunding.value,
+                          transferType:
+                              transaction.transferType ??
+                                  TransferType.jarAllocation.value,
                           notes: notesController.text.trim().isEmpty
                               ? null
                               : notesController.text.trim(),

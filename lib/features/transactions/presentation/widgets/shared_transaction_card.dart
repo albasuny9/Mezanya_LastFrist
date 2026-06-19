@@ -45,6 +45,10 @@ class SharedTransactionCard extends StatelessWidget {
   }
 
   IconData _fallbackIcon() {
+    if (transaction.transferType == TransferType.jarFunding.value ||
+        transaction.transferType == TransferType.jarFundingPhysical.value) {
+      return Icons.savings_rounded; // أيقونة مميزة لتمويل الحصالة
+    }
     if (transaction.type == TransactionType.income.value) {
       return Icons.arrow_downward_rounded;
     }
