@@ -150,6 +150,14 @@ Future<void> openTransactionDetailsSheet(
                   );
                   return;
                 }
+                if (transaction.transferType == TransferType.jarToJar.value) {
+                  await _openJarToJarEditor(
+                    context,
+                    cubit: cubit,
+                    transaction: transaction,
+                  );
+                  return;
+                }
                 await showModalBottomSheet<void>(
                   context: context,
                   isScrollControlled: true,
@@ -173,6 +181,275 @@ Future<void> openTransactionDetailsSheet(
           ],
         ),
       ),
+    ),
+  );
+}
+
+/// محرر مخصص لمعاملات التحويل بين حصالتين (jarToJar).
+/// لا يستخدم الشاشة العامة لأنها لا تدعم نوع transfer ولا تمرر
+/// fromWalletId عند الحفظ — مما كان سيمحو أثر التحويل بالكامل عند التعديل.
+Future<void> _openJarToJarEditor(
+  BuildContext context, {
+  required AppCubit cubit,
+  required TransactionEntity transaction,
+}) async {
+  final amountController =
+      TextEditingController(text: transaction.amount.toStringAsFixed(2));
+  final notesController =
+      TextEditingController(text: transaction.notes ?? '');
+  var selectedSourceJarId = transaction.fromWalletId ?? '';
+  var selectedTargetJarId = transaction.toWalletId ?? '';
+  var selectedDate = transaction.createdAt;
+  var selectedTime = TimeOfDay(
+    hour: transaction.createdAt.hour,
+    minute: transaction.createdAt.minute,
+  );
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheet) {
+        final jars = cubit.state.budgetSetup.linkedWallets;
+        if (selectedSourceJarId.isEmpty && jars.isNotEmpty) {
+          selectedSourceJarId = jars.first.id;
+        }
+        if (selectedTargetJarId.isEmpty && jars.isNotEmpty) {
+          selectedTargetJarId = jars.first.id;
+        }
+
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text(
+                'تعديل التحويل بين حصالتين',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'المبلغ'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value:
+                    selectedSourceJarId.isEmpty ? null : selectedSourceJarId,
+                decoration: const InputDecoration(labelText: 'من حصالة'),
+                items: jars
+                    .map(
+                      (jar) => DropdownMenuItem<String>(
+                        value: jar.id,
+                        child: Text(jar.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setSheet(() => selectedSourceJarId = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value:
+                    selectedTargetJarId.isEmpty ? null : selectedTargetJarId,
+                decoration: const InputDecoration(labelText: 'إلى حصالة'),
+                items: jars
+                    .map(
+                      (jar) => DropdownMenuItem<String>(
+                        value: jar.id,
+                        child: Text(jar.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setSheet(() => selectedTargetJarId = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: sheetContext,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2023),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setSheet(() => selectedDate = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_month_outlined),
+                      label: Text(
+                          DateFormat('d MMM yyyy', 'ar').format(selectedDate)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: sheetContext,
+                          initialTime: selectedTime,
+                        );
+                        if (picked != null) {
+                          setSheet(() => selectedTime = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.schedule_outlined),
+                      label: Text(selectedTime.format(sheetContext)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: notesController,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'ملاحظات'),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: sheetContext,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('حذف التحويل'),
+                      content: const Text(
+                          'سيتم حذف هذا التحويل بالكامل. هل تريد المتابعة؟'),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                          child: const Text('إلغاء'),
+                        ),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                          child: const Text('حذف'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  await cubit.deleteTransaction(transaction.id);
+                  if (sheetContext.mounted) Navigator.pop(sheetContext);
+                },
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('حذف التحويل'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  foregroundColor: Theme.of(sheetContext).colorScheme.error,
+                  side: BorderSide(
+                    color: Theme.of(sheetContext)
+                        .colorScheme
+                        .error
+                        .withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: selectedSourceJarId.isEmpty ||
+                        selectedTargetJarId.isEmpty ||
+                        selectedSourceJarId == selectedTargetJarId
+                    ? null
+                    : () async {
+                        final amount =
+                            double.tryParse(amountController.text.trim());
+                        if (amount == null || amount <= 0) return;
+
+                        // تحقق إن المتاح في الحصالة المصدر يكفي (مع مراعاة
+                        // إن نفس المعاملة كانت بتسحب من نفس المصدر أصلاً)
+                        LinkedWalletEntity? sourceJar;
+                        for (final jar
+                            in cubit.state.budgetSetup.linkedWallets) {
+                          if (jar.id == selectedSourceJarId) {
+                            sourceJar = jar;
+                            break;
+                          }
+                        }
+                        if (sourceJar == null) return;
+                        final alreadyDeductedFromSameJar =
+                            transaction.fromWalletId == selectedSourceJarId
+                                ? transaction.amount
+                                : 0.0;
+                        final availableInSource =
+                            sourceJar.balance + alreadyDeductedFromSameJar;
+                        if (amount > availableInSource + 0.01) {
+                          await showDialog<void>(
+                            context: sheetContext,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('المبلغ أكبر من المتاح'),
+                              content: Text(
+                                'المتاح في ${sourceJar?.name} هو '
+                                '${availableInSource.toStringAsFixed(2)} فقط.',
+                              ),
+                              actions: [
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(),
+                                  child: const Text('تمام'),
+                                ),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+
+                        final createdAt = DateTime(
+                          selectedDate.year,
+                          selectedDate.month,
+                          selectedDate.day,
+                          selectedTime.hour,
+                          selectedTime.minute,
+                        );
+                        await cubit.deleteTransaction(transaction.id);
+                        await cubit.addTransaction(
+                          walletId: transaction.walletId,
+                          fromWalletId: selectedSourceJarId,
+                          toWalletId: selectedTargetJarId,
+                          amount: amount,
+                          type: TransactionType.transfer.value,
+                          transferType: TransferType.jarToJar.value,
+                          notes: notesController.text.trim().isEmpty
+                              ? null
+                              : notesController.text.trim(),
+                          createdAt: createdAt,
+                          details:
+                              'تم تعديل تحويل بين حصالتين بقيمة ${amount.toStringAsFixed(2)}',
+                        );
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('حفظ'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }
