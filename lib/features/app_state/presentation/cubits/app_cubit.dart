@@ -28,7 +28,6 @@ class AppCubit extends Cubit<AppStateEntity> {
     var appState = await _repository.loadState();
     appState = _ensureDefaultSavingsJarSync(appState);
     appState = _migrateDefaultWalletIconsSync(appState);
-    appState = _syncSavingsJarWithReservedSync(appState);
     appState = _migrateOrphanedDebtRecurringSync(appState);
     final key = _monthKey();
     if (!appState.monthlyBudgetSnapshots.containsKey(key)) {
@@ -422,66 +421,6 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'wallet',
       entityId: id,
       details: 'تم حذف محفظة',
-      apply: () async => next,
-    );
-  }
-
-  Future<void> applySavingsReserve({
-    required String walletId,
-    required double amount,
-    required String action,
-  }) async {
-    if (amount <= 0) return;
-    final walletList = List<WalletEntity>.from(state.wallets);
-    final idx = walletList.indexWhere((w) => w.id == walletId);
-    if (idx == -1) return;
-    final wallet = walletList[idx];
-
-    double nextReserved = wallet.reservedForSavings;
-    if (action == 'allocate') {
-      nextReserved += amount;
-    } else {
-      nextReserved -= amount;
-    }
-    if (nextReserved < 0) nextReserved = 0;
-
-    walletList[idx] = wallet.copyWith(reservedForSavings: nextReserved);
-    final totalReserved =
-        walletList.fold<double>(0, (s, w) => s + w.reservedForSavings);
-    final linked = state.budgetSetup.linkedWallets
-        .map(
-          (j) => j.id == 'linked-savings-default'
-              ? LinkedWalletEntity(
-                  id: j.id,
-                  name: j.name,
-                  balance: totalReserved,
-                  monthlyAmount: j.monthlyAmount,
-                  executionDay: j.executionDay,
-                  fundingSource: j.fundingSource,
-                  funding: j.funding,
-                  icon: j.icon,
-                  iconColor: j.iconColor,
-                  automationType: j.automationType,
-                  categories: j.categories,
-                )
-              : j,
-        )
-        .toList();
-
-    final next = state.copyWith(
-      wallets: walletList,
-      budgetSetup: state.budgetSetup.copyWith(linkedWallets: linked),
-    );
-    final label = action == 'allocate'
-        ? 'تم تخصيص ${amount.toStringAsFixed(2)} للتوفير من ${wallet.name}'
-        : action == 'cancel'
-            ? 'تم إلغاء تخصيص ${amount.toStringAsFixed(2)} من ${wallet.name}'
-            : 'تم صرف ${amount.toStringAsFixed(2)} من التخصيص في ${wallet.name}';
-    await _applyAndLog(
-      action: 'edit',
-      entityType: 'wallet',
-      entityId: wallet.id,
-      details: label,
       apply: () async => next,
     );
   }
@@ -1536,33 +1475,6 @@ class AppCubit extends Cubit<AppStateEntity> {
       budgetSetup: source.budgetSetup.copyWith(
         linkedWallets: [...source.budgetSetup.linkedWallets, defaultJar],
       ),
-    );
-  }
-
-  Future<void> syncSavingsJarWithReserved() async {
-    final next = _syncSavingsJarWithReservedSync(state);
-    if (identical(next, state)) return;
-    await _repository.saveState(next);
-    emit(next);
-    _autoSync(next);
-  }
-
-
-  AppStateEntity _syncSavingsJarWithReservedSync(AppStateEntity source) {
-    final totalReserved = source.wallets
-        .fold<double>(0, (sum, wallet) => sum + wallet.reservedForSavings);
-    final idx = source.budgetSetup.linkedWallets
-        .indexWhere((w) => w.id == 'linked-savings-default');
-    if (idx == -1) return source;
-    final current = source.budgetSetup.linkedWallets[idx];
-    if ((current.balance - totalReserved).abs() < 0.0001) {
-      return source;
-    }
-    final linked =
-        List<LinkedWalletEntity>.from(source.budgetSetup.linkedWallets);
-    linked[idx] = current.copyWith(balance: totalReserved);
-    return source.copyWith(
-      budgetSetup: source.budgetSetup.copyWith(linkedWallets: linked),
     );
   }
 
