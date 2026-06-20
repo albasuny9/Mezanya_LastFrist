@@ -1624,7 +1624,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
-                            Icons.savings_rounded,
+                            Icons.monetization_on_rounded,
                             color: Color(0xFF2F6F5E),
                           ),
                         ),

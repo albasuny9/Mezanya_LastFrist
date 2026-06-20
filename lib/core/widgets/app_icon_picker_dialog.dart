@@ -208,7 +208,7 @@ class AppIconPickerDialog extends StatefulWidget {
       ('bank', 'بنك', Icons.account_balance),
       ('cash', 'نقدي', Icons.payments),
       ('receipt', 'فاتورة', Icons.receipt_long),
-      ('savings', 'ادخار', Icons.savings),
+      ('savings', 'ادخار', Icons.monetization_on),
       ('attach_money', 'دولار', Icons.attach_money),
       ('currency_exchange', 'تحويل', Icons.currency_exchange),
       ('price_check', 'سعر', Icons.price_check),
@@ -537,7 +537,7 @@ class AppIconPickerDialog extends StatefulWidget {
       if (name.contains(item.name)) return item.icon;
     }
     const legacyMap = <String, dynamic>{
-      'PiggyBank': Icons.savings,
+      'PiggyBank': Icons.monetization_on,
       'Wallet2': Icons.account_balance_wallet,
       'UtensilsCrossed': Icons.restaurant,
       'BriefcaseBusiness': Icons.work,

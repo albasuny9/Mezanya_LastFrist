@@ -200,7 +200,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(
-              Icons.savings_rounded,
+              Icons.monetization_on_rounded,
               color: Color(0xFF1F6F54),
               size: 30,
             ),
@@ -605,7 +605,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 child: Column(
                   children: [
                     _InfoStrip(
-                      icon: Icons.savings_rounded,
+                      icon: Icons.monetization_on_rounded,
                       title: 'الرصيد الحالي',
                       value: jar.balance.toStringAsFixed(2),
                     ),

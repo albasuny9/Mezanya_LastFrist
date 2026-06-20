@@ -285,7 +285,7 @@ class _KpiRow extends StatelessWidget {
             color: netSaving >= 0
                 ? const Color(0xFF165b47)
                 : const Color(0xFFDC2626),
-            icon: Icons.savings_rounded,
+            icon: Icons.monetization_on_rounded,
           ),
         ),
         const SizedBox(width: 8),

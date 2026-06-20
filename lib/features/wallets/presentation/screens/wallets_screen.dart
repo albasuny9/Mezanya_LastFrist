@@ -618,7 +618,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                                   BorderRadius.circular(10),
                                             ),
                                             child: const Icon(
-                                              Icons.savings_rounded,
+                                              Icons.monetization_on_rounded,
                                               color: Colors.white,
                                               size: 17,
                                             ),
@@ -1386,7 +1386,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   isCancel
                                       ? Icons.undo_rounded
                                       : (isFromBudget
-                                          ? Icons.savings_rounded
+                                          ? Icons.monetization_on_rounded
                                           : Icons.lock_outline_rounded),
                                   color: isCancel
                                       ? const Color(0xFFDC2626)
@@ -2147,7 +2147,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
           const SizedBox(height: 16),
           if (jars.isNotEmpty) ...[
             const Row(children: [
-              Icon(Icons.savings_rounded, size: 16),
+              Icon(Icons.monetization_on_rounded, size: 16),
               SizedBox(width: 8),
               Text('الحصالات',
                   style: TextStyle(

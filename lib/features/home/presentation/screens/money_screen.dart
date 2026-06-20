@@ -368,7 +368,7 @@ class _HeroCard extends StatelessWidget {
                     label: 'التوفير',
                     value:
                         '${isPositive ? '+' : ''}${netSaving.toStringAsFixed(2)}',
-                    icon: Icons.savings_rounded,
+                    icon: Icons.monetization_on_rounded,
                     iconBg: isPositive
                         ? const Color(0x3360D4A0)
                         : const Color(0x33F87171),

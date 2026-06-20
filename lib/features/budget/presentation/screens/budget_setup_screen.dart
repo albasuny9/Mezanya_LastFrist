@@ -1802,7 +1802,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 value: _budget.bufferEndBehavior,
                 decoration: const InputDecoration(
                   labelText: 'المبلغ غير المخصص آخر الدورة',
-                  prefixIcon: Icon(Icons.savings_rounded),
+                  prefixIcon: Icon(Icons.monetization_on_rounded),
                 ),
                 items: [
                   DropdownMenuItem(
@@ -1903,7 +1903,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         _plannerSection(
           title: 'الحصالات',
           subtitle: 'مبالغ ثابتة تتحول لأهدافك أو محافظك المرتبطة.',
-          icon: Icons.savings_rounded,
+          icon: Icons.monetization_on_rounded,
           accent: const Color(0xFFE09F1F),
           actionLabel: 'إضافة حصالة',
           onAction: () => _showLinkedDialog(),
