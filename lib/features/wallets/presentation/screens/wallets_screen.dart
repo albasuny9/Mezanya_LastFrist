@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
@@ -790,6 +791,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             child: SharedTransactionCard(
                               transaction: t,
                               appState: widget.cubit.state,
+                              viewingContextId: wallet.id,
                               onTap: () => openTransactionDetailsSheet(
                                 ctx,
                                 cubit: widget.cubit,
@@ -807,31 +809,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
-    final state = widget.cubit.state;
-    final distribution = _jarDistribution(state, jar.id);
-    final relevantTransactions = state.transactions
-        .where((t) =>
-            t.toWalletId == jar.id ||
-            t.walletId == jar.id ||
-            t.fromWalletId == jar.id ||
-            (t.type == TransactionType.income.value && t.toWalletId == jar.id))
-        .where((t) =>
-            t.transferType == TransferType.jarAllocation.value ||
-            t.transferType == TransferType.jarAllocationCancel.value ||
-            t.transferType == TransferType.jarAllocationSpend.value ||
-            t.transferType == TransferType.jarFunding.value ||
-            t.transferType == TransferType.jarFundingPhysical.value ||
-            t.transferType == TransferType.depositWithJarLabel.value ||
-            t.transferType == TransferType.allocationToJar.value ||
-            t.transferType == TransferType.jarToAllocation.value ||
-            t.transferType == TransferType.jarToJar.value ||
-            (t.type == TransactionType.income.value &&
-                t.budgetScope == BudgetScope.withinBudget.value))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    final accent = _parseColor(jar.iconColor);
+  Future<void> _openJarDetailsSheet(LinkedWalletEntity initialJar) async {
+    final jarId = initialJar.id;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -843,6 +822,51 @@ class _WalletsScreenState extends State<WalletsScreen> {
       ),
       builder: (ctx) {
         var showWallets = false;
+        return BlocBuilder<AppCubit, AppStateEntity>(
+          bloc: widget.cubit,
+          builder: (ctx, liveState) {
+            // إعادة جلب أحدث نسخة من الحصالة كل ما الكيوبت يبعت حالة
+            // جديدة (بعد أي تعديل/حذف/إضافة معاملة) — بدل الاعتماد على
+            // نسخة جامدة اتاخدت لحظة فتح الشيت
+            final jarMatches = liveState.budgetSetup.linkedWallets
+                .where((j) => j.id == jarId)
+                .toList();
+            if (jarMatches.isEmpty) {
+              // الحصالة اتحذفت أثناء فتح الشيت — اقفله بأمان
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+              });
+              return const SizedBox.shrink();
+            }
+            final currentJar = jarMatches.first;
+            final state = liveState;
+            final distribution = _jarDistribution(state, jarId);
+            final relevantTransactions = state.transactions
+                .where((t) =>
+                    t.toWalletId == jarId ||
+                    t.walletId == jarId ||
+                    t.fromWalletId == jarId ||
+                    (t.type == TransactionType.income.value &&
+                        t.toWalletId == jarId))
+                .where((t) =>
+                    t.transferType == TransferType.jarAllocation.value ||
+                    t.transferType ==
+                        TransferType.jarAllocationCancel.value ||
+                    t.transferType == TransferType.jarAllocationSpend.value ||
+                    t.transferType == TransferType.jarFunding.value ||
+                    t.transferType == TransferType.jarFundingPhysical.value ||
+                    t.transferType == TransferType.depositWithJarLabel.value ||
+                    t.transferType == TransferType.allocationToJar.value ||
+                    t.transferType == TransferType.jarToAllocation.value ||
+                    t.transferType == TransferType.jarToJar.value ||
+                    (t.type == TransactionType.income.value &&
+                        t.budgetScope == BudgetScope.withinBudget.value))
+                .toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+            final accent = _parseColor(currentJar.iconColor);
+            final jar = currentJar; // الاسم القديم مستخدم في باقي الكود تحت
+
         return StatefulBuilder(
           builder: (ctx, setSheet) {
             return DraggableScrollableSheet(
@@ -1130,6 +1154,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                                 walletId: e.key,
                                                 walletName: walletName,
                                                 walletIcon: walletIcon,
+                                                walletColor: matchedWallets
+                                                        .isEmpty
+                                                    ? null
+                                                    : matchedWallets
+                                                        .first.iconColor,
                                                 relevantTransactions:
                                                     relevantTransactions,
                                               ),
@@ -1226,7 +1255,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: SharedTransactionCard(
                           transaction: t,
-                          appState: widget.cubit.state,
+                          appState: state,
+                          viewingContextId: jar.id,
                           onTap: () => openTransactionDetailsSheet(
                             ctx,
                             cubit: widget.cubit,
@@ -1238,6 +1268,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 ],
               ),
             );
+          },
+        );
           },
         );
       },
@@ -1252,20 +1284,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
     required String walletId,
     required String walletName,
     required String walletIcon,
+    String? walletColor,
     required List<TransactionEntity> relevantTransactions,
   }) async {
-    final accent = _parseColor(jar.iconColor);
-    // فلتر المعاملات اللي ليها علاقة بالمحفظة دي تحديداً
-    final walletTxns = relevantTransactions.where((t) {
-      if (t.walletId != walletId && t.fromWalletId != walletId) return false;
-      return t.transferType == TransferType.jarAllocation.value ||
-          t.transferType == TransferType.jarAllocationCancel.value ||
-          t.transferType == TransferType.jarFunding.value ||
-          t.transferType == TransferType.jarFundingPhysical.value ||
-          t.transferType == TransferType.depositWithJarLabel.value ||
-          t.transferType == TransferType.jarToJar.value;
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final jarId = jar.id;
+    final accentBase = _parseColor(walletColor ?? jar.iconColor);
 
     await showModalBottomSheet<void>(
       context: ctx,
@@ -1273,7 +1296,61 @@ class _WalletsScreenState extends State<WalletsScreen> {
       backgroundColor: const Color(0xFFFFFBF1),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (bCtx) => DraggableScrollableSheet(
+      builder: (bCtx) => BlocBuilder<AppCubit, AppStateEntity>(
+        bloc: widget.cubit,
+        builder: (bCtx, liveState) {
+          // إعادة جلب أحدث نسخة من الحصالة والمعاملات كل ما الكيوبت
+          // يبعت حالة جديدة، بدل الاعتماد على نسخة جامدة من لحظة الفتح
+          final jarMatches = liveState.budgetSetup.linkedWallets
+              .where((j) => j.id == jarId)
+              .toList();
+          final currentJar = jarMatches.isEmpty ? jar : jarMatches.first;
+          final accent = accentBase;
+
+          final liveRelevantTransactions = liveState.transactions
+              .where((t) =>
+                  t.toWalletId == jarId ||
+                  t.walletId == jarId ||
+                  t.fromWalletId == jarId ||
+                  (t.type == TransactionType.income.value &&
+                      t.toWalletId == jarId))
+              .where((t) =>
+                  t.transferType == TransferType.jarAllocation.value ||
+                  t.transferType == TransferType.jarAllocationCancel.value ||
+                  t.transferType == TransferType.jarAllocationSpend.value ||
+                  t.transferType == TransferType.jarFunding.value ||
+                  t.transferType == TransferType.jarFundingPhysical.value ||
+                  t.transferType == TransferType.depositWithJarLabel.value ||
+                  t.transferType == TransferType.allocationToJar.value ||
+                  t.transferType == TransferType.jarToAllocation.value ||
+                  t.transferType == TransferType.jarToJar.value ||
+                  (t.type == TransactionType.income.value &&
+                      t.budgetScope == BudgetScope.withinBudget.value))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          // فلتر المعاملات اللي ليها علاقة بالمحفظة دي تحديداً
+          final walletTxns = liveRelevantTransactions.where((t) {
+            if (t.walletId != walletId && t.fromWalletId != walletId) {
+              return false;
+            }
+            return t.transferType == TransferType.jarAllocation.value ||
+                t.transferType == TransferType.jarAllocationCancel.value ||
+                t.transferType == TransferType.jarFunding.value ||
+                t.transferType == TransferType.jarFundingPhysical.value ||
+                t.transferType == TransferType.depositWithJarLabel.value ||
+                t.transferType == TransferType.jarToJar.value;
+          }).toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          // التوتال الحالي المحجوز فعلياً لهذه المحفظة جوه الحصالة (من
+          // التوزيع الحالي، مش من مجموع المعاملات، لأن المعاملات ممكن
+          // تتضمن إلغاء/تحويل يقلل من الإجمالي)
+          final currentTotal = currentJar.walletSources
+              .where((s) => s.walletId == walletId)
+              .fold<double>(0, (sum, s) => sum + s.amount);
+
+          return DraggableScrollableSheet(
         initialChildSize: 0.6,
         minChildSize: 0.4,
         maxChildSize: 0.92,
@@ -1321,6 +1398,23 @@ class _WalletsScreenState extends State<WalletsScreen> {
                           fontSize: 12,
                           fontWeight: FontWeight.w600)),
                 ]),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${currentTotal.toStringAsFixed(2)} جنيه',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
               ]),
             ),
             const SizedBox(height: 12),
@@ -1341,6 +1435,14 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             t.transferType == TransferType.jarFunding.value ||
                                 t.transferType ==
                                     TransferType.jarFundingPhysical.value;
+                        final isPhysicalDeduction = t.transferType ==
+                            TransferType.jarFundingPhysical.value;
+                        final isJarToJar =
+                            t.transferType == TransferType.jarToJar.value;
+                        // لمعاملة التحويل بين حصالتين: هل الفلوس خارجة من
+                        // الحصالة الحالية (بتاعة الشيت ده) ولا داخلة ليها؟
+                        final isJarToJarOutgoing =
+                            isJarToJar && t.fromWalletId == jar.id;
                         final incomeName = isFromBudget
                             ? (widget.cubit.state.budgetSetup.incomeSources
                                     .where((s) => s.id == t.incomeSourceId)
@@ -1348,10 +1450,24 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     .firstOrNull ??
                                 'من الميزانية')
                             : null;
+                        final counterpartJarName = isJarToJar
+                            ? (widget.cubit.state.budgetSetup.linkedWallets
+                                    .where((j) => j.id == (isJarToJarOutgoing
+                                        ? t.toWalletId
+                                        : t.fromWalletId))
+                                    .map((j) => j.name)
+                                    .firstOrNull ??
+                                '—')
+                            : null;
                         final txDate =
                             DateFormat('d MMM yyyy', 'ar').format(t.createdAt);
                         final isCancel = t.transferType ==
                             TransferType.jarAllocationCancel.value;
+                        // أحمر لو: إلغاء حجز، أو خصم فعلي من المحفظة، أو
+                        // تحويل بين حصالتين والفلوس خارجة من هنا
+                        final isNegativeDisplay = isCancel ||
+                            isPhysicalDeduction ||
+                            isJarToJarOutgoing;
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 10),
@@ -1374,25 +1490,31 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 width: 36,
                                 height: 36,
                                 decoration: BoxDecoration(
-                                  color: (isCancel
+                                  color: (isNegativeDisplay
                                           ? const Color(0xFFDC2626)
                                           : (isFromBudget
                                               ? const Color(0xFF2F7D5E)
-                                              : accent))
+                                              : (isJarToJar
+                                                  ? const Color(0xFF16A34A)
+                                                  : accent)))
                                       .withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
                                   isCancel
                                       ? Icons.undo_rounded
-                                      : (isFromBudget
-                                          ? Icons.monetization_on_rounded
-                                          : Icons.lock_outline_rounded),
-                                  color: isCancel
+                                      : (isJarToJar
+                                          ? Icons.compare_arrows_rounded
+                                          : (isFromBudget
+                                              ? Icons.monetization_on_rounded
+                                              : Icons.lock_outline_rounded)),
+                                  color: isNegativeDisplay
                                       ? const Color(0xFFDC2626)
                                       : (isFromBudget
                                           ? const Color(0xFF2F7D5E)
-                                          : accent),
+                                          : (isJarToJar
+                                              ? const Color(0xFF16A34A)
+                                              : accent)),
                                   size: 17,
                                 ),
                               ),
@@ -1403,11 +1525,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        isFromBudget
-                                            ? 'من الميزانية • $incomeName'
-                                            : (isCancel
-                                                ? 'إلغاء حجز'
-                                                : 'حجز يدوي'),
+                                        isJarToJar
+                                            ? (isJarToJarOutgoing
+                                                ? 'تحويل مخصوم • $counterpartJarName'
+                                                : 'تحويل إضافي • $counterpartJarName')
+                                            : (isFromBudget
+                                                ? 'من الميزانية • $incomeName'
+                                                : (isCancel
+                                                    ? 'إلغاء حجز'
+                                                    : 'حجز يدوي')),
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 13),
@@ -1422,11 +1548,13 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     ]),
                               ),
                               Text(
-                                '${isCancel ? "-" : "+"}${t.amount.toStringAsFixed(2)}',
+                                '${isNegativeDisplay ? "-" : "+"}${t.amount.toStringAsFixed(2)}',
                                 style: TextStyle(
-                                    color: isCancel
+                                    color: isNegativeDisplay
                                         ? const Color(0xFFDC2626)
-                                        : accent,
+                                        : (isJarToJar
+                                            ? const Color(0xFF16A34A)
+                                            : accent),
                                     fontWeight: FontWeight.w900,
                                     fontSize: 15),
                               ),
@@ -1439,6 +1567,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
             ),
           ],
         ),
+          );
+        },
       ),
     );
   }

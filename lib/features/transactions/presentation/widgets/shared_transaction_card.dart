@@ -14,11 +14,18 @@ class SharedTransactionCard extends StatelessWidget {
     required this.transaction,
     required this.appState,
     required this.onTap,
+    this.viewingContextId,
   });
 
   final TransactionEntity transaction;
   final AppStateEntity appState;
   final VoidCallback onTap;
+
+  /// مُعرّف الحصالة أو المحفظة اللي بنعرض الكارت ده جوه صفحتها —
+  /// بيستخدم لتحديد اتجاه السهم/اللون لمعاملات التحويل بين حصالتين،
+  /// ولتمييز معاملة "خصم لحصالة" كخصم أحمر لما تتعرض في صفحة المحفظة
+  /// نفسها (بدل ما تفضل زرقاء زي ما هي في صفحة الحصالة).
+  final String? viewingContextId;
 
   CategoryEntity? get _category =>
       getCategoryForTransaction(appState, transaction.categoryId);
@@ -30,9 +37,30 @@ class SharedTransactionCard extends StatelessWidget {
   }
 
   Color _typeColor() {
-    // معاملات تمويل الحصالة من الميزانية الشهرية — أزرق دايماً (فيزيكال أو فيرشوال)
-    if (transaction.transferType == TransferType.jarFunding.value ||
-        transaction.transferType == TransferType.jarFundingPhysical.value) {
+    // معاملة جار-تو-جار: لون يعتمد على اتجاه الحركة بالنسبة للحصالة
+    // اللي بنعرض المعاملة جوه صفحتها
+    if (transaction.transferType == TransferType.jarToJar.value &&
+        viewingContextId != null) {
+      if (transaction.fromWalletId == viewingContextId) {
+        return const Color(0xFFDC2626); // خصم — الفلوس خارجة من هنا
+      }
+      if (transaction.toWalletId == viewingContextId) {
+        return const Color(0xFF16A34A); // إضافة — الفلوس داخلة هنا
+      }
+    }
+
+    // معاملة "خصم لحصالة" (jarFundingPhysical): فعلياً خصمت من المحفظة،
+    // فتبقى حمراء زي أي مصروف لو معروضة في صفحة المحفظة نفسها،
+    // وتفضل زرقاء لو معروضة في صفحة الحصالة
+    if (transaction.transferType == TransferType.jarFundingPhysical.value) {
+      if (viewingContextId != null && transaction.walletId == viewingContextId) {
+        return const Color(0xFFDC2626);
+      }
+      return const Color(0xFF2563EB);
+    }
+
+    // معاملة "تحويل من الميزانية" الفيرشوال (jarFunding) — زرقاء دايماً
+    if (transaction.transferType == TransferType.jarFunding.value) {
       return const Color(0xFF2563EB);
     }
     if (transaction.type == TransactionType.income.value) {
@@ -71,7 +99,10 @@ class SharedTransactionCard extends StatelessWidget {
     final isNegative = transaction.type == TransactionType.expense.value ||
         transaction.transferType == TransferType.jarFundingPhysical.value ||
         transaction.transferType == TransferType.jarAllocationCancel.value ||
-        transaction.transferType == TransferType.jarAllocationSpend.value;
+        transaction.transferType == TransferType.jarAllocationSpend.value ||
+        (transaction.transferType == TransferType.jarToJar.value &&
+            viewingContextId != null &&
+            transaction.fromWalletId == viewingContextId);
 
     final targetJarName = transaction.toWalletId == null
         ? null
@@ -214,6 +245,45 @@ class SharedTransactionCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                      if (_counterpartJarName(targetJarName, sourceJarName) !=
+                          null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _counterpartJarName(
+                                targetJarName, sourceJarName)!,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                      if (transaction.transferType ==
+                              TransferType.jarFunding.value ||
+                          transaction.transferType ==
+                              TransferType.jarFundingPhysical.value)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'معاملة تلقائية',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
@@ -278,16 +348,41 @@ class SharedTransactionCard extends StatelessWidget {
     if (transaction.transferType == TransferType.jarAllocationSpend.value) {
       return 'سحب من المحجوز';
     }
-    if (transaction.transferType == TransferType.jarFunding.value ||
-        transaction.transferType == TransferType.jarFundingPhysical.value) {
-      return 'معاملة تمويل حصالة';
+    if (transaction.transferType == TransferType.jarFundingPhysical.value) {
+      return 'خصم لحصالة';
+    }
+    if (transaction.transferType == TransferType.jarFunding.value) {
+      return 'تحويل من الميزانية';
     }
     if (transaction.transferType == TransferType.jarToJar.value) {
-      return 'تحويل: من حصالة ${sourceJarName ?? '—'} إلى حصالة ${targetJarName ?? '—'}';
+      if (viewingContextId != null &&
+          transaction.fromWalletId == viewingContextId) {
+        return 'تحويل مخصوم';
+      }
+      if (viewingContextId != null &&
+          transaction.toWalletId == viewingContextId) {
+        return 'تحويل إضافي';
+      }
+      return 'تحويل بين حصالتين';
     }
     if (transaction.transferType == TransferType.walletToWallet.value) {
       return 'تحويل بين المحافظ';
     }
     return transaction.notes ?? _typeLabel();
+  }
+
+  /// اسم الحصالة الأخرى في معاملة جار-تو-جار (الطرف المقابل لصفحة العرض
+  /// الحالية)، يُستخدم كـ chip توضيحي بدل تضمين الاسمين في العنوان
+  String? _counterpartJarName(String? targetJarName, String? sourceJarName) {
+    if (transaction.transferType != TransferType.jarToJar.value) return null;
+    if (viewingContextId != null &&
+        transaction.fromWalletId == viewingContextId) {
+      return targetJarName;
+    }
+    if (viewingContextId != null &&
+        transaction.toWalletId == viewingContextId) {
+      return sourceJarName;
+    }
+    return targetJarName ?? sourceJarName;
   }
 }

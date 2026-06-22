@@ -606,7 +606,6 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
 
   static const _presetHexColors = [
     // أحمر → وردي → بنفسجي
-    '#FFCDD2',
     '#E57373',
     '#E53935',
     '#C62828',
@@ -641,21 +640,16 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
     '#43A047',
     '#7CB342',
     '#9CCC65',
-    '#C5E1A5',
     // أصفر → برتقالي → بني
-    '#FFD54F',
     '#F9A825',
     '#FB8C00',
     '#F4511E',
     '#8D6E63',
     '#6D4C41',
-    // رمادي محايد + بيج/أوف وايت يلائمان خلفية الصفحة
+    // رمادي محايد غامق (بدون أبيض أو بيج يختفي على خلفية الصفحة)
     '#37474F',
     '#546E7A',
     '#90A4AE',
-    '#D7CCC8',
-    '#F0E6D2', // بيج
-    '#FAF6EC', // أوف وايت
     '#1A1A1A',
   ];
 
