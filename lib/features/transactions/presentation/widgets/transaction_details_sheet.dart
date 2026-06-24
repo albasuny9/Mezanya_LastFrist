@@ -498,7 +498,7 @@ Future<void> _openJarReserveEditor(
             shrinkWrap: true,
             children: [
               Text(
-                'تعديل حجز الحصالة',
+                transaction.transferType == TransferType.jarFunding.value ? 'تعديل تحويل من الميزانية' : (transaction.transferType == TransferType.jarFundingPhysical.value ? 'تعديل خصم لحصالة' : 'تعديل تخصيص حصالة'),
                 style: Theme.of(sheetContext)
                     .textTheme
                     .titleLarge
@@ -700,7 +700,7 @@ Future<void> _openJarReserveEditor(
                               : notesController.text.trim(),
                           createdAt: createdAt,
                           details:
-                              'تم تعديل حجز حصالة بقيمة ${amount.toStringAsFixed(2)}',
+                              'تم تعديل معاملة حصالة بقيمة ${amount.toStringAsFixed(2)}',
                         );
                         if (sheetContext.mounted) Navigator.pop(sheetContext);
                       },
