@@ -135,6 +135,52 @@ class TransactionProcessor {
             delta: transaction.amount,
             physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
           );
+          // jarFundingPhysical أيضاً يحدّث walletSources لأن الفلوس جات
+          // فعلاً من محفظة حقيقية محددة
+          updateJarSourceOnly(
+            jarId: transaction.toWalletId!,
+            walletId:
+                transaction.fromWalletId ?? transaction.walletId ?? '',
+            delta: transaction.amount,
+          );
+        }
+      } else if (isPhysicalFrom &&
+          !isPhysicalTo &&
+          transaction.transferType == TransferType.jarFunding.value) {
+        // jarFunding فيرشوال: يحدّث jar.balance و walletSources معاً
+        // (كان بيحدّث jar.balance بس عبر الـ else العام، لكن walletSources
+        // كانت بتفضل قديمة — ده بيخلي "توزيع الفلوس" يعرض قيمة غلط بعد
+        // أي تعديل)
+        updateVirtualBalance(
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
+          physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
+          trackWalletSource: false,
+        );
+        updateJarSourceOnly(
+          jarId: transaction.toWalletId!,
+          walletId: transaction.fromWalletId ?? transaction.walletId ?? '',
+          delta: transaction.amount,
+        );
+      } else if (transaction.transferType ==
+              TransferType.jarFunding.value &&
+          transaction.toWalletId != null) {
+        // تمويل فيرشوال من الميزانية للحصالة: نحدّث رصيد الحصالة
+        // ونحدّث walletSources عشان لوحة "توزيع الفلوس" تتزامن
+        updateVirtualBalance(
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
+          physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
+          trackWalletSource: false,
+        );
+        final sourceWalletId =
+            transaction.fromWalletId ?? transaction.walletId;
+        if (sourceWalletId != null) {
+          updateJarSourceOnly(
+            jarId: transaction.toWalletId!,
+            walletId: sourceWalletId,
+            delta: transaction.amount,
+          );
         }
       } else {
         if (transaction.fromWalletId != null) {
@@ -471,6 +517,25 @@ class TransactionProcessor {
             delta: transaction.amount,
             physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
             trackWalletSource: false,
+          );
+        }
+      } else if (transaction.transferType ==
+              TransferType.jarFunding.value &&
+          transaction.toWalletId != null) {
+        // عكس تمويل فيرشوال: نعكس رصيد الحصالة ونعكس walletSources
+        reverseVirtualBalance(
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
+          physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
+          trackWalletSource: false,
+        );
+        final sourceWalletId =
+            transaction.fromWalletId ?? transaction.walletId;
+        if (sourceWalletId != null) {
+          reverseJarSourceOnly(
+            jarId: transaction.toWalletId!,
+            walletId: sourceWalletId,
+            delta: transaction.amount,
           );
         }
       } else {
