@@ -1436,6 +1436,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             t.transferType == TransferType.jarFunding.value ||
                                 t.transferType ==
                                     TransferType.jarFundingPhysical.value;
+                        final isDepositLabel = t.transferType ==
+                            TransferType.depositWithJarLabel.value;
                         final isPhysicalDeduction = t.transferType ==
                             TransferType.jarFundingPhysical.value;
                         final isJarToJar =
@@ -1532,9 +1534,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                                 : 'تحويل إضافي • $counterpartJarName')
                                             : (isFromBudget
                                                 ? 'من الميزانية • $incomeName'
-                                                : (isCancel
-                                                    ? 'إلغاء حجز'
-                                                    : 'حجز يدوي')),
+                                                : (isDepositLabel
+                                                    ? 'حجز معاملة • ${t.notes?.isNotEmpty == true ? t.notes! : 'دخل'}'
+                                                    : (isCancel
+                                                        ? 'إلغاء حجز'
+                                                        : 'حجز يدوي'))),
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 13),

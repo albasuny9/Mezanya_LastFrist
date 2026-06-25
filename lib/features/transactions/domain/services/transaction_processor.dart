@@ -219,22 +219,10 @@ class TransactionProcessor {
             walletId: transaction.walletId!,
             delta: transaction.amount,
           );
-          transactions.add(
-            TransactionEntity(
-              id: _auditId('txn', transactions.length),
-              parentId: transaction.id,
-              walletId: transaction.walletId,
-              fromWalletId: transaction.walletId,
-              toWalletId: transaction.toWalletId,
-              budgetScope: transaction.budgetScope,
-              incomeSourceId: transaction.incomeSourceId,
-              amount: transaction.amount,
-              type: TransactionType.transfer.value,
-              transferType: TransferType.jarAllocation.value,
-              notes: null,
-              createdAt: transaction.createdAt,
-            ),
-          );
+          // ملاحظة: لا نضيف معاملة jarAllocation مرافقة هنا — walletSources
+          // اتحدثت فوق بـ updateJarSourceOnly، والمعاملة الأصلية
+          // (depositWithJarLabel) هي المرجع الوحيد لهذا الحجز.
+          // إضافة sub-transaction كانت تسبب ظهور نفس العملية مرتين.
         }
       }
 
