@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
-import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 
 // Widget classes extracted from wallets_screen.dart (Phase 1 refactor)
 // These are pure presentational stateless widgets.
 
-class _ActionBtn extends StatelessWidget {
-  const _ActionBtn({
+class WalletActionBtn extends StatelessWidget {
+  const WalletActionBtn({
     required this.icon,
     required this.accent,
     required this.enabled,
@@ -49,8 +48,8 @@ class _ActionBtn extends StatelessWidget {
 
 // ── Wallets full-page list with reorder + style toggle ─────────────────────
 
-class _InlineNote extends StatelessWidget {
-  const _InlineNote({required this.text});
+class WalletInlineNote extends StatelessWidget {
+  const WalletInlineNote({required this.text});
 
   final String text;
 
@@ -75,8 +74,8 @@ class _InlineNote extends StatelessWidget {
   }
 }
 
-class _EmptyStateCard extends StatelessWidget {
-  const _EmptyStateCard({
+class WalletEmptyStateCard extends StatelessWidget {
+  const WalletEmptyStateCard({
     required this.title,
     required this.subtitle,
   });
@@ -118,8 +117,8 @@ class _EmptyStateCard extends StatelessWidget {
   }
 }
 
-class _WalletPickerTile extends StatelessWidget {
-  const _WalletPickerTile({
+class WalletPickerTile extends StatelessWidget {
+  const WalletPickerTile({
     required this.label,
     required this.wallet,
     required this.onTap,
@@ -224,8 +223,8 @@ class _WalletPickerTile extends StatelessWidget {
   }
 }
 
-class _TransferItemTile extends StatelessWidget {
-  const _TransferItemTile({
+class WalletTransferItemTile extends StatelessWidget {
+  const WalletTransferItemTile({
     required this.label,
     required this.title,
     required this.icon,

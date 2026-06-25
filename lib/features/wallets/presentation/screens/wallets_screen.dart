@@ -55,7 +55,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
               onTransfer: wallets.length < 2 ? null : _openWalletTransferDialog,
               onMore: () => _openWalletsPage(state),
               child: wallets.isEmpty
-                  ? const _EmptyStateCard(
+                  ? const WalletEmptyStateCard(
                       title: 'لا توجد محافظ بعد',
                       subtitle: 'أضف محفظة فعلية لتسجيل الفلوس الحقيقية.',
                     )
@@ -114,7 +114,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       : () => _openInternalTransferDialog(),
               onMore: () => _openJarsPage(state),
               child: jars.isEmpty
-                  ? const _EmptyStateCard(
+                  ? const WalletEmptyStateCard(
                       title: 'لا توجد حصالات بعد',
                       subtitle:
                           'ابدأ بحصالة التوفير أو أنشئ حصالة لتنظيم جزء من فلوسك.',
@@ -209,7 +209,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _ActionBtn(
+                WalletActionBtn(
                   icon: Icons.swap_horiz_rounded,
                   accent: accent,
                   enabled: onTransfer != null,
@@ -217,7 +217,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   tooltip: transferTooltip,
                 ),
                 const SizedBox(width: 8),
-                _ActionBtn(
+                WalletActionBtn(
                   icon: Icons.add_rounded,
                   accent: accent,
                   enabled: true,
@@ -782,7 +782,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   _sectionHeader('المعاملات'),
                   const SizedBox(height: 10),
                   if (walletTx.isEmpty)
-                    const _InlineNote(
+                    const WalletInlineNote(
                       text: 'لا توجد حركات مسجلة على هذه المحفظة حتى الآن.',
                     )
                   else
@@ -1247,7 +1247,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   _sectionHeader('المعاملات'),
                   const SizedBox(height: 10),
                   if (relevantTransactions.isEmpty)
-                    const _InlineNote(
+                    const WalletInlineNote(
                       text: 'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
                     )
                   else
@@ -1600,7 +1600,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          final distribution = _jarDistribution(widget.cubit.state, jar.id);
           final unallocatedAmount =
               _jarUnallocatedAmount(widget.cubit.state, jar);
           const title = 'تحديد مصدر أموال الحصالة';
@@ -2054,7 +2053,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       style:
                           TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 24),
-                  _TransferItemTile(
+                  WalletTransferItemTile(
                     label: 'من',
                     title: sourceType == 'jar'
                         ? (sourceItem as LinkedWalletEntity).name
@@ -2140,7 +2139,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Icon(Icons.keyboard_double_arrow_down_rounded,
                           color: Colors.black26)),
-                  _TransferItemTile(
+                  WalletTransferItemTile(
                     label: 'إلى',
                     title: targetType == 'jar'
                         ? (targetItem as LinkedWalletEntity).name
@@ -2692,7 +2691,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   const SizedBox(height: 24),
 
                   // من
-                  _WalletPickerTile(
+                  WalletPickerTile(
                     label: 'من',
                     wallet: fromWallet,
                     onTap: () => _showWalletPicker(
@@ -2710,7 +2709,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
 
                   // إلى
-                  _WalletPickerTile(
+                  WalletPickerTile(
                     label: 'إلى',
                     wallet: toWallet,
                     onTap: () => _showWalletPicker(
