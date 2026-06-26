@@ -11,6 +11,7 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
+import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import 'all_transactions_screen.dart';
 import 'transaction_charts_screen.dart';
 
@@ -674,31 +675,36 @@ class _CompactTxCard extends StatelessWidget {
     final isExpense = transaction.type == TransactionType.expense.value;
 
     final bgColor = isIncome
-        ? const Color(0xFFE8F5E9)   // مخضر فاتح
+        ? const Color(0xFFE8F5E9)
         : isExpense
-            ? const Color(0xFFFFEBEE) // محمر فاتح
-            : const Color(0xFFE3F2FD); // أزرق فاتح للتحويلات
+            ? const Color(0xFFFFEBEE)
+            : const Color(0xFFE3F2FD);
 
-    final accentColor = isIncome
-        ? const Color(0xFF16A34A)
-        : isExpense
-            ? const Color(0xFFDC2626)
-            : const Color(0xFF2563EB);
-
-    final icon = isIncome
-        ? Icons.arrow_downward_rounded
-        : isExpense
-            ? Icons.arrow_upward_rounded
-            : Icons.swap_horiz_rounded;
-
-    // الاسم: الملاحظات > اسم الفئة > نوع المعاملة
+    // استخدام لون وأيقونة الفئة لو موجودة
     final cat = state.categories
         .where((c) => c.id == transaction.categoryId)
         .firstOrNull;
-    final label = transaction.notes?.isNotEmpty == true
-        ? transaction.notes!
-        : cat?.name ??
-            (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
+
+    final accentColor = cat != null
+        ? parseCategoryColor(cat.color)
+        : isIncome
+            ? const Color(0xFF16A34A)
+            : isExpense
+                ? const Color(0xFFDC2626)
+                : const Color(0xFF2563EB);
+
+    final icon = cat != null
+        ? AppIconPickerDialog.iconDataForName(cat.icon)
+        : isIncome
+            ? Icons.arrow_downward_rounded
+            : isExpense
+                ? Icons.arrow_upward_rounded
+                : Icons.swap_horiz_rounded;
+
+    // الاسم: اسم الفئة > الملاحظات > نوع المعاملة
+    final label = cat?.name ??
+        (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
+        (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
 
     final dateStr = DateFormat('d MMM', 'ar').format(transaction.createdAt);
     final sign = isIncome ? '+' : isExpense ? '-' : '';
@@ -714,7 +720,6 @@ class _CompactTxCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // أيقونة دائرية
             Container(
               width: 36,
               height: 36,
@@ -725,7 +730,6 @@ class _CompactTxCard extends StatelessWidget {
               child: Icon(icon, color: accentColor, size: 17),
             ),
             const SizedBox(width: 12),
-            // اسم + تاريخ
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,7 +757,6 @@ class _CompactTxCard extends StatelessWidget {
                 ],
               ),
             ),
-            // المبلغ
             Text(
               '$sign${transaction.amount.toStringAsFixed(0)}',
               style: TextStyle(
