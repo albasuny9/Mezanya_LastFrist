@@ -956,10 +956,10 @@ class _DayGroup extends StatelessWidget {
           ),
         ),
         ...transactions.map((t) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SharedTransactionCard(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _AllTxCard(
                 transaction: t,
-                appState: cubit.state,
+                cubit: cubit,
                 onTap: () => openTransactionDetailsSheet(
                   context,
                   cubit: cubit,
@@ -969,6 +969,147 @@ class _DayGroup extends StatelessWidget {
             )),
         const SizedBox(height: 14),
       ],
+    );
+  }
+}
+
+// ── Consistent fixed-height transaction card ─────────────────────────────────
+
+class _AllTxCard extends StatelessWidget {
+  const _AllTxCard({
+    required this.transaction,
+    required this.cubit,
+    required this.onTap,
+  });
+
+  final TransactionEntity transaction;
+  final AppCubit cubit;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = cubit.state;
+    final isIncome = transaction.type == TransactionType.income.value;
+    final isExpense = transaction.type == TransactionType.expense.value;
+
+    final accent = isIncome
+        ? const Color(0xFF16A34A)
+        : isExpense
+            ? const Color(0xFFDC2626)
+            : const Color(0xFF2563EB);
+
+    final bgColor = isIncome
+        ? const Color(0xFFE8F5E9)
+        : isExpense
+            ? const Color(0xFFFFEBEE)
+            : const Color(0xFFE3F2FD);
+
+    final icon = isIncome
+        ? Icons.arrow_downward_rounded
+        : isExpense
+            ? Icons.arrow_upward_rounded
+            : Icons.swap_horiz_rounded;
+
+    final cat = state.categories
+        .where((c) => c.id == transaction.categoryId)
+        .firstOrNull;
+
+    final walletName = state.wallets
+        .where((w) => w.id == transaction.walletId)
+        .map((w) => w.name)
+        .firstOrNull;
+
+    final label = transaction.notes?.isNotEmpty == true
+        ? transaction.notes!
+        : cat?.name ??
+            (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
+
+    final sign = isIncome ? '+' : isExpense ? '-' : '';
+    final timeStr = DateFormat('HH:mm', 'ar').format(transaction.createdAt);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            // أيقونة
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: accent, size: 18),
+            ),
+            const SizedBox(width: 12),
+            // اسم + محفظة + وقت
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      if (walletName != null) ...[
+                        Text(
+                          walletName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: accent.withValues(alpha: 0.65),
+                          ),
+                        ),
+                        Text(
+                          ' · ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: accent.withValues(alpha: 0.40),
+                          ),
+                        ),
+                      ],
+                      Text(
+                        timeStr,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: accent.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // مبلغ
+            Text(
+              '$sign${transaction.amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: accent,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
