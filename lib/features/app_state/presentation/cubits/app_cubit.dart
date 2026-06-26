@@ -425,6 +425,37 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  /// يعدّل قيمة حجز محفظة في الحصالة مباشرةً (فقط walletSources).
+  /// مش بيعمل أي معاملة — الحجز مجرد label لمكان الفلوس.
+  /// لو newAmount = 0 بيحذف الـ label ده خالص.
+  Future<void> relabelJarWalletSource({
+    required String jarId,
+    required String walletId,
+    required double newAmount,
+  }) async {
+    final linkedWallets =
+        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    final idx = linkedWallets.indexWhere((j) => j.id == jarId);
+    if (idx == -1) return;
+    final jar = linkedWallets[idx];
+    final newSources = [
+      ...jar.walletSources.where((s) => s.walletId != walletId),
+      if (newAmount > 0) JarWalletSource(walletId: walletId, amount: newAmount),
+    ];
+    linkedWallets[idx] = jar.copyWith(walletSources: newSources);
+    final next = state.copyWith(
+      budgetSetup: state.budgetSetup.copyWith(linkedWallets: linkedWallets),
+    );
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'jar',
+      entityId: jarId,
+      details:
+          'تعديل حجز محفظة في الحصالة: ${newAmount.toStringAsFixed(2)} جنيه',
+      apply: () async => next,
+    );
+  }
+
   Future<void> addLinkedWallet(LinkedWalletEntity linkedWallet) async {
     await updateBudgetSetup(state.budgetSetup.copyWith(
         linkedWallets: [...state.budgetSetup.linkedWallets, linkedWallet]));
