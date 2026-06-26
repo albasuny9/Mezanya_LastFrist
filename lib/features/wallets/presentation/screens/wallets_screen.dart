@@ -540,16 +540,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _glassMetric(
-                                  label: 'الصافي المتاح',
-                                  value: available.toStringAsFixed(2),
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _glassMetric(
-                                  label: 'الحصالات',
-                                  value: reservations.length.toString(),
+                                  label: 'المحجوز',
+                                  value: reserved.toStringAsFixed(2),
                                   accent: accent,
                                 ),
                               ),
@@ -971,16 +963,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _glassMetric(
-                                  label: 'شهري مخطط',
-                                  value: jar.monthlyAmount.toStringAsFixed(2),
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _glassMetric(
-                                  label: 'المحافظ',
-                                  value: distribution.length.toString(),
+                                  label: 'غير محجوز',
+                                  value: jar.unlabeledAmount.toStringAsFixed(2),
                                   accent: accent,
                                 ),
                               ),
