@@ -1475,10 +1475,14 @@ class _WalletsScreenState extends State<WalletsScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: GestureDetector(
-                            onTap: () => openTransactionDetailsSheet(
-                              bCtx,
-                              cubit: widget.cubit,
-                              transaction: t,
+                            onTap: () => _openReservationLabelEditor(
+                              context: bCtx,
+                              jar: currentJar,
+                              walletId: walletId,
+                              currentAmount: currentJar.walletSources
+                                  .where((s) => s.walletId == walletId)
+                                  .fold<double>(0, (s, e) => s + e.amount),
+                              accent: accent,
                             ),
                             child: Container(
                             padding: const EdgeInsets.all(14),
@@ -1574,6 +1578,104 @@ class _WalletsScreenState extends State<WalletsScreen> {
         ),
           );
         },
+      ),
+    );
+  }
+
+  /// ديالوج تعديل الحجز (label فقط — بيعدّل walletSources بدون مساس بأي معاملة)
+  Future<void> _openReservationLabelEditor({
+    required BuildContext context,
+    required LinkedWalletEntity jar,
+    required String walletId,
+    required double currentAmount,
+    required Color accent,
+  }) async {
+    final ctrl = TextEditingController(
+        text: currentAmount > 0 ? currentAmount.toStringAsFixed(2) : '');
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 24,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 32,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('تعديل الحجز',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text(
+              'هذا التعديل يغيّر فقط توزيع الفلوس داخل الحصالة\nبدون أي تأثير على المعاملات المرتبطة.',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.black.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'المبلغ المحجوز من هذه المحفظة',
+                suffixText: 'جنيه',
+                border: const OutlineInputBorder(),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: accent, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await widget.cubit.relabelJarWalletSource(
+                        jarId: jar.id,
+                        walletId: walletId,
+                        newAmount: 0,
+                      );
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: const Text('حذف الحجز'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFDC2626)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () async {
+                      final val = double.tryParse(ctrl.text.trim()) ?? 0;
+                      await widget.cubit.relabelJarWalletSource(
+                        jarId: jar.id,
+                        walletId: walletId,
+                        newAmount: val,
+                      );
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    },
+                    style: FilledButton.styleFrom(backgroundColor: accent),
+                    child: const Text('حفظ'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
