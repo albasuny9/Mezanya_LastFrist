@@ -51,91 +51,111 @@ Future<void> openTransactionDetailsSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: theme.colorScheme.surface,
+    backgroundColor: const Color(0xFFFFFBF1),
     showDragHandle: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+    ),
     builder: (context) => SafeArea(
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.82,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           children: [
+            // ── Hero gradient card ─────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.10),
+                gradient: LinearGradient(
+                  colors: [
+                    accent,
+                    accent.withValues(alpha: 0.75),
+                  ],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: accent.withValues(alpha: 0.18)),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              child: Column(
                 children: [
                   Container(
-                    width: 64,
-                    height: 64,
+                    width: 68,
+                    height: 68,
                     decoration: BoxDecoration(
-                      color: displayColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(22),
+                      color: Colors.white.withValues(alpha: 0.20),
+                      shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      displayIcon,
-                      color: displayColor,
-                      size: 30,
-                    ),
+                    child: Icon(displayIcon, color: Colors.white, size: 32),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayTitle,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        // ملاحظات تفصيلية تحت الاسم لو الاسم من الفئة
-                        if (category != null &&
-                            transaction.notes?.trim().isNotEmpty == true) ...[
-                          Text(
-                            transaction.notes!.trim(),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                        ],
-                        Text(
-                          '${_typeLabel(transaction.type)} - ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(transaction.createdAt)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                  const SizedBox(height: 14),
                   Text(
-                    transaction.amount.toStringAsFixed(2),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: accent,
+                    '${_signFor(transaction)}${transaction.amount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
                       fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    displayTitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('EEEE، d MMMM yyyy · HH:mm', 'ar')
+                        .format(transaction.createdAt),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.70),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            _DetailsBlock(rows: rows),
-            const SizedBox(height: 18),
-            Divider(
-              height: 1,
-              color: theme.colorScheme.outlineVariant,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
+
+            // ── Detail rows ────────────────────────────────────────
+            _DetailsBlock(rows: rows, accent: accent),
+
+            // ملاحظات
+            if (transaction.notes?.trim().isNotEmpty == true &&
+                !_isGeneratedJarNote(transaction)) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: accent.withValues(alpha: 0.14)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ملاحظات',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: accent.withValues(alpha: 0.65))),
+                    const SizedBox(height: 4),
+                    Text(transaction.notes!.trim(),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+                        FilledButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
                 if (transaction.transferType == TransferType.jarFunding.value ||
@@ -878,47 +898,49 @@ Color parseCategoryColor(String hexStr) {
   }
 }
 
+String _signFor(TransactionEntity transaction) {
+  if (transaction.type == TransactionType.income.value) return '+';
+  if (transaction.type == TransactionType.expense.value) return '-';
+  return '';
+}
+
 class _DetailsBlock extends StatelessWidget {
-  const _DetailsBlock({required this.rows});
+  const _DetailsBlock({required this.rows, required this.accent});
 
   final List<MapEntry<String, String>> rows;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
-        ),
+        color: accent.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.14)),
       ),
       child: Column(
         children: [
           for (var i = 0; i < rows.length; i++) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      rows[i].key,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  Text(
+                    rows[i].key,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: accent.withValues(alpha: 0.65),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      rows[i].value,
-                      textAlign: TextAlign.end,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  const Spacer(),
+                  Text(
+                    rows[i].value,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
                     ),
                   ),
                 ],
@@ -927,7 +949,9 @@ class _DetailsBlock extends StatelessWidget {
             if (i != rows.length - 1)
               Divider(
                 height: 1,
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                indent: 16,
+                endIndent: 16,
+                color: accent.withValues(alpha: 0.10),
               ),
           ],
         ],
