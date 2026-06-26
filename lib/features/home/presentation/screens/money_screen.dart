@@ -840,50 +840,88 @@ class _MiniChartPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final max = math.max(netIncome, netExpense).clamp(1.0, double.infinity);
-    final incomeRatio = netIncome / max;
-    final expenseRatio = netExpense / max;
     final net = netIncome - netExpense;
     final isPositive = net >= 0;
 
-    // Top 3 categories
+    // Daily cumulative expense sparkline (last 30 days)
+    final now = DateTime.now();
+    final days = List.generate(14, (i) => now.subtract(Duration(days: 13 - i)));
+    final dailyExpense = days.map((d) {
+      return monthTx
+          .where((t) =>
+              t.type == TransactionType.expense.value &&
+              t.createdAt.day == d.day &&
+              t.createdAt.month == d.month)
+          .fold<double>(0, (s, t) => s + t.amount);
+    }).toList();
+    final maxDaily = dailyExpense.reduce(math.max).clamp(1.0, double.infinity);
+
+    // Top categories
     final catMap = <String, double>{};
-    for (final t
-        in monthTx.where((t) => t.type == TransactionType.expense.value)) {
+    for (final t in monthTx.where((t) => t.type == TransactionType.expense.value)) {
       if (t.categoryId != null) {
         catMap[t.categoryId!] = (catMap[t.categoryId!] ?? 0) + t.amount;
       }
     }
-    final topCats = catMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final top3 = topCats.take(3).toList();
+    final top3 = (catMap.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+        .take(3)
+        .toList();
     final totalExp = netExpense.clamp(1.0, double.infinity);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Comparison bars
-        _miniBar('الدخل', incomeRatio, const Color(0xFF16A34A),
-            netIncome.toStringAsFixed(0)),
-        const SizedBox(height: 8),
-        _miniBar('المصروف', expenseRatio, const Color(0xFFDC2626),
-            netExpense.toStringAsFixed(0)),
+        // ── Income vs Expense bars ──────────────────────────────────
+        _gradientBar(
+          label: 'الدخل',
+          ratio: netIncome / max,
+          color: const Color(0xFF16A34A),
+          value: netIncome.toStringAsFixed(0),
+        ),
         const SizedBox(height: 10),
+        _gradientBar(
+          label: 'المصروف',
+          ratio: netExpense / max,
+          color: const Color(0xFFDC2626),
+          value: netExpense.toStringAsFixed(0),
+        ),
+        const SizedBox(height: 12),
 
-        // Net indicator
+        // ── Net pill ────────────────────────────────────────────────
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             color:
                 (isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626))
-                    .withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(12),
+                    .withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: (isPositive
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFDC2626))
+                  .withValues(alpha: 0.20),
+            ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('الصافي',
+              Icon(
+                isPositive
+                    ? Icons.trending_up_rounded
+                    : Icons.trending_down_rounded,
+                color: isPositive
+                    ? const Color(0xFF16A34A)
+                    : const Color(0xFFDC2626),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isPositive ? 'وفّرت هذا الشهر' : 'مصروفك أكبر من دخلك',
                   style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13)),
+                      fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
               Text(
                 '${isPositive ? '+' : ''}${net.toStringAsFixed(2)}',
                 style: TextStyle(
@@ -898,23 +936,74 @@ class _MiniChartPreview extends StatelessWidget {
           ),
         ),
 
-        if (top3.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          const Text('أعلى فئات المصروف',
+        // ── Daily sparkline ─────────────────────────────────────────
+        if (dailyExpense.any((d) => d > 0)) ...[
+          const SizedBox(height: 14),
+          const Text('المصروف اليومي',
               style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: Color(0xFF8A7F72),
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          ...top3.map((e) {
-            final cat = categories.where((c) => c.id == e.key).firstOrNull;
-            final ratio = e.value / totalExp;
+          SizedBox(
+            height: 40,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: dailyExpense.asMap().entries.map((e) {
+                final ratio = e.value / maxDaily;
+                final isToday = days[e.key].day == now.day &&
+                    days[e.key].month == now.month;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          height: ratio * 36 + (ratio > 0 ? 4 : 0),
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFFDC2626)
+                                    .withValues(alpha: 0.40),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+
+        // ── Top categories ──────────────────────────────────────────
+        if (top3.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text('أعلى فئات المصروف',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF8A7F72),
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ...top3.asMap().entries.map((e) {
+            final cat =
+                categories.where((c) => c.id == e.value.key).firstOrNull;
+            final ratio = e.value.value / totalExp;
+            final barColors = [
+              const Color(0xFFDC2626),
+              const Color(0xFFF97316),
+              const Color(0xFFF59E0B),
+            ];
+            final c = barColors[e.key % barColors.length];
             return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 7),
               child: Row(
                 children: [
                   SizedBox(
-                    width: 70,
+                    width: 68,
                     child: Text(
                       cat?.name ?? 'أخرى',
                       style: const TextStyle(
@@ -925,24 +1014,40 @@ class _MiniChartPreview extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: ratio,
-                        minHeight: 7,
-                        backgroundColor:
-                            const Color(0xFFDC2626).withValues(alpha: 0.10),
-                        valueColor:
-                            const AlwaysStoppedAnimation(Color(0xFFDC2626)),
-                      ),
+                    child: Stack(
+                      children: [
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: c.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: ratio,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: c,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(e.value.toStringAsFixed(0),
-                      style: const TextStyle(
+                  SizedBox(
+                    width: 50,
+                    child: Text(
+                      '${(ratio * 100).toStringAsFixed(0)}%',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626))),
+                          color: c),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -952,7 +1057,11 @@ class _MiniChartPreview extends StatelessWidget {
     );
   }
 
-  Widget _miniBar(String label, double ratio, Color color, String valStr) {
+  Widget _gradientBar(
+      {required String label,
+      required double ratio,
+      required Color color,
+      required String value}) {
     return Row(
       children: [
         SizedBox(
@@ -961,27 +1070,45 @@ class _MiniChartPreview extends StatelessWidget {
               style:
                   const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
         ),
-        const SizedBox(width: 8),
         Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: ratio,
-              minHeight: 12,
-              backgroundColor: color.withValues(alpha: 0.12),
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
+          child: Stack(
+            children: [
+              Container(
+                height: 14,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: ratio.clamp(0.0, 1.0),
+                child: Container(
+                  height: 14,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withValues(alpha: 0.65),
+                        color,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(width: 8),
         SizedBox(
           width: 60,
-          child: Text(valStr,
+          child: Text(value,
               textAlign: TextAlign.end,
               style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+                  fontSize: 12, fontWeight: FontWeight.w800, color: color)),
         ),
       ],
     );
   }
 }
+
+
