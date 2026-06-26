@@ -114,16 +114,13 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   : Column(
                       children: monthTx
                           .take(5)
-                          .map((t) => Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: SharedTransactionCard(
-                                  transaction: t,
-                                  appState: state,
-                                  onTap: () => openTransactionDetailsSheet(
-                                      context,
-                                      cubit: widget.cubit,
-                                      transaction: t),
-                                ),
+                          .map((t) => _CompactTxRow(
+                                transaction: t,
+                                state: state,
+                                onTap: () => openTransactionDetailsSheet(
+                                    context,
+                                    cubit: widget.cubit,
+                                    transaction: t),
                               ))
                           .toList(),
                     ),
@@ -619,6 +616,101 @@ class _StatChip extends StatelessWidget {
 }
 
 // ── Section Card ───────────────────────────────────────────────────────────
+
+// ── Compact transaction row (preview only — much smaller than full card) ──────
+
+class _CompactTxRow extends StatelessWidget {
+  const _CompactTxRow({
+    required this.transaction,
+    required this.state,
+    required this.onTap,
+  });
+
+  final TransactionEntity transaction;
+  final AppStateEntity state;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isIncome = transaction.type == TransactionType.income.value;
+    final isExpense = transaction.type == TransactionType.expense.value;
+    final color = isIncome
+        ? const Color(0xFF16A34A)
+        : isExpense
+            ? const Color(0xFFDC2626)
+            : const Color(0xFF2563EB);
+    final sign = isIncome ? '+' : isExpense ? '-' : '';
+    final cat = state.categories
+        .where((c) => c.id == transaction.categoryId)
+        .firstOrNull;
+    final label = cat?.name ??
+        transaction.notes ??
+        (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
+    final walletName = state.wallets
+        .where((w) => w.id == transaction.walletId)
+        .map((w) => w.name)
+        .firstOrNull;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+        child: Row(
+          children: [
+            // color dot
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            // label
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+            ),
+            // wallet name (small muted)
+            if (walletName != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                walletName,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF8A7F72),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+            const SizedBox(width: 10),
+            // amount
+            Text(
+              '$sign${transaction.amount.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Section card wrapper ──────────────────────────────────────────────────────
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
