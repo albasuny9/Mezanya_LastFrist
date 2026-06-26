@@ -112,17 +112,55 @@ class _MoneyScreenState extends State<MoneyScreen> {
               child: monthTx.isEmpty
                   ? const _EmptyHint(text: 'لا توجد معاملات لهذا الشهر.')
                   : Column(
-                      children: monthTx
-                          .take(5)
-                          .map((t) => _CompactTxRow(
-                                transaction: t,
-                                state: state,
-                                onTap: () => openTransactionDetailsSheet(
-                                    context,
-                                    cubit: widget.cubit,
-                                    transaction: t),
-                              ))
-                          .toList(),
+                      children: [
+                        ...monthTx
+                            .take(5)
+                            .map((t) => _CompactTxCard(
+                                  transaction: t,
+                                  state: state,
+                                  onTap: () => openTransactionDetailsSheet(
+                                      context,
+                                      cubit: widget.cubit,
+                                      transaction: t),
+                                )),
+                        const SizedBox(height: 4),
+                        // كارت المزيد
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AllTransactionsScreen(
+                                cubit: widget.cubit,
+                                allTransactions: allTx,
+                                initialMonth: _month,
+                              ),
+                            ),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: BoxDecoration(
+                              color: _green.withValues(alpha: 0.07),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: _green.withValues(alpha: 0.18)),
+                            ),
+                            child: Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('كل المعاملات',
+                                      style: TextStyle(
+                                          color: _green,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800)),
+                                  const SizedBox(width: 6),
+                                  Icon(Icons.arrow_back_ios_new_rounded,
+                                      color: _green, size: 12),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
             ),
             const SizedBox(height: 14),
@@ -617,10 +655,10 @@ class _StatChip extends StatelessWidget {
 
 // ── Section Card ───────────────────────────────────────────────────────────
 
-// ── Compact transaction row (preview only — much smaller than full card) ──────
+// ── Compact colored transaction card ─────────────────────────────────────────
 
-class _CompactTxRow extends StatelessWidget {
-  const _CompactTxRow({
+class _CompactTxCard extends StatelessWidget {
+  const _CompactTxCard({
     required this.transaction,
     required this.state,
     required this.onTap,
@@ -634,73 +672,94 @@ class _CompactTxRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isIncome = transaction.type == TransactionType.income.value;
     final isExpense = transaction.type == TransactionType.expense.value;
-    final color = isIncome
+
+    final bgColor = isIncome
+        ? const Color(0xFFE8F5E9)   // مخضر فاتح
+        : isExpense
+            ? const Color(0xFFFFEBEE) // محمر فاتح
+            : const Color(0xFFE3F2FD); // أزرق فاتح للتحويلات
+
+    final accentColor = isIncome
         ? const Color(0xFF16A34A)
         : isExpense
             ? const Color(0xFFDC2626)
             : const Color(0xFF2563EB);
-    final sign = isIncome ? '+' : isExpense ? '-' : '';
+
+    final icon = isIncome
+        ? Icons.arrow_downward_rounded
+        : isExpense
+            ? Icons.arrow_upward_rounded
+            : Icons.swap_horiz_rounded;
+
+    // الاسم: الملاحظات > اسم الفئة > نوع المعاملة
     final cat = state.categories
         .where((c) => c.id == transaction.categoryId)
         .firstOrNull;
-    final label = cat?.name ??
-        transaction.notes ??
-        (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
-    final walletName = state.wallets
-        .where((w) => w.id == transaction.walletId)
-        .map((w) => w.name)
-        .firstOrNull;
+    final label = transaction.notes?.isNotEmpty == true
+        ? transaction.notes!
+        : cat?.name ??
+            (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
 
-    return InkWell(
+    final dateStr = DateFormat('d MMM', 'ar').format(transaction.createdAt);
+    final sign = isIncome ? '+' : isExpense ? '-' : '';
+
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Row(
           children: [
-            // color dot
+            // أيقونة دائرية
             Container(
-              width: 8,
-              height: 8,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: color,
+                color: accentColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
+              child: Icon(icon, color: accentColor, size: 17),
             ),
-            const SizedBox(width: 10),
-            // label
+            const SizedBox(width: 12),
+            // اسم + تاريخ
             Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateStr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: accentColor.withValues(alpha: 0.70),
+                    ),
+                  ),
+                ],
               ),
             ),
-            // wallet name (small muted)
-            if (walletName != null) ...[
-              const SizedBox(width: 6),
-              Text(
-                walletName,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF8A7F72),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-            const SizedBox(width: 10),
-            // amount
+            // المبلغ
             Text(
               '$sign${transaction.amount.toStringAsFixed(0)}',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: color,
+                color: accentColor,
               ),
             ),
           ],
