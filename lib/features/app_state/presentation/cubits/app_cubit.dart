@@ -438,20 +438,48 @@ class AppCubit extends Cubit<AppStateEntity> {
     final idx = linkedWallets.indexWhere((j) => j.id == jarId);
     if (idx == -1) return;
     final jar = linkedWallets[idx];
+    final oldAmount = jar.walletSources
+        .where((s) => s.walletId == walletId)
+        .fold<double>(0, (sum, s) => sum + s.amount);
     final newSources = [
       ...jar.walletSources.where((s) => s.walletId != walletId),
       if (newAmount > 0) JarWalletSource(walletId: walletId, amount: newAmount),
     ];
     linkedWallets[idx] = jar.copyWith(walletSources: newSources);
+    final walletName = state.wallets
+        .where((w) => w.id == walletId)
+        .map((w) => w.name)
+        .firstOrNull ?? walletId;
+    final diff = newAmount - oldAmount;
+    final diffStr = diff >= 0
+        ? 'إضافة ${diff.toStringAsFixed(2)} جنيه'
+        : 'تخفيض ${(-diff).toStringAsFixed(2)} جنيه';
+    final detail = newAmount <= 0
+        ? 'حذف حجز $walletName من ${jar.name}'
+        : '$diffStr لحجز $walletName في ${jar.name}';
+    final now = DateTime.now();
+    final auditTx = TransactionEntity(
+      id: 'lbl-${now.millisecondsSinceEpoch}',
+      walletId: walletId,
+      fromWalletId: walletId,
+      toWalletId: jarId,
+      amount: diff.abs(),
+      type: TransactionType.transfer.value,
+      transferType: diff >= 0
+          ? TransferType.jarAllocation.value
+          : TransferType.jarAllocationCancel.value,
+      notes: detail,
+      createdAt: now,
+    );
     final next = state.copyWith(
       budgetSetup: state.budgetSetup.copyWith(linkedWallets: linkedWallets),
+      transactions: [...state.transactions, auditTx],
     );
     await _applyAndLog(
       action: 'edit',
       entityType: 'jar',
       entityId: jarId,
-      details:
-          'تعديل حجز محفظة في الحصالة: ${newAmount.toStringAsFixed(2)} جنيه',
+      details: detail,
       apply: () async => next,
     );
   }
