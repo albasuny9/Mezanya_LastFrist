@@ -64,58 +64,61 @@ Future<void> openTransactionDetailsSheet(
           children: [
             // ── Hero gradient card ─────────────────────────────────
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    accent,
-                    accent.withValues(alpha: 0.75),
-                  ],
+                  colors: [accent, accent.withValues(alpha: 0.75)],
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(24),
               ),
-              child: Column(
+              child: Row(
                 children: [
                   Container(
-                    width: 68,
-                    height: 68,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.20),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(displayIcon, color: Colors.white, size: 32),
+                    child: Icon(displayIcon, color: Colors.white, size: 24),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          DateFormat('d MMMM yyyy · HH:mm', 'ar')
+                              .format(transaction.createdAt),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Text(
                     '${_signFor(transaction)}${transaction.amount.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 34,
+                      fontSize: 20,
                       fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    displayTitle,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('EEEE، d MMMM yyyy · HH:mm', 'ar')
-                        .format(transaction.createdAt),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.70),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],

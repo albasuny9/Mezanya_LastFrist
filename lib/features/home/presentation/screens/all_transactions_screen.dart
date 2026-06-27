@@ -7,6 +7,7 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
+import '../../../../core/widgets/app_icon_picker_dialog.dart';
 
 // ── Period types ────────────────────────────────────────────────────────────
 
@@ -992,63 +993,75 @@ class _AllTxCard extends StatelessWidget {
     final isIncome = transaction.type == TransactionType.income.value;
     final isExpense = transaction.type == TransactionType.expense.value;
 
-    final accent = isIncome
-        ? const Color(0xFF16A34A)
-        : isExpense
-            ? const Color(0xFFDC2626)
-            : const Color(0xFF2563EB);
-
     final bgColor = isIncome
         ? const Color(0xFFE8F5E9)
         : isExpense
             ? const Color(0xFFFFEBEE)
             : const Color(0xFFE3F2FD);
 
-    final icon = isIncome
-        ? Icons.arrow_downward_rounded
-        : isExpense
-            ? Icons.arrow_upward_rounded
-            : Icons.swap_horiz_rounded;
-
     final cat = state.categories
         .where((c) => c.id == transaction.categoryId)
         .firstOrNull;
+
+    final accent = cat != null
+        ? parseCategoryColor(cat.color)
+        : isIncome
+            ? const Color(0xFF16A34A)
+            : isExpense
+                ? const Color(0xFFDC2626)
+                : const Color(0xFF2563EB);
+
+    final icon = cat != null
+        ? AppIconPickerDialog.iconDataForName(cat.icon)
+        : isIncome
+            ? Icons.arrow_downward_rounded
+            : isExpense
+                ? Icons.arrow_upward_rounded
+                : Icons.swap_horiz_rounded;
+
+    final label = cat?.name ??
+        (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
+        (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
+
+    final sign = isIncome ? '+' : isExpense ? '-' : '';
+    final timeStr =
+        DateFormat('d MMM · HH:mm', 'ar').format(transaction.createdAt);
 
     final walletName = state.wallets
         .where((w) => w.id == transaction.walletId)
         .map((w) => w.name)
         .firstOrNull;
 
-    final label = transaction.notes?.isNotEmpty == true
-        ? transaction.notes!
-        : cat?.name ??
-            (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
-
-    final sign = isIncome ? '+' : isExpense ? '-' : '';
-    final timeStr = DateFormat('HH:mm', 'ar').format(transaction.createdAt);
+    // ليبيلات إضافية (ماكس ٢)
+    final chips = <String>[];
+    if (walletName != null) chips.add(walletName);
+    if (transaction.notes?.isNotEmpty == true && cat != null) {
+      chips.add(transaction.notes!);
+    }
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // أيقونة
             Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: accent, size: 18),
+              child: Icon(icon, color: accent, size: 19),
             ),
             const SizedBox(width: 12),
-            // اسم + محفظة + وقت
+            // اسم + تاريخ + chips
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1064,26 +1077,9 @@ class _AllTxCard extends StatelessWidget {
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      if (walletName != null) ...[
-                        Text(
-                          walletName,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: accent.withValues(alpha: 0.65),
-                          ),
-                        ),
-                        Text(
-                          ' · ',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: accent.withValues(alpha: 0.40),
-                          ),
-                        ),
-                      ],
                       Text(
                         timeStr,
                         style: TextStyle(
@@ -1092,6 +1088,25 @@ class _AllTxCard extends StatelessWidget {
                           color: accent.withValues(alpha: 0.55),
                         ),
                       ),
+                      ...chips.take(2).map((chip) => Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              chip,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
+                            ),
+                          )),
                     ],
                   ),
                 ],
@@ -1100,9 +1115,9 @@ class _AllTxCard extends StatelessWidget {
             const SizedBox(width: 10),
             // مبلغ
             Text(
-              '$sign${transaction.amount.toStringAsFixed(2)}',
+              '$sign${transaction.amount.toStringAsFixed(0)}',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w900,
                 color: accent,
               ),
