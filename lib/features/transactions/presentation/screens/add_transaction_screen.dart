@@ -110,6 +110,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             : BudgetScope.outsideBudget.value;
         _incomeJarId = t.toWalletId ?? '';
       }
+      // لو النوع اتغيّر لـ income أثناء التعديل، نضمن إن الجار المستهدف
+      // (من toWalletId الأصلية) موجود في _incomeJarId
+      if (_incomeJarId.isEmpty && t.toWalletId != null) {
+        _incomeJarId = t.toWalletId!;
+      }
       // تحميل الفئة المحددة
       _selectedCategoryId = t.categoryId;
     }
@@ -864,14 +869,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     transferType: widget.initialTransaction
                                                 ?.transferType ==
                                             TransferType
-                                                .jarFundingPhysical.value
+                                                .jarFundingPhysical.value &&
+                                        _type == TransactionType.expense.value
                                         ? TransferType.jarFundingPhysical.value
                                         : _type ==
                                                     TransactionType
                                                         .income.value &&
-                                                _incomeBudgetScope ==
-                                                    BudgetScope
-                                                        .withinBudget.value &&
                                                 _incomeJarId.isNotEmpty
                                             ? TransferType
                                                 .depositWithJarLabel.value
