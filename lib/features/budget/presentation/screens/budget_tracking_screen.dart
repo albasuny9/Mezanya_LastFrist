@@ -153,7 +153,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         }).toList();
         final monthTx = _monthTransactions(state.transactions);
         final incomeTx = monthTx
-            .where((t) => t.type == TransactionType.income.value)
+            .where((t) =>
+                t.type == TransactionType.income.value &&
+                // الإيداعات اليدوية للحصالات (depositWithJarLabel) هي
+                // تمويل داخلي للحصالة وليست دخلاً ضمن الميزانية الشهرية
+                t.transferType != TransferType.depositWithJarLabel.value)
             .toList();
         final expenseTx = monthTx
             .where((t) => t.type == TransactionType.expense.value)
