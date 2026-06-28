@@ -838,22 +838,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 .where((t) =>
                     t.toWalletId == jarId ||
                     t.walletId == jarId ||
-                    t.fromWalletId == jarId ||
-                    (t.type == TransactionType.income.value &&
-                        t.toWalletId == jarId))
-                .where((t) =>
-                    t.transferType == TransferType.jarAllocation.value ||
-                    t.transferType ==
-                        TransferType.jarAllocationCancel.value ||
-                    t.transferType == TransferType.jarAllocationSpend.value ||
-                    t.transferType == TransferType.jarFunding.value ||
-                    t.transferType == TransferType.jarFundingPhysical.value ||
-                    t.transferType == TransferType.depositWithJarLabel.value ||
-                    t.transferType == TransferType.allocationToJar.value ||
-                    t.transferType == TransferType.jarToAllocation.value ||
-                    t.transferType == TransferType.jarToJar.value ||
-                    (t.type == TransactionType.income.value &&
-                        t.budgetScope == BudgetScope.withinBudget.value))
+                    t.fromWalletId == jarId)
                 .toList()
               ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
