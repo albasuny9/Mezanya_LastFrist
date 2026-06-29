@@ -815,6 +815,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
       ),
       builder: (ctx) {
         var showWallets = false;
+        var sortDescending = true;
+        String filterType = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
+        var sortDescending = true;
+        var filterType = 'all'; // 'all' | 'income' | 'expense' | 'reserve' | 'transfer'
         return BlocBuilder<AppCubit, AppStateEntity>(
           bloc: widget.cubit,
           builder: (ctx, liveState) {
@@ -1210,35 +1214,102 @@ class _WalletsScreenState extends State<WalletsScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  // ── المعاملات (كل الحركات، بما فيها تمويل الميزانية) ──
-                  _sectionHeader('المعاملات'),
-                  const SizedBox(height: 10),
-                  if (relevantTransactions.isEmpty)
-                    const WalletInlineNote(
-                      text: 'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
-                    )
-                  else
-                    ...relevantTransactions.map(
-                      (t) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: SharedTransactionCard(
-                          transaction: t,
-                          appState: state,
-                          viewingContextId: jar.id,
-                          onTap: () => openTransactionDetailsSheet(
-                            ctx,
-                            cubit: widget.cubit,
-                            transaction: t,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
+                   ),
+                   const SizedBox(height: 16),
+                   // ── المعاملات ──────────────────────────────────────
+                   _sectionHeader('المعاملات'),
+                   const SizedBox(height: 8),
+                   StatefulBuilder(
+                     builder: (ctx2, setFilter) {
+                       var _sortDesc = sortDescending;
+                       var _filter = filterType;
+                       final filtered = relevantTransactions.where((t) {
+                         if (_filter == 'income') return t.type == TransactionType.income.value;
+                         if (_filter == 'expense') return t.type == TransactionType.expense.value;
+                         if (_filter == 'transfer') return t.type == TransactionType.transfer.value;
+                         return true;
+                       }).toList();
+                       if (!_sortDesc) filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                       return Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Row(
+                             children: [
+                               Expanded(
+                                 child: SingleChildScrollView(
+                                   scrollDirection: Axis.horizontal,
+                                   child: Row(
+                                     children: [
+                                       for (final f in [('all', 'الكل'), ('income', 'دخل'), ('expense', 'خصم'), ('transfer', 'تحويل')])
+                                         GestureDetector(
+                                           onTap: () => setSheet(() { filterType = f.$1; }),
+                                           child: AnimatedContainer(
+                                             duration: const Duration(milliseconds: 180),
+                                             margin: const EdgeInsetsDirectional.only(end: 6),
+                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                             decoration: BoxDecoration(
+                                               color: filterType == f.$1 ? accent : accent.withValues(alpha: 0.08),
+                                               borderRadius: BorderRadius.circular(20),
+                                             ),
+                                             child: Text(
+                                               f.$2,
+                                               style: TextStyle(
+                                                 fontSize: 12,
+                                                 fontWeight: FontWeight.w700,
+                                                 color: filterType == f.$1 ? Colors.white : accent,
+                                               ),
+                                             ),
+                                           ),
+                                         ),
+                                     ],
+                                   ),
+                                 ),
+                               ),
+                               const SizedBox(width: 8),
+                               GestureDetector(
+                                 onTap: () => setSheet(() { sortDescending = !sortDescending; }),
+                                 child: Container(
+                                   padding: const EdgeInsets.all(7),
+                                   decoration: BoxDecoration(
+                                     color: accent.withValues(alpha: 0.10),
+                                     borderRadius: BorderRadius.circular(10),
+                                   ),
+                                   child: Icon(
+                                     sortDescending ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                                     color: accent,
+                                     size: 16,
+                                   ),
+                                 ),
+                               ),
+                             ],
+                           ),
+                           const SizedBox(height: 10),
+                           if (filtered.isEmpty)
+                             const WalletInlineNote(text: 'لا توجد معاملات لهذه الفئة.')
+                           else
+                             ...filtered.map(
+                               (t) => Padding(
+                                 padding: const EdgeInsets.only(bottom: 8),
+                                 child: SharedTransactionCard(
+                                   transaction: t,
+                                   appState: state,
+                                   viewingContextId: jar.id,
+                                   onTap: () => openTransactionDetailsSheet(
+                                     ctx,
+                                     cubit: widget.cubit,
+                                     transaction: t,
+                                   ),
+                                 ),
+                               ),
+                             ),
+                         ],
+                       );
+                     },
+                   ),
+                 ],
+               ),
+             );
+           },
         );
           },
         );
