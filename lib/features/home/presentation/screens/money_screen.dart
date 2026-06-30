@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'package:intl/intl.dart';
@@ -9,7 +10,6 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
-import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import 'all_transactions_screen.dart';
@@ -32,6 +32,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
       t.transferType == TransferType.jarAllocation.value ||
       t.transferType == TransferType.jarAllocationCancel.value ||
       t.transferType == TransferType.jarAllocationSpend.value ||
+      t.transferType == TransferType.allocationToJar.value ||
+      t.transferType == TransferType.jarToAllocation.value ||
       t.transferType == TransferType.jarToJar.value;
 
   @override
@@ -60,10 +62,6 @@ class _MoneyScreenState extends State<MoneyScreen> {
             .fold<double>(0, (s, t) => s + t.amount);
         final netSaving = netIncome - netExpense;
         // Empty month → full green; spending with no income → red
-        final savingRate = netIncome > 0
-            ? (netSaving / netIncome).clamp(-1.0, 1.0)
-            : (netExpense > 0 ? -1.0 : 1.0);
-
         return ListView(
           padding: EdgeInsets.zero,
           children: [
@@ -83,47 +81,24 @@ class _MoneyScreenState extends State<MoneyScreen> {
               netIncome: netIncome,
               netExpense: netExpense,
               netSaving: netSaving,
-              savingRate: savingRate,
               currencyCode: state.currencyCode,
-            ),
-            const SizedBox(height: 14),
-
-            // ── Quick stats row ────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _QuickStatsRow(
-                monthTx: monthTx,
-                categories: state.categories,
-              ),
             ),
             const SizedBox(height: 14),
 
             // ── Transactions section ───────────────────────────────────
             _SectionCard(
-              title: 'المعاملات',
-              subtitle: 'آخر الحركات في هذا الشهر',
+              title: 'آخر المعاملات',
               accentColor: _green,
-              onMore: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => AllTransactionsScreen(
-                  cubit: widget.cubit,
-                  allTransactions: allTx,
-                  initialMonth: _month,
-                ),
-              )),
               child: monthTx.isEmpty
                   ? const _EmptyHint(text: 'لا توجد معاملات لهذا الشهر.')
                   : Column(
                       children: [
-                        ...monthTx
-                            .take(5)
-                            .map((t) => _CompactTxCard(
-                                  transaction: t,
-                                  state: state,
-                                  onTap: () => openTransactionDetailsSheet(
-                                      context,
-                                      cubit: widget.cubit,
-                                      transaction: t),
-                                )),
+                        ...monthTx.take(4).map((t) => _CompactTxCard(
+                              transaction: t,
+                              state: state,
+                              onTap: () => openTransactionDetailsSheet(context,
+                                  cubit: widget.cubit, transaction: t),
+                            )),
                         const SizedBox(height: 4),
                         // كارت المزيد
                         GestureDetector(
@@ -154,8 +129,10 @@ class _MoneyScreenState extends State<MoneyScreen> {
                                           fontSize: 13,
                                           fontWeight: FontWeight.w800)),
                                   const SizedBox(width: 6),
-                                  Icon(Icons.arrow_back_ios_new_rounded,
-                                      color: _green, size: 12),
+                                  Icon(Icons.chevron_left_rounded,
+                                      color: _green,
+                                      size: 18,
+                                      textDirection: ui.TextDirection.ltr),
                                 ],
                               ),
                             ),
@@ -168,8 +145,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
 
             // ── Chart preview section ──────────────────────────────────
             _SectionCard(
-              title: 'الرسم البياني',
-              subtitle: 'ملخص مالي سريع',
+              title: 'المصروف',
               accentColor: _green,
               onMore: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => TransactionChartsScreen(
@@ -182,9 +158,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   ? const _EmptyHint(text: 'لا توجد بيانات لهذا الشهر.')
                   : _MiniChartPreview(
                       monthTx: monthTx,
-                      netIncome: netIncome,
                       netExpense: netExpense,
-                      categories: state.categories,
                     ),
             ),
             const SizedBox(height: 24),
@@ -214,7 +188,7 @@ class _MonthBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _NavBtn(icon: Icons.chevron_right_rounded, onTap: onPrev),
+          _NavBtn(icon: Icons.chevron_left_rounded, onTap: onPrev),
           Expanded(
             child: Center(
               child: Text(
@@ -227,7 +201,7 @@ class _MonthBar extends StatelessWidget {
               ),
             ),
           ),
-          _NavBtn(icon: Icons.chevron_left_rounded, onTap: onNext),
+          _NavBtn(icon: Icons.chevron_right_rounded, onTap: onNext),
         ],
       ),
     );
@@ -250,7 +224,10 @@ class _NavBtn extends StatelessWidget {
           color: const Color(0xFF165b47).withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: const Color(0xFF165b47), size: 22),
+        child: Icon(icon,
+            color: const Color(0xFF165b47),
+            size: 22,
+            textDirection: ui.TextDirection.ltr),
       ),
     );
   }
@@ -264,55 +241,20 @@ class _HeroCard extends StatelessWidget {
     required this.netIncome,
     required this.netExpense,
     required this.netSaving,
-    required this.savingRate,
     required this.currencyCode,
   });
 
-  final double totalBalance, netIncome, netExpense, netSaving, savingRate;
+  final double totalBalance, netIncome, netExpense, netSaving;
   final String currencyCode;
-
-  /// Returns gradient colors based on saving health
-  static List<Color> _gradientColors(double rate) {
-    if (rate >= 0.35) {
-      // Healthy — deep green
-      return [const Color(0xFF1e7a30), const Color(0xFF0b5c1a)];
-    } else if (rate >= 0.15) {
-      // Decent — medium green
-      return [const Color(0xFF2E8B57), const Color(0xFF1B6640)];
-    } else if (rate >= 0.03) {
-      // Getting tight — amber/yellow
-      return [const Color(0xFFB8820C), const Color(0xFF8B6508)];
-    } else if (rate >= -0.05) {
-      // Almost empty — orange
-      return [const Color(0xFFBF5E14), const Color(0xFF9C4410)];
-    } else {
-      // Over budget — red
-      return [const Color(0xFFC0392B), const Color(0xFF96261E)];
-    }
-  }
-
-  static Color _shadowColor(double rate) {
-    if (rate >= 0.35) return const Color(0x381e7a30);
-    if (rate >= 0.15) return const Color(0x352E8B57);
-    if (rate >= 0.03) return const Color(0x38B8820C);
-    if (rate >= -0.05) return const Color(0x38BF5E14);
-    return const Color(0x38C0392B);
-  }
-
-  static Color _barColor(double rate) {
-    if (rate >= 0.15) return const Color(0xFF4ADE80);
-    if (rate >= 0.03) return const Color(0xFFFFD060);
-    if (rate >= -0.05) return const Color(0xFFFFAA40);
-    return const Color(0xFFF87171);
-  }
 
   @override
   Widget build(BuildContext context) {
     final isPositive = netSaving >= 0;
-    final savingPct = (savingRate * 100).toStringAsFixed(0);
-    final gradColors = _gradientColors(savingRate);
-    final shadowC = _shadowColor(savingRate);
-    final barC = _barColor(savingRate);
+    final gradColors = isPositive
+        ? [const Color(0xFF1E6B4B), const Color(0xFF104C35)]
+        : [const Color(0xFF9B2C2C), const Color(0xFF6F1D1D)];
+    final shadowC =
+        isPositive ? const Color(0x241E6B4B) : const Color(0x249B2C2C);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -322,17 +264,17 @@ class _HeroCard extends StatelessWidget {
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             color: shadowC,
-            blurRadius: 32,
-            offset: const Offset(0, 16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -341,7 +283,7 @@ class _HeroCard extends StatelessWidget {
               'إجمالي المحافظ',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.72),
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -354,9 +296,8 @@ class _HeroCard extends StatelessWidget {
                     totalBalance.toStringAsFixed(2),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 38,
+                      fontSize: 26,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -1,
                       height: 1.0,
                     ),
                   ),
@@ -374,7 +315,7 @@ class _HeroCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
             // ── Three stats: income / expense / saving ──────────────────
             Row(
@@ -415,48 +356,6 @@ class _HeroCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-
-            // ── Saving rate bar ─────────────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'نسبة التوفير',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: barC.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '$savingPct%',
-                    style: TextStyle(
-                      color: barC,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 7),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: savingRate.clamp(0.0, 1.0),
-                minHeight: 8,
-                backgroundColor: Colors.white.withValues(alpha: 0.16),
-                valueColor: AlwaysStoppedAnimation(barC),
-              ),
-            ),
           ],
         ),
       ),
@@ -480,7 +379,7 @@ class _HeroStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(16),
@@ -490,15 +389,15 @@ class _HeroStat extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 24,
+            height: 24,
             decoration: BoxDecoration(
               color: iconBg,
               borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(icon, color: iconColor, size: 15),
+            child: Icon(icon, color: iconColor, size: 14),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             value,
             style: const TextStyle(
@@ -525,6 +424,7 @@ class _HeroStat extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _QuickStatsRow extends StatelessWidget {
   const _QuickStatsRow({required this.monthTx, required this.categories});
   final List<TransactionEntity> monthTx;
@@ -681,9 +581,7 @@ class _CompactTxCard extends StatelessWidget {
             : const Color(0xFFE3F2FD);
 
     // استخدام لون وأيقونة الفئة لو موجودة
-    final cat = state.categories
-        .where((c) => c.id == transaction.categoryId)
-        .firstOrNull;
+    final cat = getCategoryForTransaction(state, transaction.categoryId);
 
     final accentColor = cat != null
         ? parseCategoryColor(cat.color)
@@ -692,6 +590,11 @@ class _CompactTxCard extends StatelessWidget {
             : isExpense
                 ? const Color(0xFFDC2626)
                 : const Color(0xFF2563EB);
+    final amountColor = isExpense
+        ? const Color(0xFF991B1B)
+        : isIncome
+            ? const Color(0xFF166534)
+            : const Color(0xFF1D4ED8);
 
     final icon = cat != null
         ? AppIconPickerDialog.iconDataForName(cat.icon)
@@ -704,16 +607,24 @@ class _CompactTxCard extends StatelessWidget {
     // الاسم: اسم الفئة > الملاحظات > نوع المعاملة
     final label = cat?.name ??
         (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
-        (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
+        (isIncome
+            ? 'دخل'
+            : isExpense
+                ? 'مصروف'
+                : 'تحويل');
 
     final dateStr = DateFormat('d MMM', 'ar').format(transaction.createdAt);
-    final sign = isIncome ? '+' : isExpense ? '-' : '';
+    final sign = isIncome
+        ? '+'
+        : isExpense
+            ? '-'
+            : '';
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(14),
@@ -724,10 +635,10 @@ class _CompactTxCard extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.15),
+                color: accentColor,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: accentColor, size: 17),
+              child: Icon(icon, color: Colors.white, size: 17),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -748,10 +659,10 @@ class _CompactTxCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     dateStr,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: accentColor.withValues(alpha: 0.70),
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF4B5563),
                     ),
                   ),
                 ],
@@ -762,7 +673,7 @@ class _CompactTxCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: accentColor,
+                color: amountColor,
               ),
             ),
           ],
@@ -777,15 +688,14 @@ class _CompactTxCard extends StatelessWidget {
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
-    required this.subtitle,
     required this.child,
-    required this.onMore,
     required this.accentColor,
+    this.onMore,
   });
 
-  final String title, subtitle;
+  final String title;
   final Widget child;
-  final VoidCallback onMore;
+  final VoidCallback? onMore;
   final Color accentColor;
 
   @override
@@ -820,39 +730,25 @@ class _SectionCard extends StatelessWidget {
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
                               color: Color(0xFF1A1A1A))),
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF8A7F72),
-                              fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: onMore,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('المزيد',
-                            style: TextStyle(
-                                color: accentColor,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700)),
-                        const SizedBox(width: 4),
-                        Icon(Icons.arrow_back_ios_new_rounded,
-                            color: accentColor, size: 12),
-                      ],
+                if (onMore != null)
+                  GestureDetector(
+                    onTap: onMore,
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Icon(Icons.chevron_left_rounded,
+                          color: accentColor,
+                          size: 20,
+                          textDirection: ui.TextDirection.ltr),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -890,22 +786,14 @@ class _EmptyHint extends StatelessWidget {
 class _MiniChartPreview extends StatelessWidget {
   const _MiniChartPreview({
     required this.monthTx,
-    required this.netIncome,
     required this.netExpense,
-    required this.categories,
   });
 
   final List<TransactionEntity> monthTx;
-  final double netIncome, netExpense;
-  final List<CategoryEntity> categories;
+  final double netExpense;
 
   @override
   Widget build(BuildContext context) {
-    final max = math.max(netIncome, netExpense).clamp(1.0, double.infinity);
-    final net = netIncome - netExpense;
-    final isPositive = net >= 0;
-
-    // Daily cumulative expense sparkline (last 30 days)
     final now = DateTime.now();
     final days = List.generate(14, (i) => now.subtract(Duration(days: 13 - i)));
     final dailyExpense = days.map((d) {
@@ -916,99 +804,16 @@ class _MiniChartPreview extends StatelessWidget {
               t.createdAt.month == d.month)
           .fold<double>(0, (s, t) => s + t.amount);
     }).toList();
-    final maxDaily = dailyExpense.reduce(math.max).clamp(1.0, double.infinity);
-
-    // Top categories
-    final catMap = <String, double>{};
-    for (final t in monthTx.where((t) => t.type == TransactionType.expense.value)) {
-      if (t.categoryId != null) {
-        catMap[t.categoryId!] = (catMap[t.categoryId!] ?? 0) + t.amount;
-      }
-    }
-    final top3 = (catMap.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value)))
-        .take(3)
-        .toList();
-    final totalExp = netExpense.clamp(1.0, double.infinity);
+    final maxDaily = math
+        .max(netExpense, dailyExpense.reduce(math.max))
+        .clamp(1.0, double.infinity);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Income vs Expense bars ──────────────────────────────────
-        _gradientBar(
-          label: 'الدخل',
-          ratio: netIncome / max,
-          color: const Color(0xFF16A34A),
-          value: netIncome.toStringAsFixed(0),
-        ),
-        const SizedBox(height: 10),
-        _gradientBar(
-          label: 'المصروف',
-          ratio: netExpense / max,
-          color: const Color(0xFFDC2626),
-          value: netExpense.toStringAsFixed(0),
-        ),
-        const SizedBox(height: 12),
-
-        // ── Net pill ────────────────────────────────────────────────
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            color:
-                (isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626))
-                    .withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: (isPositive
-                      ? const Color(0xFF16A34A)
-                      : const Color(0xFFDC2626))
-                  .withValues(alpha: 0.20),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isPositive
-                    ? Icons.trending_up_rounded
-                    : Icons.trending_down_rounded,
-                color: isPositive
-                    ? const Color(0xFF16A34A)
-                    : const Color(0xFFDC2626),
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  isPositive ? 'وفّرت هذا الشهر' : 'مصروفك أكبر من دخلك',
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-              ),
-              Text(
-                '${isPositive ? '+' : ''}${net.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: isPositive
-                      ? const Color(0xFF16A34A)
-                      : const Color(0xFFDC2626),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ── Daily sparkline ─────────────────────────────────────────
         if (dailyExpense.any((d) => d > 0)) ...[
-          const SizedBox(height: 14),
-          const Text('المصروف اليومي',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF8A7F72),
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
           SizedBox(
-            height: 40,
+            height: 58,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: dailyExpense.asMap().entries.map((e) {
@@ -1023,7 +828,7 @@ class _MiniChartPreview extends StatelessWidget {
                       children: [
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
-                          height: ratio * 36 + (ratio > 0 ? 4 : 0),
+                          height: ratio * 52 + (ratio > 0 ? 5 : 0),
                           decoration: BoxDecoration(
                             color: isToday
                                 ? const Color(0xFFDC2626)
@@ -1039,138 +844,10 @@ class _MiniChartPreview extends StatelessWidget {
               }).toList(),
             ),
           ),
+        ] else ...[
+          const _EmptyHint(text: 'لا توجد مصروفات لهذا الشهر.'),
         ],
-
-        // ── Top categories ──────────────────────────────────────────
-        if (top3.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          const Text('أعلى فئات المصروف',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF8A7F72),
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ...top3.asMap().entries.map((e) {
-            final cat =
-                categories.where((c) => c.id == e.value.key).firstOrNull;
-            final ratio = e.value.value / totalExp;
-            final barColors = [
-              const Color(0xFFDC2626),
-              const Color(0xFFF97316),
-              const Color(0xFFF59E0B),
-            ];
-            final c = barColors[e.key % barColors.length];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 68,
-                    child: Text(
-                      cat?.name ?? 'أخرى',
-                      style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: c.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: ratio,
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: c,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 50,
-                    child: Text(
-                      '${(ratio * 100).toStringAsFixed(0)}%',
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: c),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ],
-    );
-  }
-
-  Widget _gradientBar(
-      {required String label,
-      required double ratio,
-      required Color color,
-      required String value}) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(label,
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-        ),
-        Expanded(
-          child: Stack(
-            children: [
-              Container(
-                height: 14,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: ratio.clamp(0.0, 1.0),
-                child: Container(
-                  height: 14,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        color.withValues(alpha: 0.65),
-                        color,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 60,
-          child: Text(value,
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w800, color: color)),
-        ),
       ],
     );
   }
 }
-
-

@@ -1011,8 +1011,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     double? progress,
     Color? progressColor,
     Color? tint,
+    Color? amountColor,
     bool compactMeta = false,
     bool embeddedInIncomeCard = false,
+    bool strongTint = false,
   }) {
     final theme = Theme.of(context);
     final tileTint = tint ?? theme.colorScheme.surface;
@@ -1028,12 +1030,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         : BoxDecoration(
             color: tint == null
                 ? theme.colorScheme.surface
-                : tileTint.withValues(alpha: 0.08),
+                : tileTint.withValues(alpha: strongTint ? 0.16 : 0.08),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: tint == null
                   ? theme.colorScheme.outlineVariant
-                  : tileTint.withValues(alpha: 0.24),
+                  : tileTint.withValues(alpha: strongTint ? 0.45 : 0.24),
             ),
           );
     final radius = embeddedInIncomeCard ? 18.0 : 24.0;
@@ -1092,7 +1094,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: compactMeta ? 11 : 12,
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: strongTint
+                                  ? Color.lerp(tileTint, Colors.black, 0.35)
+                                  : theme.colorScheme.onSurfaceVariant,
                               fontWeight: compactMeta
                                   ? FontWeight.w600
                                   : FontWeight.w700,
@@ -1107,7 +1111,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                               supportingText,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: theme.colorScheme.onSurfaceVariant,
+                                color: strongTint
+                                    ? Color.lerp(tileTint, Colors.black, 0.35)
+                                    : theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1122,7 +1128,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF165B47),
+                          ).copyWith(
+                            color: amountColor ?? const Color(0xFF165B47),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -1141,7 +1148,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                       minHeight: 7,
                       color: progressColor ?? theme.colorScheme.primary,
                       backgroundColor:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.08),
+                          (strongTint ? tileTint : theme.colorScheme.onSurface)
+                              .withValues(alpha: strongTint ? 0.18 : 0.08),
                     ),
                   ),
                 ],
@@ -1164,19 +1172,24 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Widget _iconBadge(String iconName, String colorHex, {double size = 54}) {
+  Widget _iconBadge(
+    String iconName,
+    String colorHex, {
+    double size = 54,
+    bool solid = false,
+  }) {
     final color = _colorFromHex(colorHex);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: solid ? color : color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Center(
         child: AppIconPickerDialog.iconWidgetForName(
           iconName,
-          color: color,
+          color: solid ? Colors.white : color,
           size: size * 0.42,
         ),
       ),
@@ -1270,13 +1283,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required Color accent,
     required List<Widget> children,
     VoidCallback? onEdit,
+    bool strongTint = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
+        color: accent.withValues(alpha: strongTint ? 0.18 : 0.10),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
+        border:
+            Border.all(color: accent.withValues(alpha: strongTint ? 0.45 : 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1316,20 +1331,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         : (isExpense ? Icons.remove_rounded : Icons.swap_horiz_rounded);
     final defaultTitle = isIncome ? 'دخل' : (isExpense ? 'مصروف' : 'تحويل');
     final prefix = isIncome ? '+' : (isExpense ? '-' : '');
+    final category =
+        getCategoryForTransaction(widget.cubit.state, item.categoryId);
+    final tileAccent =
+        category != null ? parseCategoryColor(category.color) : amtColor;
 
     // اسم المعاملة: الفئة أولاً → الملاحظات → النوع
-    final categories = widget.cubit.state.categories;
     String txTitle = defaultTitle;
     String? txNotes;
-    if (item.categoryId != null && item.categoryId!.isNotEmpty) {
-      try {
-        final cat = categories.firstWhere((c) => c.id == item.categoryId);
-        txTitle = cat.name;
-        if (item.notes != null && item.notes!.isNotEmpty) {
-          txNotes = item.notes;
-        }
-      } catch (_) {
-        txTitle = item.notes?.isNotEmpty == true ? item.notes! : defaultTitle;
+    if (category != null) {
+      txTitle = category.name;
+      if (item.notes != null && item.notes!.isNotEmpty) {
+        txNotes = item.notes;
       }
     } else if (item.notes?.isNotEmpty == true) {
       txTitle = item.notes!;
@@ -1366,8 +1379,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: amtColor.withValues(alpha: 0.14),
-                  child: Icon(icon, color: amtColor, size: 22),
+                  backgroundColor: tileAccent,
+                  child: category != null
+                      ? AppIconPickerDialog.iconWidgetForName(
+                          category.icon,
+                          color: Colors.white,
+                          size: 20,
+                        )
+                      : Icon(icon, color: Colors.white, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2041,8 +2060,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     return _entityTile(
       title: allocation.name,
-      leading: _iconBadge(allocation.icon, allocation.iconColor,
-          size: hasPending ? 44 : 54),
+      leading: _iconBadge(
+        allocation.icon,
+        allocation.iconColor,
+        size: hasPending ? 44 : 54,
+        solid: true,
+      ),
       amountText: hasPending
           ? allocation.pendingDistribution.toStringAsFixed(2)
           : remaining.toStringAsFixed(2),
@@ -2052,7 +2075,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       compactMeta: hasPending,
       progress: hasPending ? null : ratio,
       progressColor: hasPending ? null : color,
-      tint: hasPending ? const Color(0xFFF5A623).withValues(alpha: 0.6) : null,
+      tint: hasPending
+          ? const Color(0xFFF5A623)
+          : _colorFromHex(allocation.iconColor),
+      amountColor: Color.lerp(_colorFromHex(allocation.iconColor), Colors.black, 0.35),
+      strongTint: true,
       onTap: () => _openAllocationSheet(state, allocation, monthTx),
       actions: hasPending
           ? [
@@ -3563,6 +3590,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         topSectionAfterGrab: [
           _trackingDetailHeroShell(
             accent: accent,
+            strongTint: true,
             onEdit: () {
               Navigator.pop(sheetContext);
               Future.microtask(() {
@@ -3574,7 +3602,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _iconBadge(allocation.icon, allocation.iconColor, size: 56),
+                  _iconBadge(
+                    allocation.icon,
+                    allocation.iconColor,
+                    size: 56,
+                    solid: true,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

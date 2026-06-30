@@ -401,7 +401,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final state = widget.cubit.state;
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final reserved = _walletReservedAmount(state, wallet.id);
-    final available = wallet.balance - reserved;
     final reservations =
         _walletReservations(state, wallet.id); // jarId -> amount
 
@@ -816,8 +815,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
       builder: (ctx) {
         var showWallets = false;
         var sortDescending = true;
-        String filterType = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
-        var sortDescending = true;
         var filterType = 'all'; // 'all' | 'income' | 'expense' | 'reserve' | 'transfer'
         return BlocBuilder<AppCubit, AppStateEntity>(
           bloc: widget.cubit,
@@ -843,6 +840,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     t.toWalletId == jarId ||
                     t.walletId == jarId ||
                     t.fromWalletId == jarId)
+                .where((t) => !_isJarWalletLocationTransaction(t))
                 .toList()
               ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -1221,15 +1219,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
                    const SizedBox(height: 8),
                    StatefulBuilder(
                      builder: (ctx2, setFilter) {
-                       var _sortDesc = sortDescending;
-                       var _filter = filterType;
+                       var sortDesc = sortDescending;
+                       var filter = filterType;
                        final filtered = relevantTransactions.where((t) {
-                         if (_filter == 'income') return t.type == TransactionType.income.value;
-                         if (_filter == 'expense') return t.type == TransactionType.expense.value;
-                         if (_filter == 'transfer') return t.type == TransactionType.transfer.value;
+                         if (filter == 'income') return t.type == TransactionType.income.value;
+                         if (filter == 'expense') return t.type == TransactionType.expense.value;
+                         if (filter == 'transfer') return t.type == TransactionType.transfer.value;
                          return true;
                        }).toList();
-                       if (!_sortDesc) filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                       if (!sortDesc) filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
                        return Column(
                          crossAxisAlignment: CrossAxisAlignment.start,
                          children: [
@@ -1523,6 +1521,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   .where((s) => s.walletId == walletId)
                                   .fold<double>(0, (s, e) => s + e.amount),
                               accent: accent,
+                            ),
+                            onLongPress: () => openTransactionDetailsSheet(
+                              bCtx,
+                              cubit: widget.cubit,
+                              transaction: t,
                             ),
                             child: Container(
                             padding: const EdgeInsets.all(14),
@@ -3276,6 +3279,14 @@ class _WalletsScreenState extends State<WalletsScreen> {
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
     return transaction.transferType == TransferType.jarFunding.value ||
         transaction.transferType == TransferType.jarAllocation.value ||
+        transaction.transferType == TransferType.jarAllocationCancel.value ||
+        transaction.transferType == TransferType.jarAllocationSpend.value ||
+        transaction.transferType == TransferType.allocationToJar.value ||
+        transaction.transferType == TransferType.jarToAllocation.value;
+  }
+
+  bool _isJarWalletLocationTransaction(TransactionEntity transaction) {
+    return transaction.transferType == TransferType.jarAllocation.value ||
         transaction.transferType == TransferType.jarAllocationCancel.value ||
         transaction.transferType == TransferType.jarAllocationSpend.value ||
         transaction.transferType == TransferType.allocationToJar.value ||

@@ -116,7 +116,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _incomeJarId = t.toWalletId!;
       }
       // تحميل الفئة المحددة
-      _selectedCategoryId = t.categoryId;
+      if (t.type == TransactionType.income.value) {
+        _selectedIncomeCategoryId = t.categoryId;
+      } else {
+        _selectedCategoryId = t.categoryId;
+      }
     }
   }
 
@@ -882,7 +886,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     notes: _notesController.text.trim().isEmpty
                                         ? null
                                         : _notesController.text.trim(),
-                                    categoryId: _selectedCategoryId,
+                                    categoryId: _type ==
+                                            TransactionType.income.value
+                                        ? _selectedIncomeCategoryId
+                                        : _selectedCategoryId,
                                   );
                                 }
                                 if (!context.mounted) return;
@@ -1677,6 +1684,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // ─────────────────────────────────────────────────────────────────────────
   // CATEGORIES BLOCK — selectable chips
   // ─────────────────────────────────────────────────────────────────────────
+  // ignore: unused_element
   Widget _categoriesBlock({
     required String title,
     required List<CategoryEntity> categories,
@@ -1925,7 +1933,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (!mounted) return;
     // تحديد الفئة الجديدة تلقائياً بعد إضافتها
-    setState(() => _selectedCategoryId = category.id);
+    setState(() {
+      if (scope == 'income') {
+        _selectedIncomeCategoryId = category.id;
+      } else {
+        _selectedCategoryId = category.id;
+      }
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -36,16 +36,16 @@ Future<void> openTransactionDetailsSheet(
   final theme = Theme.of(context);
   final rows = _detailRows(cubit, transaction);
   final state = cubit.state;
-  final accent = _accentForTransaction(theme, transaction);
+  final fallbackAccent = _accentForTransaction(theme, transaction);
 
   final category = getCategoryForTransaction(state, transaction.categoryId);
+  final accent =
+      category != null ? parseCategoryColor(category.color) : fallbackAccent;
   final displayTitle =
       category?.name ?? _transactionDisplayTitle(state, transaction);
   final displayIcon = category != null
       ? parseCategoryIcon(category.icon)
       : _iconForTransaction(transaction);
-  final displayColor =
-      category != null ? parseCategoryColor(category.color) : accent;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -79,7 +79,7 @@ Future<void> openTransactionDetailsSheet(
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.20),
+                      color: Colors.white.withValues(alpha: 0.28),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(displayIcon, color: Colors.white, size: 24),

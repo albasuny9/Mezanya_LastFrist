@@ -1,5 +1,6 @@
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -32,7 +33,9 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
   bool _isJarTx(TransactionEntity t) =>
       t.transferType == TransferType.jarAllocation.value ||
       t.transferType == TransferType.jarAllocationCancel.value ||
-      t.transferType == TransferType.jarAllocationSpend.value;
+      t.transferType == TransferType.jarAllocationSpend.value ||
+      t.transferType == TransferType.allocationToJar.value ||
+      t.transferType == TransferType.jarToAllocation.value;
 
   @override
   void initState() {
@@ -196,7 +199,8 @@ class _ChartsPeriodBar extends StatelessWidget {
           // Prev arrow
           IconButton(
             onPressed: onPrev,
-            icon: const Icon(Icons.chevron_right_rounded, size: 26),
+            icon: const Icon(Icons.chevron_left_rounded,
+                size: 26, textDirection: ui.TextDirection.ltr),
             color: const Color(0xFF165b47),
           ),
 
@@ -233,7 +237,8 @@ class _ChartsPeriodBar extends StatelessWidget {
           // Next arrow
           IconButton(
             onPressed: onNext,
-            icon: const Icon(Icons.chevron_left_rounded, size: 26),
+            icon: const Icon(Icons.chevron_right_rounded,
+                size: 26, textDirection: ui.TextDirection.ltr),
             color: const Color(0xFF165b47),
           ),
 

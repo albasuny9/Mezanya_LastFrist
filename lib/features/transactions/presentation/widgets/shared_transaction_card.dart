@@ -128,6 +128,9 @@ class SharedTransactionCard extends StatelessWidget {
         ? Color(
             0xFF000000 | int.parse(cat.color.replaceFirst('#', ''), radix: 16))
         : color;
+    final iconColor = Color.lerp(catColor, Colors.black, 0.25)!;
+    final amountColor =
+        isNegative ? const Color(0xFF991B1B) : const Color(0xFF166534);
 
     // Resolve Wallet
     String? walletName;
@@ -182,18 +185,18 @@ class SharedTransactionCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: catColor.withValues(alpha: 0.12),
+                color: catColor.withValues(alpha: 0.24),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: cat != null
                   ? Center(
                       child: AppIconPickerDialog.iconWidgetForName(
                         cat.icon,
-                        color: catColor,
+                        color: iconColor,
                         size: 24,
                       ),
                     )
-                  : Icon(_fallbackIcon(), color: color, size: 24),
+                  : Icon(_fallbackIcon(), color: iconColor, size: 24),
             ),
             const SizedBox(width: 14),
 
@@ -318,14 +321,14 @@ class SharedTransactionCard extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 18,
-                    color: _typeColor(),
+                    color: amountColor,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   dateStr,
                   style: const TextStyle(
-                    color: Color(0xFF9A9181),
+                    color: Color(0xFF4B5563),
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),

@@ -1,11 +1,11 @@
 import 'package:mezanya_app/core/constants/transaction_types.dart';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
-import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 
@@ -49,7 +49,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     _anchor = DateTime(widget.initialMonth.year, widget.initialMonth.month, 1);
   }
 
-  bool _isJarTx(TransactionEntity t) => false;
+  bool _isJarTx(TransactionEntity t) =>
+      t.transferType == TransferType.jarAllocation.value ||
+      t.transferType == TransferType.jarAllocationCancel.value ||
+      t.transferType == TransferType.jarAllocationSpend.value ||
+      t.transferType == TransferType.allocationToJar.value ||
+      t.transferType == TransferType.jarToAllocation.value;
 
   // ── Period navigation ──────────────────────────────────────────────────────
 
@@ -398,12 +403,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   Widget build(BuildContext context) {
     final categories = widget.cubit.state.categories;
     final filtered = _filtered();
-    final totalIn = filtered
-        .where((t) => t.type == TransactionType.income.value)
-        .fold<double>(0, (s, t) => s + t.amount);
-    final totalOut = filtered
-        .where((t) => t.type == TransactionType.expense.value)
-        .fold<double>(0, (s, t) => s + t.amount);
 
     final grouped = <String, List<TransactionEntity>>{};
     for (final t in filtered) {
@@ -418,111 +417,41 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top period bar ─────────────────────────────────────────
+            const _PageTitleBar(),
             _PeriodTopBar(
               label: _periodLabel(),
               showArrows: _period != _Period.custom,
               onPrev: _prev,
               onNext: _next,
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  _HeaderIconButton(
+                    icon: _sortAscending
+                        ? Icons.arrow_upward_rounded
+                        : Icons.arrow_downward_rounded,
+                    isActive: true,
+                    onTap: () =>
+                        setState(() => _sortAscending = !_sortAscending),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderIconButton(
+                    icon: Icons.tune_rounded,
+                    isActive: _typeTab != 'all' || _period == _Period.custom,
+                    onTap: _openFilterSheet,
+                  ),
+                ],
+              ),
+            ),
 
             // ── Content ────────────────────────────────────────────────
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                 children: [
-                  // Summary card
-                  _SummaryCard(
-                      totalIn: totalIn,
-                      totalOut: totalOut,
-                      count: filtered.length),
-                  const SizedBox(height: 12),
-
-                  // Sort and Filter Bar
-                  Row(
-                    children: [
-                      // Sort Button
-                      InkWell(
-                        onTap: () =>
-                            setState(() => _sortAscending = !_sortAscending),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Ink(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: const Color(0xFF165b47)
-                                    .withValues(alpha: 0.15)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _sortAscending
-                                    ? Icons.arrow_upward_rounded
-                                    : Icons.arrow_downward_rounded,
-                                size: 18,
-                                color: const Color(0xFF165b47),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _sortAscending ? 'تصاعدي' : 'تنازلي',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF165b47),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      // Filter Button
-                      InkWell(
-                        onTap: _openFilterSheet,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Ink(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _typeTab != 'all'
-                                ? const Color(0xFF165b47)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: const Color(0xFF165b47)
-                                    .withValues(alpha: 0.15)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.tune_rounded,
-                                size: 18,
-                                color: _typeTab != 'all'
-                                    ? Colors.white
-                                    : const Color(0xFF165b47),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'تصفية',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: _typeTab != 'all'
-                                      ? Colors.white
-                                      : const Color(0xFF165b47),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-
                   // Empty state
                   if (filtered.isEmpty)
                     const _EmptyState()
@@ -558,6 +487,75 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
 // ── Period Top Bar ──────────────────────────────────────────────────────────
 
+class _PageTitleBar extends StatelessWidget {
+  const _PageTitleBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFFFFBF1),
+      padding: const EdgeInsets.fromLTRB(4, 8, 16, 6),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            color: const Color(0xFF165b47),
+          ),
+          const Expanded(
+            child: Text(
+              'كل المعاملات',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF165b47),
+              ),
+            ),
+          ),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(13),
+      child: Ink(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFF165b47) : Colors.white,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(
+            color: const Color(0xFF165b47).withValues(alpha: 0.16),
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: isActive ? Colors.white : const Color(0xFF165b47),
+        ),
+      ),
+    );
+  }
+}
+
 class _PeriodTopBar extends StatelessWidget {
   const _PeriodTopBar({
     required this.label,
@@ -574,23 +572,19 @@ class _PeriodTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFFFFFBF1),
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
       child: Row(
         children: [
-          // Back button
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            color: const Color(0xFF165b47),
-          ),
-
           // Prev arrow
           if (showArrows)
             IconButton(
               onPressed: onPrev,
-              icon: const Icon(Icons.chevron_right_rounded, size: 26),
+              icon: const Icon(Icons.chevron_left_rounded,
+                  size: 26, textDirection: ui.TextDirection.ltr),
               color: const Color(0xFF165b47),
-            ),
+            )
+          else
+            const SizedBox(width: 48),
 
           // Period label
           Expanded(
@@ -616,9 +610,12 @@ class _PeriodTopBar extends StatelessWidget {
           if (showArrows)
             IconButton(
               onPressed: onNext,
-              icon: const Icon(Icons.chevron_left_rounded, size: 26),
+              icon: const Icon(Icons.chevron_right_rounded,
+                  size: 26, textDirection: ui.TextDirection.ltr),
               color: const Color(0xFF165b47),
-            ),
+            )
+          else
+            const SizedBox(width: 48),
         ],
       ),
     );
@@ -719,6 +716,7 @@ class _DatePickerBox extends StatelessWidget {
 
 // ── Summary Card ────────────────────────────────────────────────────────────
 
+// ignore: unused_element
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.totalIn,
@@ -798,6 +796,7 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _GlassTile extends StatelessWidget {
   const _GlassTile({
     required this.label,
@@ -999,9 +998,7 @@ class _AllTxCard extends StatelessWidget {
             ? const Color(0xFFFFEBEE)
             : const Color(0xFFE3F2FD);
 
-    final cat = state.categories
-        .where((c) => c.id == transaction.categoryId)
-        .firstOrNull;
+    final cat = getCategoryForTransaction(state, transaction.categoryId);
 
     final accent = cat != null
         ? parseCategoryColor(cat.color)
@@ -1010,6 +1007,12 @@ class _AllTxCard extends StatelessWidget {
             : isExpense
                 ? const Color(0xFFDC2626)
                 : const Color(0xFF2563EB);
+    final iconColor = Color.lerp(accent, Colors.black, 0.25)!;
+    final amountColor = isExpense
+        ? const Color(0xFF991B1B)
+        : isIncome
+            ? const Color(0xFF166534)
+            : const Color(0xFF1D4ED8);
 
     final icon = cat != null
         ? AppIconPickerDialog.iconDataForName(cat.icon)
@@ -1021,9 +1024,17 @@ class _AllTxCard extends StatelessWidget {
 
     final label = cat?.name ??
         (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
-        (isIncome ? 'دخل' : isExpense ? 'مصروف' : 'تحويل');
+        (isIncome
+            ? 'دخل'
+            : isExpense
+                ? 'مصروف'
+                : 'تحويل');
 
-    final sign = isIncome ? '+' : isExpense ? '-' : '';
+    final sign = isIncome
+        ? '+'
+        : isExpense
+            ? '-'
+            : '';
     final timeStr =
         DateFormat('d MMM · HH:mm', 'ar').format(transaction.createdAt);
 
@@ -1031,10 +1042,31 @@ class _AllTxCard extends StatelessWidget {
         .where((w) => w.id == transaction.walletId)
         .map((w) => w.name)
         .firstOrNull;
+    final allocationName = transaction.allocationId == null
+        ? null
+        : state.budgetSetup.allocations
+            .where((a) => a.id == transaction.allocationId)
+            .map((a) => a.name)
+            .firstOrNull;
+    final targetJarName = transaction.toWalletId == null
+        ? null
+        : state.budgetSetup.linkedWallets
+            .where((j) => j.id == transaction.toWalletId)
+            .map((j) => j.name)
+            .firstOrNull;
+    final incomeSourceName = transaction.incomeSourceId == null
+        ? null
+        : state.budgetSetup.incomeSources
+            .where((s) => s.id == transaction.incomeSourceId)
+            .map((s) => s.name)
+            .firstOrNull;
 
     // ليبيلات إضافية (ماكس ٢)
     final chips = <String>[];
     if (walletName != null) chips.add(walletName);
+    if (allocationName != null) chips.add(allocationName);
+    if (targetJarName != null) chips.add('حصالة: $targetJarName');
+    if (incomeSourceName != null) chips.add('مصدر: $incomeSourceName');
     if (transaction.notes?.isNotEmpty == true && cat != null) {
       chips.add(transaction.notes!);
     }
@@ -1042,23 +1074,25 @@ class _AllTxCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        constraints: const BoxConstraints(minHeight: 96),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent.withValues(alpha: 0.20)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // أيقونة
             Container(
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.15),
+                color: accent,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: accent, size: 19),
+              child: Icon(icon, color: Colors.white, size: 23),
             ),
             const SizedBox(width: 12),
             // اسم + تاريخ + chips
@@ -1072,43 +1106,49 @@ class _AllTxCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        timeStr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: accent.withValues(alpha: 0.55),
-                        ),
-                      ),
-                      ...chips.take(2).map((chip) => Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              chip,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: accent,
-                              ),
-                            ),
-                          )),
-                    ],
+                  const SizedBox(height: 8),
+                  Text(
+                    timeStr,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4B5563),
+                    ),
                   ),
+                  if (chips.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: chips
+                          .take(4)
+                          .map((chip) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.28),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  chip,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color.lerp(
+                                        iconColor, Colors.black, 0.15),
+                                  ),
+                                ),
+                              ))
+                          .toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1117,9 +1157,9 @@ class _AllTxCard extends StatelessWidget {
             Text(
               '$sign${transaction.amount.toStringAsFixed(0)}',
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: accent,
+                color: amountColor,
               ),
             ),
           ],
