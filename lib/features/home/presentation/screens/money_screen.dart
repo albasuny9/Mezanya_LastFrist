@@ -8,27 +8,18 @@ import '../../../../core/constants/transaction_types.dart';
 
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
-import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
-import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
-import '../../../../core/widgets/app_icon_picker_dialog.dart';
+import '../widgets/recent_transaction_card.dart';
 import 'all_transactions_screen.dart';
 import 'transaction_charts_screen.dart';
 
-class MoneyScreen extends StatefulWidget {
+class MoneyScreen extends StatelessWidget {
   const MoneyScreen({super.key, required this.cubit});
   final AppCubit cubit;
 
-  @override
-  State<MoneyScreen> createState() => _MoneyScreenState();
-}
-
-class _MoneyScreenState extends State<MoneyScreen> {
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month, 1);
-
   static const _green = Color(0xFF165b47);
 
-  bool _isJarTx(TransactionEntity t) =>
+  static bool _isJarTx(TransactionEntity t) =>
       t.transferType == TransferType.jarAllocation.value ||
       t.transferType == TransferType.jarAllocationCancel.value ||
       t.transferType == TransferType.jarAllocationSpend.value ||
@@ -36,46 +27,49 @@ class _MoneyScreenState extends State<MoneyScreen> {
       t.transferType == TransferType.jarToAllocation.value ||
       t.transferType == TransferType.jarToJar.value;
 
+  static List<TransactionEntity> _visibleTransactions(
+    List<TransactionEntity> allTx,
+  ) {
+    return allTx.where((t) => !_isJarTx(t)).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  static List<TransactionEntity> _lastSevenDaysTransactions(
+    List<TransactionEntity> visibleTx,
+  ) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(const Duration(days: 6));
+    return visibleTx.where((t) {
+      final day = DateTime(t.createdAt.year, t.createdAt.month, t.createdAt.day);
+      return !day.isBefore(start) && !day.isAfter(today);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AppStateEntity>(
-      stream: widget.cubit.stream,
-      initialData: widget.cubit.state,
+      stream: cubit.stream,
+      initialData: cubit.state,
       builder: (context, snap) {
-        final state = snap.data ?? widget.cubit.state;
-        final wallets = state.wallets;
+        final state = snap.data ?? cubit.state;
         final allTx = state.transactions;
-        final monthTx = allTx
-            .where((t) =>
-                t.createdAt.year == _month.year &&
-                t.createdAt.month == _month.month &&
-                !_isJarTx(t))
-            .toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
+        final wallets = state.wallets;
+        final visibleTx = _visibleTransactions(allTx);
+        final recentTx = visibleTx.take(4).toList();
+        final weekTx = _lastSevenDaysTransactions(visibleTx);
         final totalBalance = wallets.fold<double>(0, (s, w) => s + w.balance);
-        final netIncome = monthTx
+        final netIncome = weekTx
             .where((t) => t.type == TransactionType.income.value)
             .fold<double>(0, (s, t) => s + t.amount);
-        final netExpense = monthTx
+        final netExpense = weekTx
             .where((t) => t.type == TransactionType.expense.value)
             .fold<double>(0, (s, t) => s + t.amount);
         final netSaving = netIncome - netExpense;
-        // Empty month → full green; spending with no income → red
-        return ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            // ── Month selector bar (above card) ────────────────────────
-            _MonthBar(
-              month: _month,
-              onPrev: () => setState(
-                  () => _month = DateTime(_month.year, _month.month - 1, 1)),
-              onNext: () => setState(
-                  () => _month = DateTime(_month.year, _month.month + 1, 1)),
-            ),
-            const SizedBox(height: 10),
 
-            // ── Hero card ──────────────────────────────────────────────
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(0, 12, 0, 24),
+          children: [
             _HeroCard(
               totalBalance: totalBalance,
               netIncome: netIncome,
@@ -84,30 +78,26 @@ class _MoneyScreenState extends State<MoneyScreen> {
               currencyCode: state.currencyCode,
             ),
             const SizedBox(height: 14),
-
-            // ── Transactions section ───────────────────────────────────
             _SectionCard(
               title: 'آخر المعاملات',
               accentColor: _green,
-              child: monthTx.isEmpty
-                  ? const _EmptyHint(text: 'لا توجد معاملات لهذا الشهر.')
+              child: recentTx.isEmpty
+                  ? const _EmptyHint(text: 'لا توجد معاملات بعد.')
                   : Column(
                       children: [
-                        ...monthTx.take(4).map((t) => _CompactTxCard(
-                              transaction: t,
-                              state: state,
-                              onTap: () => openTransactionDetailsSheet(context,
-                                  cubit: widget.cubit, transaction: t),
-                            )),
-                        const SizedBox(height: 4),
-                        // كارت المزيد
+                        RecentTransactionsGroup(
+                          transactions: recentTx,
+                          cubit: cubit,
+                          showDateWithTime: true,
+                        ),
+                        const SizedBox(height: 10),
                         GestureDetector(
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => AllTransactionsScreen(
-                                cubit: widget.cubit,
+                                cubit: cubit,
                                 allTransactions: allTx,
-                                initialMonth: _month,
+                                initialMonth: DateTime.now(),
                               ),
                             ),
                           ),
@@ -142,98 +132,32 @@ class _MoneyScreenState extends State<MoneyScreen> {
                     ),
             ),
             const SizedBox(height: 14),
-
-            // ── Chart preview section ──────────────────────────────────
             _SectionCard(
-              title: 'المصروف',
+              title: 'التحليل',
               accentColor: _green,
               onMore: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => TransactionChartsScreen(
-                  cubit: widget.cubit,
+                  cubit: cubit,
                   allTransactions: allTx,
-                  initialMonth: _month,
+                  initialMonth: DateTime.now(),
                 ),
               )),
-              child: monthTx.isEmpty
-                  ? const _EmptyHint(text: 'لا توجد بيانات لهذا الشهر.')
-                  : _MiniChartPreview(
-                      monthTx: monthTx,
+              child: weekTx.isEmpty
+                  ? const _EmptyHint(
+                      text: 'لا توجد حركة دخل أو مصروف في آخر ٧ أيام.',
+                    )
+                  : _AnalysisPreview(
+                      weekTx: weekTx,
+                      netIncome: netIncome,
                       netExpense: netExpense,
                     ),
             ),
-            const SizedBox(height: 24),
           ],
         );
       },
     );
   }
 }
-
-// ── Month Bar (above hero card) ─────────────────────────────────────────────
-
-class _MonthBar extends StatelessWidget {
-  const _MonthBar({
-    required this.month,
-    required this.onPrev,
-    required this.onNext,
-  });
-
-  final DateTime month;
-  final VoidCallback onPrev, onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = DateFormat('MMMM yyyy', 'ar').format(month);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _NavBtn(icon: Icons.chevron_left_rounded, onTap: onPrev),
-          Expanded(
-            child: Center(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF165b47),
-                ),
-              ),
-            ),
-          ),
-          _NavBtn(icon: Icons.chevron_right_rounded, onTap: onNext),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavBtn extends StatelessWidget {
-  const _NavBtn({required this.icon, required this.onTap});
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: const Color(0xFF165b47).withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon,
-            color: const Color(0xFF165b47),
-            size: 22,
-            textDirection: ui.TextDirection.ltr),
-      ),
-    );
-  }
-}
-
-// ── Hero Card ──────────────────────────────────────────────────────────────
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
@@ -278,7 +202,6 @@ class _HeroCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Balance label + amount ──────────────────────────────────
             Text(
               'إجمالي المحافظ',
               style: TextStyle(
@@ -316,8 +239,6 @@ class _HeroCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-
-            // ── Three stats: income / expense / saving ──────────────────
             Row(
               children: [
                 Expanded(
@@ -424,265 +345,6 @@ class _HeroStat extends StatelessWidget {
   }
 }
 
-// ignore: unused_element
-class _QuickStatsRow extends StatelessWidget {
-  const _QuickStatsRow({required this.monthTx, required this.categories});
-  final List<TransactionEntity> monthTx;
-  final List<CategoryEntity> categories;
-
-  @override
-  Widget build(BuildContext context) {
-    final expenseTx =
-        monthTx.where((t) => t.type == TransactionType.expense.value).toList();
-    monthTx.where((t) => t.type == TransactionType.income.value).toList();
-    final avgExpense = expenseTx.isEmpty
-        ? 0.0
-        : expenseTx.fold<double>(0, (s, t) => s + t.amount) / expenseTx.length;
-
-    // Top spending category
-    final catMap = <String, double>{};
-    for (final t in expenseTx) {
-      if (t.categoryId != null) {
-        catMap[t.categoryId!] = (catMap[t.categoryId!] ?? 0) + t.amount;
-      }
-    }
-    String? topCatName;
-    if (catMap.isNotEmpty) {
-      final topId =
-          catMap.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-      topCatName =
-          categories.where((c) => c.id == topId).map((c) => c.name).firstOrNull;
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: _StatChip(
-            icon: Icons.receipt_long_rounded,
-            label: 'عدد المعاملات',
-            value: '${monthTx.length}',
-            color: const Color(0xFF165b47),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatChip(
-            icon: Icons.trending_down_rounded,
-            label: 'متوسط المصروف',
-            value: avgExpense.toStringAsFixed(0),
-            color: const Color(0xFFDC2626),
-          ),
-        ),
-        if (topCatName != null) ...[
-          const SizedBox(width: 8),
-          Expanded(
-            child: _StatChip(
-              icon: Icons.star_rounded,
-              label: 'أكثر إنفاق',
-              value: topCatName,
-              color: const Color(0xFFD97706),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label, value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF1),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-        boxShadow: [
-          BoxShadow(
-              color: color.withValues(alpha: 0.07),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 17),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF8A7F72),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Section Card ───────────────────────────────────────────────────────────
-
-// ── Compact colored transaction card ─────────────────────────────────────────
-
-class _CompactTxCard extends StatelessWidget {
-  const _CompactTxCard({
-    required this.transaction,
-    required this.state,
-    required this.onTap,
-  });
-
-  final TransactionEntity transaction;
-  final AppStateEntity state;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isIncome = transaction.type == TransactionType.income.value;
-    final isExpense = transaction.type == TransactionType.expense.value;
-
-    final bgColor = isIncome
-        ? const Color(0xFFE8F5E9)
-        : isExpense
-            ? const Color(0xFFFFEBEE)
-            : const Color(0xFFE3F2FD);
-
-    // استخدام لون وأيقونة الفئة لو موجودة
-    final cat = getCategoryForTransaction(state, transaction.categoryId);
-
-    final accentColor = cat != null
-        ? parseCategoryColor(cat.color)
-        : isIncome
-            ? const Color(0xFF16A34A)
-            : isExpense
-                ? const Color(0xFFDC2626)
-                : const Color(0xFF2563EB);
-    final amountColor = isExpense
-        ? const Color(0xFF991B1B)
-        : isIncome
-            ? const Color(0xFF166534)
-            : const Color(0xFF1D4ED8);
-
-    final icon = cat != null
-        ? AppIconPickerDialog.iconDataForName(cat.icon)
-        : isIncome
-            ? Icons.arrow_downward_rounded
-            : isExpense
-                ? Icons.arrow_upward_rounded
-                : Icons.swap_horiz_rounded;
-
-    // الاسم: اسم الفئة > الملاحظات > نوع المعاملة
-    final label = cat?.name ??
-        (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
-        (isIncome
-            ? 'دخل'
-            : isExpense
-                ? 'مصروف'
-                : 'تحويل');
-
-    final dateStr = DateFormat('d MMM', 'ar').format(transaction.createdAt);
-    final sign = isIncome
-        ? '+'
-        : isExpense
-            ? '-'
-            : '';
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: accentColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: Colors.white, size: 17),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    dateStr,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF4B5563),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '$sign${transaction.amount.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: amountColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Section card wrapper ──────────────────────────────────────────────────────
 
 class _SectionCard extends StatelessWidget {
@@ -781,73 +443,408 @@ class _EmptyHint extends StatelessWidget {
   }
 }
 
-// ── Mini Chart Preview ─────────────────────────────────────────────────────
+// ── Analysis Preview ───────────────────────────────────────────────────────
 
-class _MiniChartPreview extends StatelessWidget {
-  const _MiniChartPreview({
-    required this.monthTx,
+class _AnalysisPreview extends StatelessWidget {
+  const _AnalysisPreview({
+    required this.weekTx,
+    required this.netIncome,
     required this.netExpense,
   });
 
-  final List<TransactionEntity> monthTx;
+  final List<TransactionEntity> weekTx;
+  final double netIncome;
   final double netExpense;
+
+  static const _incomeColor = Color(0xFF16A34A);
+  static const _expenseColor = Color(0xFFDC2626);
+
+  List<DateTime> _chartDays() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(const Duration(days: 6));
+    return List.generate(7, (i) => start.add(Duration(days: i)));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final days = List.generate(14, (i) => now.subtract(Duration(days: 13 - i)));
-    final dailyExpense = days.map((d) {
-      return monthTx
+    final netSaving = netIncome - netExpense;
+    final totalFlow = netIncome + netExpense;
+    final hasFlow = totalFlow > 0;
+    final incomeShare = hasFlow ? netIncome / totalFlow : 0.0;
+    final expenseShare = hasFlow ? netExpense / totalFlow : 0.0;
+
+    final days = _chartDays();
+    final dailyIncome = days.map((d) {
+      return weekTx
           .where((t) =>
-              t.type == TransactionType.expense.value &&
-              t.createdAt.day == d.day &&
-              t.createdAt.month == d.month)
+              t.type == TransactionType.income.value &&
+              t.createdAt.year == d.year &&
+              t.createdAt.month == d.month &&
+              t.createdAt.day == d.day)
           .fold<double>(0, (s, t) => s + t.amount);
     }).toList();
-    final maxDaily = math
-        .max(netExpense, dailyExpense.reduce(math.max))
-        .clamp(1.0, double.infinity);
+    final dailyExpense = days.map((d) {
+      return weekTx
+          .where((t) =>
+              t.type == TransactionType.expense.value &&
+              t.createdAt.year == d.year &&
+              t.createdAt.month == d.month &&
+              t.createdAt.day == d.day)
+          .fold<double>(0, (s, t) => s + t.amount);
+    }).toList();
+
+    final chartMax = [
+      ...dailyIncome,
+      ...dailyExpense,
+      1.0,
+    ].reduce(math.max);
+
+    final hasChartData =
+        dailyIncome.any((v) => v > 0) || dailyExpense.any((v) => v > 0);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (dailyExpense.any((d) => d > 0)) ...[
+        // ── Income / expense summary ───────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _incomeColor.withValues(alpha: 0.08),
+                _expenseColor.withValues(alpha: 0.06),
+              ],
+              begin: Alignment.centerRight,
+              end: Alignment.centerLeft,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE8E0D4)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _FlowStatTile(
+                      label: 'الدخل',
+                      amount: netIncome,
+                      color: _incomeColor,
+                      icon: Icons.south_west_rounded,
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 52,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    color: const Color(0xFFE4DCCF),
+                  ),
+                  Expanded(
+                    child: _FlowStatTile(
+                      label: 'المصروف',
+                      amount: netExpense,
+                      color: _expenseColor,
+                      icon: Icons.north_east_rounded,
+                    ),
+                  ),
+                ],
+              ),
+              if (hasFlow) ...[
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    height: 10,
+                    child: Row(
+                      children: [
+                        if (incomeShare > 0)
+                          Expanded(
+                            flex: (incomeShare * 100).round().clamp(1, 100),
+                            child: Container(color: _incomeColor),
+                          ),
+                        if (expenseShare > 0)
+                          Expanded(
+                            flex: (expenseShare * 100).round().clamp(1, 100),
+                            child: Container(color: _expenseColor),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${(incomeShare * 100).round()}% دخل',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _incomeColor,
+                      ),
+                    ),
+                    Text(
+                      '${(expenseShare * 100).round()}% مصروف',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _expenseColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        if (netIncome > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: (netSaving >= 0 ? _incomeColor : _expenseColor)
+                  .withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: (netSaving >= 0 ? _incomeColor : _expenseColor)
+                    .withValues(alpha: 0.18),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  netSaving >= 0
+                      ? Icons.savings_outlined
+                      : Icons.warning_amber_rounded,
+                  size: 18,
+                  color: netSaving >= 0 ? _incomeColor : _expenseColor,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    netSaving >= 0
+                        ? 'وفّرت ${netSaving.toStringAsFixed(0)} من دخلك'
+                        : 'أنفقت أكثر من دخلك بـ ${(-netSaving).toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: netSaving >= 0 ? _incomeColor : _expenseColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 16),
+
+        // ── Legend ───────────────────────────────────────────────────
+        Row(
+          children: [
+            const _LegendDot(color: _incomeColor, label: 'دخل'),
+            const SizedBox(width: 16),
+            const _LegendDot(color: _expenseColor, label: 'مصروف'),
+            const Spacer(),
+            Text(
+              'آخر ٧ أيام',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF8A7F72).withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // ── Dual bar chart ─────────────────────────────────────────────
+        if (hasChartData)
           SizedBox(
-            height: 58,
+            height: 110,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: dailyExpense.asMap().entries.map((e) {
-                final ratio = e.value / maxDaily;
-                final isToday = days[e.key].day == now.day &&
-                    days[e.key].month == now.month;
+              children: List.generate(days.length, (i) {
+                final inc = dailyIncome[i];
+                final exp = dailyExpense[i];
+                final incH = (inc / chartMax) * 88;
+                final expH = (exp / chartMax) * 88;
+                final dayLabel = DateFormat('EEE', 'ar').format(days[i]);
+                final isToday = days[i].year == DateTime.now().year &&
+                    days[i].month == DateTime.now().month &&
+                    days[i].day == DateTime.now().day;
+
                 return Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          height: ratio * 52 + (ratio > 0 ? 5 : 0),
-                          decoration: BoxDecoration(
+                        SizedBox(
+                          height: 88,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: _ChartBar(
+                                  height: incH,
+                                  color: _incomeColor,
+                                  isHighlighted: isToday,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              Expanded(
+                                child: _ChartBar(
+                                  height: expH,
+                                  color: _expenseColor,
+                                  isHighlighted: isToday,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          dayLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight:
+                                isToday ? FontWeight.w900 : FontWeight.w600,
                             color: isToday
-                                ? const Color(0xFFDC2626)
-                                : const Color(0xFFDC2626)
-                                    .withValues(alpha: 0.40),
-                            borderRadius: BorderRadius.circular(3),
+                                ? const Color(0xFF165b47)
+                                : const Color(0xFF8A7F72),
                           ),
                         ),
                       ],
                     ),
                   ),
                 );
-              }).toList(),
+              }),
             ),
-          ),
-        ] else ...[
-          const _EmptyHint(text: 'لا توجد مصروفات لهذا الشهر.'),
-        ],
+          )
+        else
+          const _EmptyHint(text: 'لا توجد حركة دخل أو مصروف في الأيام الأخيرة.'),
       ],
+    );
+  }
+}
+
+class _FlowStatTile extends StatelessWidget {
+  const _FlowStatTile({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final double amount;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: color, size: 15),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color.withValues(alpha: 0.85),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          amount.toStringAsFixed(0),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: color,
+            height: 1.0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6B6358),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChartBar extends StatelessWidget {
+  const _ChartBar({
+    required this.height,
+    required this.color,
+    required this.isHighlighted,
+  });
+
+  final double height;
+  final Color color;
+  final bool isHighlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = height.clamp(0.0, 88.0);
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        height: h > 0 ? h : 3,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: h > 0
+              ? (isHighlighted ? color : color.withValues(alpha: 0.55))
+              : color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(5),
+        ),
+      ),
     );
   }
 }

@@ -593,19 +593,7 @@ class AppIconPickerDialog extends StatefulWidget {
     );
   }
 
-  @override
-  State<AppIconPickerDialog> createState() => _AppIconPickerDialogState();
-}
-
-class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
-  late String _selectedCategoryId;
-  late String _selectedIconName;
-  late Color _selectedColor;
-  int _step = 0;
-  bool _useCustomPicker = false;
-
-  static const _presetHexColors = [
-    // أحمر → وردي → بنفسجي
+  static const presetHexColors = [
     '#E57373',
     '#E53935',
     '#C62828',
@@ -617,7 +605,6 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
     '#AB47BC',
     '#8E24AA',
     '#6A1B9A',
-    // بنفسجي غامق → أزرق
     '#5E35B1',
     '#7E57C2',
     '#B39DDB',
@@ -630,7 +617,6 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
     '#90CAF9',
     '#039BE5',
     '#00ACC1',
-    // تركواز → أخضر
     '#4DD0E1',
     '#26A69A',
     '#00897B',
@@ -640,18 +626,41 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
     '#43A047',
     '#7CB342',
     '#9CCC65',
-    // أصفر → برتقالي → بني
     '#F9A825',
     '#FB8C00',
     '#F4511E',
     '#8D6E63',
     '#6D4C41',
-    // رمادي محايد غامق (بدون أبيض أو بيج يختفي على خلفية الصفحة)
     '#37474F',
     '#546E7A',
     '#90A4AE',
     '#1A1A1A',
   ];
+
+  static IconPickerResult randomAppearance([math.Random? random]) {
+    final rng = random ?? math.Random();
+    final icons = iconsForCategory('all');
+    if (icons.isEmpty) {
+      return const IconPickerResult(iconName: 'category', colorHex: '#165b47');
+    }
+    return IconPickerResult(
+      iconName: icons[rng.nextInt(icons.length)].name,
+      colorHex: presetHexColors[rng.nextInt(presetHexColors.length)],
+    );
+  }
+
+  @override
+  State<AppIconPickerDialog> createState() => _AppIconPickerDialogState();
+}
+
+class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
+  late String _selectedCategoryId;
+  late String _selectedIconName;
+  late Color _selectedColor;
+  int _step = 0;
+  bool _useCustomPicker = false;
+
+  static const _presetHexColors = AppIconPickerDialog.presetHexColors;
 
   @override
   void initState() {

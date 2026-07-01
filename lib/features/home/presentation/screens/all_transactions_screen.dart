@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
-import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
-import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
-import '../../../../core/widgets/app_icon_picker_dialog.dart';
+import '../widgets/recent_transaction_card.dart';
 
 // ── Period types ────────────────────────────────────────────────────────────
 
@@ -162,6 +160,115 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   // ── Filter bottom sheet ───────────────────────────────────────────────────
+
+  void _openDateRangeSheet() {
+    DateTime? tmpFrom = _customFrom;
+    DateTime? tmpTo = _customTo;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _beige,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'اختر الفترة',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'حدد تاريخ البداية والنهاية',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8A7F72),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DatePickerBox(
+                        label: 'من',
+                        date: tmpFrom,
+                        onTap: () async {
+                          final p = await showDatePicker(
+                            context: ctx,
+                            initialDate: tmpFrom ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (p != null) setSheet(() => tmpFrom = p);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DatePickerBox(
+                        label: 'إلى',
+                        date: tmpTo,
+                        onTap: () async {
+                          final p = await showDatePicker(
+                            context: ctx,
+                            initialDate: tmpTo ?? tmpFrom ?? DateTime.now(),
+                            firstDate: tmpFrom ?? DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (p != null) setSheet(() => tmpTo = p);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _green,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: tmpFrom == null || tmpTo == null
+                        ? null
+                        : () {
+                            setState(() {
+                              _period = _Period.custom;
+                              _customFrom = tmpFrom;
+                              _customTo = tmpTo;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                    child: const Text(
+                      'تطبيق',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   void _openFilterSheet() {
     var tmpPeriod = _period;
@@ -401,8 +508,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = widget.cubit.state.categories;
     final filtered = _filtered();
+
+    final totalIncome = filtered
+        .where((t) => t.type == TransactionType.income.value)
+        .fold<double>(0, (s, t) => s + t.amount);
+    final totalExpense = filtered
+        .where((t) => t.type == TransactionType.expense.value)
+        .fold<double>(0, (s, t) => s + t.amount);
+    final net = totalIncome - totalExpense;
 
     final grouped = <String, List<TransactionEntity>>{};
     for (final t in filtered) {
@@ -417,61 +531,41 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const _PageTitleBar(),
-            _PeriodTopBar(
-              label: _periodLabel(),
-              showArrows: _period != _Period.custom,
-              onPrev: _prev,
-              onNext: _next,
+            _PageTitleBar(
+              onFilter: _openFilterSheet,
+              onSort: () => setState(() => _sortAscending = !_sortAscending),
+              sortAscending: _sortAscending,
+              filterActive: _typeTab != 'all' || _period == _Period.custom,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Row(
-                children: [
-                  const Spacer(),
-                  _HeaderIconButton(
-                    icon: _sortAscending
-                        ? Icons.arrow_upward_rounded
-                        : Icons.arrow_downward_rounded,
-                    isActive: true,
-                    onTap: () =>
-                        setState(() => _sortAscending = !_sortAscending),
-                  ),
-                  const SizedBox(width: 8),
-                  _HeaderIconButton(
-                    icon: Icons.tune_rounded,
-                    isActive: _typeTab != 'all' || _period == _Period.custom,
-                    onTap: _openFilterSheet,
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Content ────────────────────────────────────────────────
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                 children: [
-                  // Empty state
+                  _PeriodTopBar(
+                    label: _periodLabel(),
+                    showArrows: _period != _Period.custom,
+                    onPrev: _prev,
+                    onNext: _next,
+                    onRangeTap: _openDateRangeSheet,
+                  ),
+                  const SizedBox(height: 12),
+                  if (filtered.isNotEmpty)
+                    _MonthSummaryCard(
+                      income: totalIncome,
+                      expense: totalExpense,
+                      net: net,
+                    ),
+                  if (filtered.isNotEmpty) const SizedBox(height: 16),
                   if (filtered.isEmpty)
                     const _EmptyState()
                   else
                     ...sortedKeys.map((dateKey) {
                       final dayTx = grouped[dateKey]!;
                       final dayDate = DateTime.parse(dateKey);
-                      final dayIncome = dayTx
-                          .where((t) => t.type == TransactionType.income.value)
-                          .fold<double>(0, (s, t) => s + t.amount);
-                      final dayExpense = dayTx
-                          .where((t) => t.type == TransactionType.expense.value)
-                          .fold<double>(0, (s, t) => s + t.amount);
 
                       return _DayGroup(
                         date: dayDate,
-                        dayIncome: dayIncome,
-                        dayExpense: dayExpense,
                         transactions: dayTx,
-                        categories: categories,
                         cubit: widget.cubit,
                       );
                     }),
@@ -488,69 +582,85 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 // ── Period Top Bar ──────────────────────────────────────────────────────────
 
 class _PageTitleBar extends StatelessWidget {
-  const _PageTitleBar();
+  const _PageTitleBar({
+    required this.onFilter,
+    required this.onSort,
+    required this.sortAscending,
+    required this.filterActive,
+  });
+
+  final VoidCallback onFilter;
+  final VoidCallback onSort;
+  final bool sortAscending;
+  final bool filterActive;
+
+  static const _green = Color(0xFF165b47);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFFFFBF1),
-      padding: const EdgeInsets.fromLTRB(4, 8, 16, 6),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            color: const Color(0xFF165b47),
+          _HeaderIcon(
+            icon: Icons.arrow_back_ios_new_rounded,
+            onTap: () => Navigator.of(context).pop(),
+            iconSize: 20,
           ),
-          const Expanded(
+          Expanded(
             child: Text(
               'كل المعاملات',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF165b47),
+                color: _green,
               ),
             ),
           ),
-          const SizedBox(width: 48),
+          _HeaderIcon(
+            icon: Icons.tune_rounded,
+            onTap: onFilter,
+            isActive: filterActive,
+          ),
+          _HeaderIcon(
+            icon: sortAscending
+                ? Icons.arrow_upward_rounded
+                : Icons.arrow_downward_rounded,
+            onTap: onSort,
+            isActive: sortAscending,
+          ),
         ],
       ),
     );
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
     required this.icon,
-    required this.isActive,
     required this.onTap,
+    this.isActive = false,
+    this.iconSize = 22,
   });
 
   final IconData icon;
-  final bool isActive;
   final VoidCallback onTap;
+  final bool isActive;
+  final double iconSize;
+
+  static const _green = Color(0xFF165b47);
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(13),
-      child: Ink(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF165b47) : Colors.white,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(
-            color: const Color(0xFF165b47).withValues(alpha: 0.16),
-          ),
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: isActive ? Colors.white : const Color(0xFF165b47),
-        ),
+    return IconButton(
+      onPressed: onTap,
+      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      icon: Icon(
+        icon,
+        size: iconSize,
+        color: isActive ? _green : _green.withValues(alpha: 0.82),
       ),
     );
   }
@@ -562,61 +672,201 @@ class _PeriodTopBar extends StatelessWidget {
     required this.showArrows,
     required this.onPrev,
     required this.onNext,
+    required this.onRangeTap,
   });
 
   final String label;
   final bool showArrows;
-  final VoidCallback onPrev, onNext;
+  final VoidCallback onPrev, onNext, onRangeTap;
+
+  static const _green = Color(0xFF165b47);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFFFFBF1),
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          // Prev arrow
           if (showArrows)
-            IconButton(
-              onPressed: onPrev,
-              icon: const Icon(Icons.chevron_left_rounded,
-                  size: 26, textDirection: ui.TextDirection.ltr),
-              color: const Color(0xFF165b47),
+            _PeriodNavBtn(
+              icon: Icons.chevron_right_rounded,
+              onTap: onPrev,
             )
           else
-            const SizedBox(width: 48),
-
-          // Period label
+            const SizedBox(width: 38),
           Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF165b47),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: _green,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                ),
+                GestureDetector(
+                  onTap: onRangeTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4, left: 2),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: _green.withValues(alpha: 0.65),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Next arrow
           if (showArrows)
-            IconButton(
-              onPressed: onNext,
-              icon: const Icon(Icons.chevron_right_rounded,
-                  size: 26, textDirection: ui.TextDirection.ltr),
-              color: const Color(0xFF165b47),
+            _PeriodNavBtn(
+              icon: Icons.chevron_left_rounded,
+              onTap: onNext,
             )
           else
-            const SizedBox(width: 48),
+            const SizedBox(width: 38),
         ],
+      ),
+    );
+  }
+}
+
+class _MonthSummaryCard extends StatelessWidget {
+  const _MonthSummaryCard({
+    required this.income,
+    required this.expense,
+    required this.net,
+  });
+
+  final double income;
+  final double expense;
+  final double net;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SummaryCol(
+              label: 'دخل',
+              value: '+${income.toStringAsFixed(0)}',
+              valueColor: const Color(0xFF16A34A),
+            ),
+          ),
+          Container(width: 1, height: 36, color: const Color(0xFFE8E0D4)),
+          Expanded(
+            child: _SummaryCol(
+              label: 'صافي',
+              value: '${net >= 0 ? '+' : ''}${net.toStringAsFixed(0)}',
+              valueColor: const Color(0xFF1A1A1A),
+            ),
+          ),
+          Container(width: 1, height: 36, color: const Color(0xFFE8E0D4)),
+          Expanded(
+            child: _SummaryCol(
+              label: 'مصروف',
+              value: '-${expense.toStringAsFixed(0)}',
+              valueColor: const Color(0xFFDC2626),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCol extends StatelessWidget {
+  const _SummaryCol({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            color: valueColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF8A7F72),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PeriodNavBtn extends StatelessWidget {
+  const _PeriodNavBtn({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          color: const Color(0xFF165b47),
+          size: 22,
+          textDirection: ui.TextDirection.ltr,
+        ),
       ),
     );
   }
@@ -714,127 +964,6 @@ class _DatePickerBox extends StatelessWidget {
   }
 }
 
-// ── Summary Card ────────────────────────────────────────────────────────────
-
-// ignore: unused_element
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.totalIn,
-    required this.totalOut,
-    required this.count,
-  });
-
-  final double totalIn, totalOut;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final net = totalIn - totalOut;
-    final isPos = net >= 0;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1B6B25), Color(0xFF0A5E19)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x301B6B25), blurRadius: 18, offset: Offset(0, 7))
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _GlassTile(
-                  label: 'الدخل',
-                  value: '+${totalIn.toStringAsFixed(2)}',
-                  valueColor: const Color(0xFF4ADE80),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _GlassTile(
-                  label: 'المصروف',
-                  value: '-${totalOut.toStringAsFixed(2)}',
-                  valueColor: const Color(0xFFF87171),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _GlassTile(
-                  label: 'الصافي',
-                  value: '${isPos ? '+' : ''}${net.toStringAsFixed(2)}',
-                  valueColor:
-                      isPos ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$count معاملة',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _GlassTile extends StatelessWidget {
-  const _GlassTile({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-  });
-
-  final String label, value;
-  final Color valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.72),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  color: valueColor, fontSize: 13, fontWeight: FontWeight.w900),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Empty State ─────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
@@ -867,17 +996,12 @@ class _EmptyState extends StatelessWidget {
 class _DayGroup extends StatelessWidget {
   const _DayGroup({
     required this.date,
-    required this.dayIncome,
-    required this.dayExpense,
     required this.transactions,
-    required this.categories,
     required this.cubit,
   });
 
   final DateTime date;
-  final double dayIncome, dayExpense;
   final List<TransactionEntity> transactions;
-  final List<CategoryEntity> categories;
   final AppCubit cubit;
 
   String _dateLabel() {
@@ -885,285 +1009,35 @@ class _DayGroup extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final d = DateTime(date.year, date.month, date.day);
-    if (d == today) return 'اليوم';
-    if (d == yesterday) return 'أمس';
-    return DateFormat('EEEE، d MMMM', 'ar').format(date);
+    final datePart = DateFormat('d MMMM', 'ar').format(date);
+    if (d == today) return 'اليوم • $datePart';
+    if (d == yesterday) return 'أمس • $datePart';
+    return datePart;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Divider(color: Color(0xFFE4DCCF), thickness: 1),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              _dateLabel(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF8A7F72),
               ),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3EEDF),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      _dateLabel(),
-                      style: const TextStyle(
-                          color: Color(0xFF7D7461),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800),
-                    ),
-                    if (dayIncome > 0 || dayExpense > 0) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFB5A99A),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    if (dayIncome > 0)
-                      Text('+${dayIncome.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              color: Color(0xFF16A34A),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    if (dayIncome > 0 && dayExpense > 0)
-                      const Text('  ', style: TextStyle(fontSize: 11)),
-                    if (dayExpense > 0)
-                      Text('-${dayExpense.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              color: Color(0xFFDC2626),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Divider(color: Color(0xFFE4DCCF), thickness: 1),
-              ),
-            ],
+            ),
           ),
-        ),
-        ...transactions.map((t) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: _AllTxCard(
-                transaction: t,
-                cubit: cubit,
-                onTap: () => openTransactionDetailsSheet(
-                  context,
-                  cubit: cubit,
-                  transaction: t,
-                ),
-              ),
-            )),
-        const SizedBox(height: 14),
-      ],
-    );
-  }
-}
-
-// ── Consistent fixed-height transaction card ─────────────────────────────────
-
-class _AllTxCard extends StatelessWidget {
-  const _AllTxCard({
-    required this.transaction,
-    required this.cubit,
-    required this.onTap,
-  });
-
-  final TransactionEntity transaction;
-  final AppCubit cubit;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = cubit.state;
-    final isIncome = transaction.type == TransactionType.income.value;
-    final isExpense = transaction.type == TransactionType.expense.value;
-
-    final bgColor = isIncome
-        ? const Color(0xFFE8F5E9)
-        : isExpense
-            ? const Color(0xFFFFEBEE)
-            : const Color(0xFFE3F2FD);
-
-    final cat = getCategoryForTransaction(state, transaction.categoryId);
-
-    final accent = cat != null
-        ? parseCategoryColor(cat.color)
-        : isIncome
-            ? const Color(0xFF16A34A)
-            : isExpense
-                ? const Color(0xFFDC2626)
-                : const Color(0xFF2563EB);
-    final iconColor = Color.lerp(accent, Colors.black, 0.25)!;
-    final amountColor = isExpense
-        ? const Color(0xFF991B1B)
-        : isIncome
-            ? const Color(0xFF166534)
-            : const Color(0xFF1D4ED8);
-
-    final icon = cat != null
-        ? AppIconPickerDialog.iconDataForName(cat.icon)
-        : isIncome
-            ? Icons.arrow_downward_rounded
-            : isExpense
-                ? Icons.arrow_upward_rounded
-                : Icons.swap_horiz_rounded;
-
-    final label = cat?.name ??
-        (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
-        (isIncome
-            ? 'دخل'
-            : isExpense
-                ? 'مصروف'
-                : 'تحويل');
-
-    final sign = isIncome
-        ? '+'
-        : isExpense
-            ? '-'
-            : '';
-    final timeStr =
-        DateFormat('d MMM · HH:mm', 'ar').format(transaction.createdAt);
-
-    final walletName = state.wallets
-        .where((w) => w.id == transaction.walletId)
-        .map((w) => w.name)
-        .firstOrNull;
-    final allocationName = transaction.allocationId == null
-        ? null
-        : state.budgetSetup.allocations
-            .where((a) => a.id == transaction.allocationId)
-            .map((a) => a.name)
-            .firstOrNull;
-    final targetJarName = transaction.toWalletId == null
-        ? null
-        : state.budgetSetup.linkedWallets
-            .where((j) => j.id == transaction.toWalletId)
-            .map((j) => j.name)
-            .firstOrNull;
-    final incomeSourceName = transaction.incomeSourceId == null
-        ? null
-        : state.budgetSetup.incomeSources
-            .where((s) => s.id == transaction.incomeSourceId)
-            .map((s) => s.name)
-            .firstOrNull;
-
-    // ليبيلات إضافية (ماكس ٢)
-    final chips = <String>[];
-    if (walletName != null) chips.add(walletName);
-    if (allocationName != null) chips.add(allocationName);
-    if (targetJarName != null) chips.add('حصالة: $targetJarName');
-    if (incomeSourceName != null) chips.add('مصدر: $incomeSourceName');
-    if (transaction.notes?.isNotEmpty == true && cat != null) {
-      chips.add(transaction.notes!);
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 96),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: accent.withValues(alpha: 0.20)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // أيقونة
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: accent,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: Colors.white, size: 23),
-            ),
-            const SizedBox(width: 12),
-            // اسم + تاريخ + chips
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF4B5563),
-                    ),
-                  ),
-                  if (chips.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: chips
-                          .take(4)
-                          .map((chip) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 9, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: 0.28),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  chip,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color.lerp(
-                                        iconColor, Colors.black, 0.15),
-                                  ),
-                                ),
-                              ))
-                          .toList(),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            // مبلغ
-            Text(
-              '$sign${transaction.amount.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: amountColor,
-              ),
-            ),
-          ],
-        ),
+          RecentTransactionsGroup(
+            transactions: transactions,
+            cubit: cubit,
+          ),
+        ],
       ),
     );
   }

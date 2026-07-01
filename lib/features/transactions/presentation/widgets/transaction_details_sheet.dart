@@ -1,7 +1,9 @@
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
+import '../../../../core/utils/transaction_display_format.dart';
+import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
@@ -33,20 +35,23 @@ Future<void> openTransactionDetailsSheet(
   required AppCubit cubit,
   required TransactionEntity transaction,
 }) async {
-  final theme = Theme.of(context);
-  final rows = _detailRows(cubit, transaction);
-  final state = cubit.state;
-  final fallbackAccent = _accentForTransaction(theme, transaction);
+  await showAppDetailsBottomSheet(
+    context,
+    title: 'تفاصيل المعاملة',
+    children: _transactionDetailsChildren(
+      context,
+      cubit: cubit,
+      transaction: transaction,
+      closeBeforeEdit: true,
+    ),
+  );
+}
 
-  final category = getCategoryForTransaction(state, transaction.categoryId);
-  final accent =
-      category != null ? parseCategoryColor(category.color) : fallbackAccent;
-  final displayTitle =
-      category?.name ?? _transactionDisplayTitle(state, transaction);
-  final displayIcon = category != null
-      ? parseCategoryIcon(category.icon)
-      : _iconForTransaction(transaction);
-
+Future<void> showAppDetailsBottomSheet(
+  BuildContext context, {
+  required String title,
+  required List<Widget> children,
+}) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -54,155 +59,682 @@ Future<void> openTransactionDetailsSheet(
     backgroundColor: const Color(0xFFFFFBF1),
     showDragHandle: true,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
-    builder: (context) => SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.82,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+    builder: (sheetContext) => Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Hero gradient card ─────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [accent, accent.withValues(alpha: 0.75)],
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.28),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(displayIcon, color: Colors.white, size: 24),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          DateFormat('d MMMM yyyy · HH:mm', 'ar')
-                              .format(transaction.createdAt),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.72),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${_signFor(transaction)}${transaction.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // ── Detail rows ────────────────────────────────────────
-            _DetailsBlock(rows: rows, accent: accent),
-
-            // ملاحظات
-            if (transaction.notes?.trim().isNotEmpty == true &&
-                !_isGeneratedJarNote(transaction)) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: accent.withValues(alpha: 0.14)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('ملاحظات',
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: accent.withValues(alpha: 0.65))),
-                    const SizedBox(height: 4),
-                    Text(transaction.notes!.trim(),
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-                        FilledButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                if (transaction.transferType == TransferType.jarFunding.value ||
-                    transaction.transferType ==
-                        TransferType.jarFundingPhysical.value ||
-                    transaction.transferType ==
-                        TransferType.jarAllocation.value) {
-                  await _openJarReserveEditor(
-                    context,
-                    cubit: cubit,
-                    transaction: transaction,
-                  );
-                  return;
-                }
-                if (transaction.transferType == TransferType.jarToJar.value) {
-                  await _openJarToJarEditor(
-                    context,
-                    cubit: cubit,
-                    transaction: transaction,
-                  );
-                  return;
-                }
-                await showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  builder: (ctx) => FractionallySizedBox(
-                    heightFactor: 0.96,
-                    child: AddTransactionScreen(
-                      cubit: cubit,
-                      initialTransaction: transaction,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('تعديل المعاملة'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                backgroundColor: accent,
+            _AppDetailsSheetHeader(title: title),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: children,
               ),
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class _AppDetailsSheetHeader extends StatelessWidget {
+  const _AppDetailsSheetHeader({required this.title});
+
+  final String title;
+
+  static const _accent = Color(0xFF165b47);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+            color: _accent,
+            style: IconButton.styleFrom(
+              backgroundColor: _accent.withValues(alpha: 0.08),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: _accent,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.more_horiz_rounded),
+            color: _accent,
+            style: IconButton.styleFrom(
+              backgroundColor: _accent.withValues(alpha: 0.08),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> openTransactionDetailsPage(
+  BuildContext context, {
+  required AppCubit cubit,
+  required TransactionEntity transaction,
+}) =>
+    openTransactionDetailsSheet(
+      context,
+      cubit: cubit,
+      transaction: transaction,
+    );
+
+List<Widget> _transactionDetailsChildren(
+  BuildContext context, {
+  required AppCubit cubit,
+  required TransactionEntity transaction,
+  required bool closeBeforeEdit,
+}) {
+  final state = cubit.state;
+  final category = getCategoryForTransaction(state, transaction.categoryId);
+  final isIncome = transaction.type == TransactionType.income.value;
+  final isExpense = transaction.type == TransactionType.expense.value;
+
+  final accent = category != null
+      ? parseCategoryColor(category.color)
+      : isIncome
+          ? const Color(0xFF16A34A)
+          : isExpense
+              ? const Color(0xFFDC2626)
+              : const Color(0xFF2563EB);
+
+  final heroBg = isIncome
+      ? const Color(0xFFE8F8EE)
+      : isExpense
+          ? const Color(0xFFFDE8E8)
+          : const Color(0xFFE8F0FE);
+
+  final amountColor = isExpense
+      ? const Color(0xFFDC2626)
+      : isIncome
+          ? const Color(0xFF16A34A)
+          : const Color(0xFF2563EB);
+
+  final displayTitle = (transaction.notes?.trim().isNotEmpty == true
+          ? transaction.notes!.trim()
+          : null) ??
+      category?.name ??
+      _transactionDisplayTitle(state, transaction);
+
+  final displayIcon = category != null
+      ? AppIconPickerDialog.iconDataForName(category.icon)
+      : _iconForTransaction(transaction);
+
+  final walletLabel = transactionWalletLabel(state, transaction);
+  final allocationLabel = transactionAllocationLabel(state, transaction);
+  final categoryLabel = category?.name;
+  final dateLabel =
+      DateFormat('d MMMM yyyy', 'ar').format(transaction.createdAt);
+  final timeLabel = formatTransactionTime(transaction.createdAt);
+  final timestampLabel = '$dateLabel، $timeLabel';
+  final currency = _currencyLabelAr(state.currencyCode);
+  final amountSign = _signFor(transaction);
+  final amountValue = transaction.amount.toStringAsFixed(2);
+  final amountGridText = '$amountSign$amountValue $currency';
+
+  final hasUserNotes = transaction.notes?.trim().isNotEmpty == true &&
+      !_isGeneratedJarNote(transaction);
+
+  return [
+    AppDetailsSummaryCard(
+      title: displayTitle,
+      subtitle: categoryLabel ?? (allocationLabel != '—' ? allocationLabel : ''),
+      amountSign: amountSign,
+      amountValue: amountValue,
+      currency: currency,
+      icon: displayIcon,
+      iconColor: accent,
+      backgroundColor: heroBg,
+      amountColor: amountColor,
+    ),
+    const SizedBox(height: 14),
+    AppDetailsGrid(
+      date: dateLabel,
+      time: timeLabel,
+      wallet: walletLabel,
+      allocation: allocationLabel,
+      amountText: amountGridText,
+      amountValueColor: amountColor,
+      paymentMethod: 'نقدي',
+      createdAtLabel: timestampLabel,
+      updatedAtLabel: timestampLabel,
+    ),
+    const SizedBox(height: 12),
+    AppDetailsNotesSection(
+      notes: hasUserNotes ? transaction.notes!.trim() : null,
+    ),
+    const SizedBox(height: 14),
+    FilledButton.icon(
+      onPressed: () => _openTransactionEditor(
+        context,
+        cubit: cubit,
+        transaction: transaction,
+        closeBeforeEdit: closeBeforeEdit,
+      ),
+      icon: const Icon(Icons.edit_outlined),
+      label: const Text('تعديل المعاملة'),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(52),
+        backgroundColor: const Color(0xFF165b47),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+  ];
+}
+
+String transactionWalletLabel(AppStateEntity state, TransactionEntity tx) {
+  final id = tx.walletId ?? tx.fromWalletId;
+  if (id == null) return '—';
+  return state.wallets
+          .where((w) => w.id == id)
+          .map((w) => w.name)
+          .firstOrNull ??
+      '—';
+}
+
+String transactionAllocationLabel(AppStateEntity state, TransactionEntity tx) {
+  if (tx.allocationId != null) {
+    return state.budgetSetup.allocations
+            .where((a) => a.id == tx.allocationId)
+            .map((a) => a.name)
+            .firstOrNull ??
+        '—';
+  }
+  if (tx.toWalletId != null) {
+    return state.budgetSetup.linkedWallets
+            .where((j) => j.id == tx.toWalletId)
+            .map((j) => j.name)
+            .firstOrNull ??
+        '—';
+  }
+  if (tx.budgetScope == BudgetScope.outsideBudget.value) {
+    return 'خارج الميزانية';
+  }
+  return '—';
+}
+
+String _currencyLabelAr(String code) {
+  switch (code.toUpperCase()) {
+    case 'EGP':
+      return 'جنيه';
+    case 'SAR':
+      return 'ريال';
+    case 'AED':
+      return 'درهم';
+    case 'USD':
+      return 'دولار';
+    case 'EUR':
+      return 'يورو';
+    case 'KWD':
+      return 'دينار كويتي';
+    case 'QAR':
+      return 'ريال قطري';
+    case 'BHD':
+      return 'دينار بحريني';
+    case 'OMR':
+      return 'ريال عماني';
+    case 'JOD':
+      return 'دينار أردني';
+    case 'LBP':
+      return 'ليرة لبنانية';
+    case 'IQD':
+      return 'دينار عراقي';
+    case 'MAD':
+      return 'درهم مغربي';
+    case 'TND':
+      return 'دينار تونسي';
+    case 'DZD':
+      return 'دينار جزائري';
+    case 'LYD':
+      return 'دينار ليبي';
+    case 'SDG':
+      return 'جنيه سوداني';
+    case 'YER':
+      return 'ريال يمني';
+    case 'SYP':
+      return 'ليرة سورية';
+    default:
+      return code;
+  }
+}
+
+class AppDetailsSummaryCard extends StatelessWidget {
+  const AppDetailsSummaryCard({
+    required this.title,
+    required this.subtitle,
+    required this.amountSign,
+    required this.amountValue,
+    required this.currency,
+    required this.icon,
+    required this.iconColor,
+    required this.backgroundColor,
+    required this.amountColor,
+  });
+
+  final String title;
+  final String subtitle;
+  final String amountSign;
+  final String amountValue;
+  final String currency;
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final Color amountColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF8A7F72),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Directionality(
+                textDirection: TextDirection.ltr,
+                child: Text(
+                  '$amountSign$amountValue',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: amountColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                currency,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF8A7F72),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppDetailsGrid extends StatelessWidget {
+  const AppDetailsGrid({
+    required this.date,
+    required this.time,
+    required this.wallet,
+    required this.allocation,
+    required this.amountText,
+    this.amountValueColor,
+    this.paymentMethod = 'نقدي',
+    required this.createdAtLabel,
+    required this.updatedAtLabel,
+    this.walletLabel = 'المحفظة',
+    this.allocationLabel = 'المخصص',
+    this.paymentMethodLabel = 'طريقة الدفع',
+    this.updatedAtLabelText = 'آخر تحديث',
+    this.createdAtLabelText = 'تم الإنشاء في',
+  });
+
+  final String date;
+  final String time;
+  final String wallet;
+  final String allocation;
+  final String amountText;
+  final Color? amountValueColor;
+  final String paymentMethod;
+  final String createdAtLabel;
+  final String updatedAtLabel;
+  final String walletLabel;
+  final String allocationLabel;
+  final String paymentMethodLabel;
+  final String updatedAtLabelText;
+  final String createdAtLabelText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF0EBE3)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: 'التاريخ',
+                    value: date,
+                    icon: Icons.calendar_today_outlined,
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: Color(0xFFF0EBE3)),
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: 'المبلغ',
+                    value: amountText,
+                    icon: Icons.payments_outlined,
+                    valueColor: amountValueColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF0EBE3)),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: walletLabel,
+                    value: wallet,
+                    icon: Icons.account_balance_wallet_outlined,
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: Color(0xFFF0EBE3)),
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: 'الوقت',
+                    value: time,
+                    icon: Icons.schedule_outlined,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF0EBE3)),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: paymentMethodLabel,
+                    value: paymentMethod,
+                    icon: Icons.credit_card_outlined,
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: Color(0xFFF0EBE3)),
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: allocationLabel,
+                    value: allocation,
+                    icon: Icons.pie_chart_outline_rounded,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF0EBE3)),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: updatedAtLabelText,
+                    value: updatedAtLabel,
+                    icon: Icons.sync_rounded,
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: Color(0xFFF0EBE3)),
+                Expanded(
+                  child: AppDetailsGridCell(
+                    label: createdAtLabelText,
+                    value: createdAtLabel,
+                    icon: Icons.history_rounded,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppDetailsGridCell extends StatelessWidget {
+  const AppDetailsGridCell({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? valueColor;
+
+  static const _detailGreen = Color(0xFF165b47);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: _detailGreen.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 17, color: _detailGreen),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8A7F72),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: valueColor ?? const Color(0xFF1A1A1A),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppDetailsNotesSection extends StatelessWidget {
+  const AppDetailsNotesSection({required this.notes});
+
+  final String? notes;
+
+  static const _detailGreen = Color(0xFF165b47);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0EBE3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'الملاحظات',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _detailGreen,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: _detailGreen.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.sticky_note_2_outlined,
+                  size: 16,
+                  color: _detailGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                notes ?? 'لا توجد ملاحظات',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: notes == null
+                      ? const Color(0xFFB5A99A)
+                      : const Color(0xFF1A1A1A),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _openTransactionEditor(
+  BuildContext context, {
+  required AppCubit cubit,
+  required TransactionEntity transaction,
+  required bool closeBeforeEdit,
+}) async {
+  if (closeBeforeEdit) Navigator.pop(context);
+  if (transaction.transferType == TransferType.jarFunding.value ||
+      transaction.transferType == TransferType.jarFundingPhysical.value ||
+      transaction.transferType == TransferType.jarAllocation.value) {
+    await _openJarReserveEditor(
+      context,
+      cubit: cubit,
+      transaction: transaction,
+    );
+    return;
+  }
+  if (transaction.transferType == TransferType.jarToJar.value) {
+    await _openJarToJarEditor(
+      context,
+      cubit: cubit,
+      transaction: transaction,
+    );
+    return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (ctx) => FractionallySizedBox(
+      heightFactor: 0.96,
+      child: AddTransactionScreen(
+        cubit: cubit,
+        initialTransaction: transaction,
       ),
     ),
   );
@@ -738,54 +1270,6 @@ Future<void> _openJarReserveEditor(
   );
 }
 
-List<MapEntry<String, String>> _detailRows(
-    AppCubit cubit, TransactionEntity tx) {
-  final state = cubit.state;
-  String walletName(String? id) =>
-      state.wallets
-          .where((w) => w.id == id)
-          .map((w) => w.name)
-          .cast<String?>()
-          .firstWhere((_) => true, orElse: () => id) ??
-      '-';
-  String jarName(String? id) =>
-      state.budgetSetup.linkedWallets
-          .where((j) => j.id == id)
-          .map((j) => j.name)
-          .cast<String?>()
-          .firstWhere((_) => true, orElse: () => id) ??
-      '-';
-  String allocName(String? id) =>
-      state.budgetSetup.allocations
-          .where((a) => a.id == id)
-          .map((a) => a.name)
-          .cast<String?>()
-          .firstWhere((_) => true, orElse: () => id) ??
-      '-';
-  String categoryName(String? id) {
-    final cat = getCategoryForTransaction(state, id);
-    return cat?.name ?? id ?? '-';
-  }
-
-  return [
-    MapEntry('النوع', _typeLabel(tx.type)),
-    MapEntry('المبلغ', tx.amount.toStringAsFixed(2)),
-    MapEntry('التاريخ', DateFormat('d MMMM yyyy', 'ar').format(tx.createdAt)),
-    MapEntry('الوقت', DateFormat('HH:mm', 'ar').format(tx.createdAt)),
-    if (tx.walletId != null) MapEntry('المحفظة', walletName(tx.walletId)),
-    if (tx.fromWalletId != null)
-      MapEntry('من محفظة', walletName(tx.fromWalletId)),
-    if (tx.toWalletId != null) MapEntry('إلى', jarName(tx.toWalletId)),
-    if (tx.allocationId != null) MapEntry('المخصص', allocName(tx.allocationId)),
-    if (tx.categoryId != null) MapEntry('الفئة', categoryName(tx.categoryId)),
-    if (tx.budgetScope != null)
-      MapEntry('نطاق الميزانية', _budgetScopeLabel(tx.budgetScope!)),
-    if (tx.transferType != null) MapEntry('نوع التحويل', tx.transferType!),
-    if (tx.notes?.trim().isNotEmpty == true && !_isGeneratedJarNote(tx))
-      MapEntry('الملاحظات', tx.notes!.trim()),
-  ];
-}
-
 String _editableJarNote(TransactionEntity tx) {
   if (_isGeneratedJarNote(tx)) return '';
   return tx.notes ?? '';
@@ -834,60 +1318,10 @@ String _typeLabel(String type) {
   return 'تحويل';
 }
 
-String _budgetScopeLabel(String value) {
-  if (value == BudgetScope.withinBudget.value) return 'داخل الميزانية';
-  if (value == BudgetScope.outsideBudget.value) return 'خارج الميزانية';
-  return value;
-}
-
 IconData _iconForTransaction(TransactionEntity tx) {
   if (tx.type == TransactionType.income.value) return Icons.south_west_rounded;
   if (tx.type == TransactionType.expense.value) return Icons.north_east_rounded;
   return Icons.swap_horiz_rounded;
-}
-
-Color _accentForTransaction(ThemeData theme, TransactionEntity tx) {
-  if (tx.type == TransactionType.income.value) return const Color(0xFF1F8B5F);
-  if (tx.type == TransactionType.expense.value) return const Color(0xFFC86D2B);
-  return theme.colorScheme.primary;
-}
-
-IconData parseCategoryIcon(String name) {
-  // Simple mapping, add logic if there's a specific package used for icons
-  switch (name) {
-    case 'home':
-      return Icons.home_rounded;
-    case 'shopping_cart':
-      return Icons.shopping_cart_rounded;
-    case 'restaurant':
-      return Icons.restaurant_rounded;
-    case 'directions_car':
-      return Icons.directions_car_rounded;
-    case 'medical_services':
-      return Icons.medical_services_rounded;
-    case 'school':
-      return Icons.school_rounded;
-    case 'electrical_services':
-      return Icons.electrical_services_rounded;
-    case 'water_drop':
-      return Icons.water_drop_rounded;
-    case 'flight':
-      return Icons.flight_rounded;
-    case 'fitness_center':
-      return Icons.fitness_center_rounded;
-    case 'category':
-      return Icons.category_rounded;
-    case 'checkroom':
-      return Icons.checkroom_rounded;
-    case 'payments':
-      return Icons.payments_rounded;
-    case 'receipt':
-      return Icons.receipt_rounded;
-    case 'sports_esports':
-      return Icons.sports_esports_rounded;
-    default:
-      return Icons.category_rounded;
-  }
 }
 
 Color parseCategoryColor(String hexStr) {
@@ -905,60 +1339,4 @@ String _signFor(TransactionEntity transaction) {
   if (transaction.type == TransactionType.income.value) return '+';
   if (transaction.type == TransactionType.expense.value) return '-';
   return '';
-}
-
-class _DetailsBlock extends StatelessWidget {
-  const _DetailsBlock({required this.rows, required this.accent});
-
-  final List<MapEntry<String, String>> rows;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-              child: Row(
-                children: [
-                  Text(
-                    rows[i].key,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: accent.withValues(alpha: 0.65),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    rows[i].value,
-                    textAlign: TextAlign.end,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (i != rows.length - 1)
-              Divider(
-                height: 1,
-                indent: 16,
-                endIndent: 16,
-                color: accent.withValues(alpha: 0.10),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
 }

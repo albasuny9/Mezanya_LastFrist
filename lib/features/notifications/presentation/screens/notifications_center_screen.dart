@@ -2,6 +2,8 @@ import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/widgets/app_icon_picker_dialog.dart';
+
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
@@ -11,8 +13,14 @@ import '../../../transactions/domain/entities/recurring_transaction_entity.dart'
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../domain/entities/notification_entity.dart';
+import '../../domain/notification_history_helper.dart';
+import '../../domain/notification_history_filters.dart';
+import '../../domain/notification_action_copy.dart';
 import '../widgets/notification_center_widgets.dart';
+import '../widgets/distribution_postpone_sheet.dart';
+import '../widgets/notification_history_details_sheet.dart';
 import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
+import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 
 class NotificationsCenterScreen extends StatefulWidget {
   const NotificationsCenterScreen({super.key, required this.cubit});
@@ -27,6 +35,8 @@ class NotificationsCenterScreen extends StatefulWidget {
 class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   String _selectedTab = 'new';
   final Set<String> _processingIds = {};
+  NotificationHistoryCategory _historyCategory = NotificationHistoryCategory.all;
+  NotificationHistoryDuration _historyDuration = NotificationHistoryDuration.days30;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +47,7 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
         final state = snapshot.data ?? widget.cubit.state;
         final pendingCards = _pendingNotificationCards(state);
         final historyItems = _historyNotifications(state);
+        final filteredHistory = _filteredHistoryItems(historyItems);
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -47,8 +58,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
               historyCount: historyItems.length,
               onTabChanged: (value) => setState(() => _selectedTab = value),
             ),
-            const SizedBox(height: 12),
             if (_selectedTab == 'new') ...[
+              const SizedBox(height: 12),
               if (pendingCards.isEmpty)
                 const Card(
                   child: ListTile(
@@ -58,14 +69,38 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
               else
                 ...pendingCards,
             ] else ...[
-              if (historyItems.isEmpty)
+              NotificationHistoryFilterBar(
+                categoryLabel: _historyCategory.label,
+                durationLabel: _historyDuration.label,
+                categoryOptions: NotificationHistoryCategory.values
+                    .map((item) => item.label)
+                    .toList(),
+                durationOptions: NotificationHistoryDuration.values
+                    .map((item) => item.label)
+                    .toList(),
+                onCategorySelected: (label) {
+                  final next = NotificationHistoryCategory.values.firstWhere(
+                    (item) => item.label == label,
+                    orElse: () => NotificationHistoryCategory.all,
+                  );
+                  setState(() => _historyCategory = next);
+                },
+                onDurationSelected: (label) {
+                  final next = NotificationHistoryDuration.values.firstWhere(
+                    (item) => item.label == label,
+                    orElse: () => NotificationHistoryDuration.days30,
+                  );
+                  setState(() => _historyDuration = next);
+                },
+              ),
+              if (filteredHistory.isEmpty)
                 const Card(
                   child: ListTile(
-                    title: Text('سجل الإشعارات فارغ.'),
+                    title: Text('لا توجد إشعارات في هذا النطاق.'),
                   ),
                 )
               else
-                ...historyItems.map((item) => _buildHistoryTile(state, item)),
+                ..._buildGroupedHistoryTiles(state, filteredHistory),
             ],
           ],
         );
@@ -111,55 +146,44 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
               ? const Color(0xFF0F9D7A)
               : const Color(0xFF4C8BF5),
           title: source.name,
-          subtitle: pendingMeta.status,
           amount: source.amount,
-          badge: pendingMeta.isDueOrLate ? 'مستحق الآن' : 'تنبيه مبكر',
-          meta: _walletName(source.targetWalletId),
-          icon: Icons.south_west_rounded,
-          actions: [
-            if (pendingMeta.canEarly)
-              PendingNotificationAction(
-                label: 'بكر',
-                filled: false,
-                onPressed: _processingIds.contains('early_${source.id}')
-                    ? () {}
-                    : () async {
-                        setState(
-                            () => _processingIds.add('early_${source.id}'));
-                        try {
-                          await _recordIncome(source, early: true);
-                        } finally {
-                          if (mounted) {
-                            setState(() =>
-                                _processingIds.remove('early_${source.id}'));
-                          }
-                        }
-                      },
-              ),
-            if (pendingMeta.isDueOrLate)
-              PendingNotificationAction(
-                label: 'نزول',
-                onPressed: _processingIds.contains('due_${source.id}')
-                    ? () {}
-                    : () async {
-                        setState(() => _processingIds.add('due_${source.id}'));
-                        try {
-                          await _recordIncome(source);
-                        } finally {
-                          if (mounted) {
-                            setState(() =>
-                                _processingIds.remove('due_${source.id}'));
-                          }
-                        }
-                      },
-              ),
-            if (pendingMeta.isDueOrLate)
-              PendingNotificationAction(
-                label: 'تأجيل',
-                filled: false,
-                onPressed: () => _postponeIncome(source, month),
-              ),
-          ],
+          icon: _pendingIconBox(
+            Icons.south_west_rounded,
+            pendingMeta.isDueOrLate
+                ? const Color(0xFF0F9D7A)
+                : const Color(0xFF4C8BF5),
+          ),
+          confirmLabel:
+              pendingMeta.isDueOrLate ? 'نزول' : 'بكر',
+          confirmEnabled: !_processingIds.contains(
+            pendingMeta.isDueOrLate ? 'due_${source.id}' : 'early_${source.id}',
+          ),
+          showPostpone: pendingMeta.isDueOrLate,
+          onConfirm: pendingMeta.isDueOrLate
+              ? () async {
+                  if (_processingIds.contains('due_${source.id}')) return;
+                  setState(() => _processingIds.add('due_${source.id}'));
+                  try {
+                    await _recordIncome(source);
+                  } finally {
+                    if (mounted) {
+                      setState(() => _processingIds.remove('due_${source.id}'));
+                    }
+                  }
+                }
+              : () async {
+                  if (_processingIds.contains('early_${source.id}')) return;
+                  setState(() => _processingIds.add('early_${source.id}'));
+                  try {
+                    await _recordIncome(source, early: true);
+                  } finally {
+                    if (mounted) {
+                      setState(
+                          () => _processingIds.remove('early_${source.id}'));
+                    }
+                  }
+                },
+          onPostpone: () => _postponeIncome(source, month),
         ),
       );
     }
@@ -187,145 +211,124 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
         PendingNotificationCard(
           accent: const Color(0xFFC65D2E),
           title: debt.name,
-          subtitle: pendingMeta.status,
           amount: decisionAmount,
-          badge: 'دين أو اشتراك',
-          meta: _walletName(recurring?.walletId ?? ''),
-          icon: Icons.credit_card_rounded,
-          actions: [
-            PendingNotificationAction(
-              label: 'سدد الآن',
-              onPressed: recurring == null
-                  ? () {}
-                  : () => _recordDebt(
-                        debt,
-                        recurring,
-                        pendingMeta.occurrence,
-                      ),
-            ),
-            PendingNotificationAction(
-              label: 'تأجيل',
-              filled: false,
-              onPressed: recurring == null
-                  ? () {}
-                  : () => _openRecurringPostponeDialog(
-                        debt: debt,
-                        recurring: recurring,
-                        occurrence: pendingMeta.occurrence,
-                        amount: decisionAmount,
-                      ),
-            ),
-          ],
+          icon: _pendingIconBox(Icons.credit_card_rounded, const Color(0xFFC65D2E)),
+          confirmLabel: 'سدد',
+          onConfirm: recurring == null
+              ? () {}
+              : () => _recordDebt(
+                    debt,
+                    recurring,
+                    pendingMeta.occurrence,
+                  ),
+          onPostpone: recurring == null
+              ? () {}
+              : () => _openRecurringPostponeDialog(
+                    debt: debt,
+                    recurring: recurring,
+                    occurrence: pendingMeta.occurrence,
+                    amount: decisionAmount,
+                  ),
         ),
       );
     }
 
     for (final jar in budget.linkedWallets) {
-      if (jar.pendingDistribution > 0) {
-        final hasPhysical = _isJarPendingPhysical(jar);
-        final sourceWalletName = jar.pendingDistributionWalletId.isNotEmpty
-            ? _walletName(jar.pendingDistributionWalletId)
-            : 'بدون محفظة محددة';
-        cards.add(
-          PendingNotificationCard(
-            accent: const Color(0xFF0F766E),
-            title: jar.name,
-            subtitle: hasPhysical
-                ? 'خصم فعلي: ${jar.pendingDistribution.toStringAsFixed(2)} من $sourceWalletName'
-                : 'حجز افتراضي: ${jar.pendingDistribution.toStringAsFixed(2)} من $sourceWalletName',
-            amount: jar.pendingDistribution,
-            badge: 'حصالة ادخار',
-            meta: sourceWalletName,
-            icon: Icons.savings_outlined,
-            actions: [
-              PendingNotificationAction(
-                label: hasPhysical ? 'تأكيد الخصم' : 'تأكيد التخصيص',
-                onPressed: _processingIds.contains('jar_${jar.id}')
-                    ? () {}
-                    : () async {
-                        setState(() => _processingIds.add('jar_${jar.id}'));
-                        try {
-                          await _confirmJarDistribution(jar);
-                        } finally {
-                          if (mounted) {
-                            setState(
-                                () => _processingIds.remove('jar_${jar.id}'));
-                          }
-                        }
-                      },
-              ),
-              PendingNotificationAction(
-                label: 'تأجيل',
-                filled: false,
-                onPressed: () => _postponeJarDistribution(jar),
-              ),
-            ],
-          ),
-        );
-      }
+      if (!jar.isPendingDistributionVisible) continue;
+      final accent = notificationAccentFromHex(jar.iconColor);
+      cards.add(
+        PendingNotificationCard(
+          accent: accent,
+          title: 'تخصيص لحصالة ${jar.name}',
+          amount: jar.pendingDistribution,
+          icon: _pendingEntityIcon(jar.icon, accent),
+          confirmLabel: 'تأكيد',
+          confirmEnabled: !_processingIds.contains('jar_${jar.id}'),
+          onConfirm: _processingIds.contains('jar_${jar.id}')
+              ? () {}
+              : () async {
+                  setState(() => _processingIds.add('jar_${jar.id}'));
+                  try {
+                    await _confirmJarDistribution(jar);
+                  } finally {
+                    if (mounted) {
+                      setState(() => _processingIds.remove('jar_${jar.id}'));
+                    }
+                  }
+                },
+          onPostpone: () => _openJarDistributionPostpone(jar),
+        ),
+      );
     }
 
     for (final alloc in budget.allocations) {
-      if (alloc.pendingDistribution > 0) {
-        cards.add(
-          PendingNotificationCard(
-            accent: const Color(0xFF165B47),
-            title: alloc.name,
-            subtitle: 'تخصيص: ${alloc.pendingDistribution.toStringAsFixed(2)}',
-            amount: alloc.pendingDistribution,
-            badge: 'مخصص شهري',
-            meta: 'تخصيص',
-            icon: Icons.category_outlined,
-            actions: [
-              PendingNotificationAction(
-                label: 'تأكيد النزول',
-                onPressed: _processingIds.contains('alloc_${alloc.id}')
-                    ? () {}
-                    : () async {
-                        setState(() => _processingIds.add('alloc_${alloc.id}'));
-                        try {
-                          await _confirmAllocationDistribution(alloc);
-                        } finally {
-                          if (mounted) {
-                            setState(() =>
-                                _processingIds.remove('alloc_${alloc.id}'));
-                          }
-                        }
-                      },
-              ),
-              PendingNotificationAction(
-                label: 'تأجيل',
-                filled: false,
-                onPressed: () => _postponeAllocationDistribution(alloc),
-              ),
-            ],
-          ),
-        );
-      }
+      if (!alloc.isPendingDistributionVisible) continue;
+      final accent = notificationAccentFromHex(alloc.iconColor);
+      cards.add(
+        PendingNotificationCard(
+          accent: accent,
+          title: 'تخصيص ل${alloc.name}',
+          amount: alloc.pendingDistribution,
+          icon: _pendingEntityIcon(alloc.icon, accent),
+          confirmLabel: 'تأكيد',
+          confirmEnabled: !_processingIds.contains('alloc_${alloc.id}'),
+          onConfirm: _processingIds.contains('alloc_${alloc.id}')
+              ? () {}
+              : () async {
+                  setState(() => _processingIds.add('alloc_${alloc.id}'));
+                  try {
+                    await _confirmAllocationDistribution(alloc);
+                  } finally {
+                    if (mounted) {
+                      setState(
+                          () => _processingIds.remove('alloc_${alloc.id}'));
+                    }
+                  }
+                },
+          onPostpone: () => _openAllocationDistributionPostpone(alloc),
+        ),
+      );
     }
 
     return cards;
   }
 
+  List<NotificationEntity> _filteredHistoryItems(
+    List<NotificationEntity> items,
+  ) {
+    final start = _historyDuration.startDate;
+    return items.where((item) {
+      if (item.createdAt.isBefore(start)) return false;
+      return notificationMatchesHistoryCategory(item, _historyCategory);
+    }).toList();
+  }
+
+  List<Widget> _buildGroupedHistoryTiles(
+    AppStateEntity state,
+    List<NotificationEntity> items,
+  ) {
+    final widgets = <Widget>[];
+    String? currentGroup;
+
+    for (final item in items) {
+      final group = notificationHistoryDateGroupLabel(item.createdAt);
+      if (group != currentGroup) {
+        currentGroup = group;
+        widgets.add(NotificationHistoryDateHeader(label: group));
+      }
+      widgets.add(_buildHistoryTile(state, item));
+    }
+
+    return widgets;
+  }
+
   List<NotificationEntity> _historyNotifications(AppStateEntity state) {
     final items = state.notifications.where((item) {
-      if (item.relatedLogId == null) return false;
-      if (item.type == 'revert-system') return false;
+      if (!isNotificationHistoryEntry(item)) return false;
 
-      // Hide if the original action was reverted
       final isReverted =
           state.logs.any((l) => l.id == item.relatedLogId && l.isReverted);
-      if (isReverted) return false;
-
-      final text = '${item.title} ${item.message}';
-      return text.contains('دخل') ||
-          text.contains('دين') ||
-          text.contains('اشتراك') ||
-          text.contains('تأجيل') ||
-          text.contains('تخطي') ||
-          text.contains('سدد') ||
-          text.contains('تأكيد') ||
-          text.contains('نزول');
+      return !isReverted;
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return items;
@@ -335,119 +338,40 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     final relatedLog =
         state.logs.where((log) => log.id == item.relatedLogId).toList();
     final log = relatedLog.isEmpty ? null : relatedLog.first;
+    final accent = _historyAccent(state, item, log);
 
     return NotificationHistoryCard(
       title: _historyTitle(item),
-      timeLabel: DateFormat('d MMMM - HH:mm', 'ar').format(item.createdAt),
-      amountLabel: _historyAmount(item, log),
-      accent: _historyAccent(item),
-      icon: _historyIcon(item),
-      onOpen: () => _openHistorySheet(item, log),
+      timeLabel: DateFormat('h:mm a', 'ar').format(item.createdAt),
+      amountValue: _historyAmountValue(item, log),
+      accent: accent,
+      icon: _historyIconWidget(state, item, log, accent),
+      onOpen: () => _openHistorySheet(state, item, log),
     );
   }
 
   Future<void> _openHistorySheet(
+    AppStateEntity state,
     NotificationEntity item,
     LogEntryEntity? log,
   ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.62,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(item.title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(item.message),
-            const SizedBox(height: 16),
-            ..._detailsRows(item, log).map(
-              (row) => Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.24),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 96,
-                      child: Text(
-                        row.key,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        row.value,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (log != null) ...[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final approved = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: Text(
-                        log.isReverted ? 'إلغاء التراجع؟' : 'تأكيد التراجع',
-                      ),
-                      content: Text(
-                        log.isReverted
-                            ? 'سيتم إلغاء التراجع وإعادة تطبيق الإجراء السابق.'
-                            : 'سيتم التراجع عن هذا الإجراء وتحديث البيانات بناءً على السجل.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(false),
-                          child: const Text('إلغاء'),
-                        ),
-                        FilledButton(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(true),
-                          child: const Text('تأكيد'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (approved != true) return;
-                  await widget.cubit.toggleLogRevert(log.id);
-                  if (context.mounted) Navigator.pop(context);
-                },
-                icon: Icon(
-                  log.isReverted ? Icons.redo_rounded : Icons.undo_rounded,
-                ),
-                label: Text(
-                  log.isReverted ? 'إلغاء التراجع' : 'التراجع عن الإجراء',
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    final transaction = transactionForHistoryLog(state, log);
+    if (transaction != null) {
+      await openTransactionDetailsSheet(
+        context,
+        cubit: widget.cubit,
+        transaction: transaction,
+      );
+      return;
+    }
+
+    await openNotificationHistoryDetailsSheet(
+      context,
+      cubit: widget.cubit,
+      item: item,
+      log: log,
+      accent: _historyAccent(state, item, log),
+      icon: _historyIcon(item),
     );
   }
 
@@ -576,6 +500,12 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     }
 
     final now = DateTime.now();
+    final historyTitle = incomeConfirmTitle(name: source.name, early: early);
+    final historyMessage = incomeConfirmMessage(
+      name: source.name,
+      amount: amount,
+      early: early,
+    );
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
@@ -583,9 +513,9 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
       incomeSourceId: source.id,
       budgetScope: BudgetScope.withinBudget.value,
       createdAt: DateTime(now.year, now.month, now.day, 12),
-      details: early
-          ? 'تسجيل دخل مبكر: ${source.name} بقيمة ${amount.toStringAsFixed(2)}'
-          : 'تأكيد نزول دخل: ${source.name} بقيمة ${amount.toStringAsFixed(2)}',
+      details: historyMessage,
+      notificationTitleOverride: historyTitle,
+      recordInNotificationHistory: true,
     );
   }
 
@@ -617,10 +547,17 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
         )
         .toList();
 
+    final historyTitle = incomePostponeTitle(name: source.name);
+    final historyMessage = incomePostponeMessage(
+      name: source.name,
+      amount: source.amount,
+      until: picked,
+    );
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(incomeSources: incomes),
-      detailsOverride:
-          'تأجيل دخل: ${source.name} حتى ${DateFormat('d MMMM yyyy', 'ar').format(picked)}',
+      detailsOverride: historyMessage,
+      titleOverride: historyTitle,
+      recordInNotificationHistory: true,
     );
   }
 
@@ -629,13 +566,16 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     RecurringTransactionEntity recurring,
     DateTime occurrence,
   ) async {
+    final historyTitle = debtPayTitle(name: debt.name);
+    final historyMessage =
+        debtPayMessage(name: debt.name, amount: debt.amount);
     await widget.cubit.recordRecurringExpenseOccurrence(
       recurring: recurring,
       amount: debt.amount,
       occurrence: occurrence,
-      transactionNotes: 'سداد دين: ${debt.name}',
-      logDetails:
-          'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
+      transactionNotes: historyMessage,
+      logDetails: historyMessage,
+      titleOverride: historyTitle,
     );
   }
 
@@ -648,7 +588,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     await widget.cubit.recordRecurringSkip(
       recurring: recurring,
       occurrence: occurrence,
-      logDetails: 'تخطي هذه المرة: $name بقيمة ${amount.toStringAsFixed(2)}',
+      logDetails: debtSkipMessage(name: name, amount: amount),
+      titleOverride: debtSkipTitle(name: name),
     );
   }
 
@@ -661,8 +602,12 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     await widget.cubit.recordRecurringPostpone(
       recurring: recurring,
       snoozedUntil: until,
-      logDetails:
-          'تأجيل $name بقيمة ${amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy', 'ar').format(until)}',
+      logDetails: debtPostponeMessage(
+        name: name,
+        amount: amount,
+        until: until,
+      ),
+      titleOverride: debtPostponeTitle(name: name),
     );
   }
 
@@ -675,51 +620,84 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   }
 
   Future<void> _confirmAllocationDistribution(AllocationEntity alloc) async {
-    final setup = widget.cubit.state.budgetSetup;
-    final amount = alloc.pendingDistribution;
-
-    if (amount <= 0) return;
-
-    final allocations = setup.allocations.map((a) {
-      if (a.id == alloc.id) {
-        return a.copyWith(
-          pendingDistribution: 0,
-          pendingDistributionWalletId: '',
-          pendingDistributionSourceId: '',
-        );
-      }
-      return a;
-    }).toList();
-    await widget.cubit.updateBudgetSetup(
-      setup.copyWith(allocations: allocations),
-      detailsOverride: 'تأكيد النزول لـ: ${alloc.name}',
-    );
+    await widget.cubit.confirmAllocationDistribution(alloc.id);
   }
 
   Future<void> _postponeAllocationDistribution(AllocationEntity alloc) async {
-    final setup = widget.cubit.state.budgetSetup;
-    final allocations = setup.allocations.map((a) {
-      if (a.id == alloc.id) {
-        return a.copyWith(
-          pendingDistribution: 0,
-          pendingDistributionWalletId: '',
-          pendingDistributionSourceId: '',
-        );
-      }
-      return a;
-    }).toList();
-    await widget.cubit.updateBudgetSetup(
-      setup.copyWith(allocations: allocations),
-      detailsOverride: 'تخطي النزول لـ: ${alloc.name}',
+    await widget.cubit.postponeAllocationDistribution(alloc.id);
+  }
+
+  Widget _pendingIconBox(IconData icon, Color accent) {
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: accent, size: 22),
     );
   }
 
-  bool _isJarPendingPhysical(LinkedWalletEntity jar) {
-    final sourceId = jar.pendingDistributionSourceId;
-    if (sourceId.isEmpty) return false;
-    return jar.funding.any(
-      (entry) => entry.incomeSourceId == sourceId && entry.isPhysical,
+  Widget _pendingEntityIcon(String iconName, Color accent) {
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: AppIconPickerDialog.iconWidgetForName(
+        iconName,
+        color: accent,
+        size: 22,
+      ),
     );
+  }
+
+  DateTime _distributionSnoozeUntil(int days) {
+    final target = DateTime.now().add(Duration(days: days));
+    return DateTime(target.year, target.month, target.day, 9);
+  }
+
+  Future<void> _openAllocationDistributionPostpone(
+    AllocationEntity alloc,
+  ) async {
+    final choice = await showDistributionPostponeSheet(context);
+    if (choice == null) return;
+
+    switch (choice) {
+      case DistributionPostponeChoice.oneDay:
+        await widget.cubit.snoozeAllocationDistribution(
+          alloc.id,
+          _distributionSnoozeUntil(1),
+        );
+      case DistributionPostponeChoice.threeDays:
+        await widget.cubit.snoozeAllocationDistribution(
+          alloc.id,
+          _distributionSnoozeUntil(3),
+        );
+      case DistributionPostponeChoice.skip:
+        await _postponeAllocationDistribution(alloc);
+    }
+  }
+
+  Future<void> _openJarDistributionPostpone(LinkedWalletEntity jar) async {
+    final choice = await showDistributionPostponeSheet(context);
+    if (choice == null) return;
+
+    switch (choice) {
+      case DistributionPostponeChoice.oneDay:
+        await widget.cubit.snoozeJarDistribution(
+          jar.id,
+          _distributionSnoozeUntil(1),
+        );
+      case DistributionPostponeChoice.threeDays:
+        await widget.cubit.snoozeJarDistribution(
+          jar.id,
+          _distributionSnoozeUntil(3),
+        );
+      case DistributionPostponeChoice.skip:
+        await _postponeJarDistribution(jar);
+    }
   }
 
   Future<void> _openRecurringPostponeDialog({
@@ -759,56 +737,86 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     }
   }
 
-  // Removed local _showPostponeDialog in favor of RecurringPostponeDialog
-
-  String _walletName(String walletId) {
-    if (walletId.isEmpty) return 'بدون محفظة';
-    final wallets =
-        widget.cubit.state.wallets.where((wallet) => wallet.id == walletId);
-    if (wallets.isEmpty) return 'بدون محفظة';
-    return wallets.first.name;
-  }
-
   String _historyTitle(NotificationEntity item) {
-    return item.title.trim().isEmpty ? 'إشعار' : item.title.trim();
+    return notificationHistoryTitle(
+      title: item.title,
+      message: item.message,
+    );
   }
 
   String _historyAmount(NotificationEntity item, LogEntryEntity? log) {
-    final source = '${item.title} ${item.message} ${log?.details ?? ''}';
-    final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(source);
-    return match?.group(1) ?? 'بدون قيمة';
+    return notificationHistoryAmount(
+      message: item.message,
+      logDetails: log?.details,
+    );
   }
 
-  List<MapEntry<String, String>> _detailsRows(
+  String _historyAmountValue(NotificationEntity item, LogEntryEntity? log) {
+    final formatted = _historyAmount(item, log);
+    if (formatted.isEmpty) return '';
+    return formatted.replaceAll('جنيه', '').trim();
+  }
+
+  Widget _historyIconWidget(
+    AppStateEntity state,
+    NotificationEntity item,
+    LogEntryEntity? log,
+    Color accent,
+  ) {
+    final entityId = log?.entityId ?? '';
+    if (item.type == 'allocation' && entityId.isNotEmpty) {
+      for (final alloc in state.budgetSetup.allocations) {
+        if (alloc.id == entityId) {
+          return _pendingEntityIcon(alloc.icon, accent);
+        }
+      }
+    }
+    if (item.type == 'jar' && entityId.isNotEmpty) {
+      for (final jar in state.budgetSetup.linkedWallets) {
+        if (jar.id == entityId) {
+          return _pendingEntityIcon(jar.icon, accent);
+        }
+      }
+    }
+
+    return _pendingIconBox(_historyIcon(item), accent);
+  }
+
+  Color _historyAccent(
+    AppStateEntity state,
     NotificationEntity item,
     LogEntryEntity? log,
   ) {
-    final rows = <MapEntry<String, String>>[
-      MapEntry('العنوان', item.title),
-      MapEntry('القيمة', _historyAmount(item, log)),
-      MapEntry(
-        'الوقت',
-        DateFormat('d MMMM yyyy - HH:mm', 'ar').format(item.createdAt),
-      ),
-      MapEntry('الرسالة', item.message),
-    ];
-    if (log != null) {
-      rows.add(MapEntry('الإجراء', log.action));
-      rows.add(MapEntry('نوع العنصر', log.entityType));
-      rows.add(MapEntry('الحالة', log.isReverted ? 'تم التراجع' : 'نشط'));
+    final entityId = log?.entityId ?? '';
+    if (item.type == 'allocation' && entityId.isNotEmpty) {
+      for (final alloc in state.budgetSetup.allocations) {
+        if (alloc.id == entityId) {
+          return notificationAccentFromHex(alloc.iconColor);
+        }
+      }
     }
-    return rows;
-  }
+    if (item.type == 'jar' && entityId.isNotEmpty) {
+      for (final jar in state.budgetSetup.linkedWallets) {
+        if (jar.id == entityId) {
+          return notificationAccentFromHex(jar.iconColor);
+        }
+      }
+    }
 
-  Color _historyAccent(NotificationEntity item) {
     final text = '${item.title} ${item.message}';
-    if (text.contains('دخل')) {
+    if (text.contains('حصالة')) {
+      return const Color(0xFF7C5CBF);
+    }
+    if (text.contains('مخصص') || text.contains('تخصيص')) {
+      return const Color(0xFF165B47);
+    }
+    if (text.contains('راتب') || text.contains('دخل')) {
       return const Color(0xFF0F9D7A);
     }
     if (text.contains('تأجيل')) {
-      return const Color(0xFF9B6B2F);
+      return const Color(0xFFD4A017);
     }
-    if (text.contains('دين') || text.contains('اشتراك')) {
+    if (text.contains('دين') || text.contains('اشتراك') || text.contains('سداد')) {
       return const Color(0xFFC65D2E);
     }
     return const Color(0xFF2F6F5E);
@@ -816,7 +824,10 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
 
   IconData _historyIcon(NotificationEntity item) {
     final text = '${item.title} ${item.message}';
-    if (text.contains('دخل')) {
+    if (text.contains('تخصيص') || text.contains('حصالة')) {
+      return Icons.savings_outlined;
+    }
+    if (text.contains('راتب') || text.contains('دخل')) {
       return Icons.south_west_rounded;
     }
     if (text.contains('دين') || text.contains('اشتراك')) {

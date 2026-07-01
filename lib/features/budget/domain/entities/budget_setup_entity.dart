@@ -126,6 +126,7 @@ class AllocationEntity {
     this.pendingDistribution = 0,
     this.pendingDistributionWalletId = '',
     this.pendingDistributionSourceId = '',
+    this.pendingDistributionSnoozedUntil = '',
   });
 
   final String id;
@@ -145,6 +146,15 @@ class AllocationEntity {
   final double pendingDistribution;
   final String pendingDistributionWalletId;
   final String pendingDistributionSourceId;
+  final String pendingDistributionSnoozedUntil;
+
+  bool get isPendingDistributionVisible {
+    if (pendingDistribution <= 0) return false;
+    if (pendingDistributionSnoozedUntil.isEmpty) return true;
+    final until = DateTime.tryParse(pendingDistributionSnoozedUntil);
+    if (until == null) return true;
+    return !DateTime.now().isBefore(until);
+  }
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -160,6 +170,7 @@ class AllocationEntity {
         'pendingDistribution': pendingDistribution,
         'pendingDistributionWalletId': pendingDistributionWalletId,
         'pendingDistributionSourceId': pendingDistributionSourceId,
+        'pendingDistributionSnoozedUntil': pendingDistributionSnoozedUntil,
       };
 
   factory AllocationEntity.fromMap(Map<String, dynamic> map) =>
@@ -188,6 +199,8 @@ class AllocationEntity {
             map['pendingDistributionWalletId'] as String? ?? '',
         pendingDistributionSourceId:
             map['pendingDistributionSourceId'] as String? ?? '',
+        pendingDistributionSnoozedUntil:
+            map['pendingDistributionSnoozedUntil'] as String? ?? '',
       );
 
   AllocationEntity copyWith({
@@ -204,6 +217,7 @@ class AllocationEntity {
     double? pendingDistribution,
     String? pendingDistributionWalletId,
     String? pendingDistributionSourceId,
+    String? pendingDistributionSnoozedUntil,
   }) {
     return AllocationEntity(
       id: id ?? this.id,
@@ -221,6 +235,8 @@ class AllocationEntity {
           pendingDistributionWalletId ?? this.pendingDistributionWalletId,
       pendingDistributionSourceId:
           pendingDistributionSourceId ?? this.pendingDistributionSourceId,
+      pendingDistributionSnoozedUntil: pendingDistributionSnoozedUntil ??
+          this.pendingDistributionSnoozedUntil,
     );
   }
 }
@@ -297,6 +313,7 @@ class LinkedWalletEntity {
     this.pendingDistribution = 0,
     this.pendingDistributionWalletId = '',
     this.pendingDistributionSourceId = '',
+    this.pendingDistributionSnoozedUntil = '',
   });
 
   final String id;
@@ -328,6 +345,16 @@ class LinkedWalletEntity {
 
   /// مصدر الدخل الذي أطلق التوزيع المعلّق
   final String pendingDistributionSourceId;
+
+  final String pendingDistributionSnoozedUntil;
+
+  bool get isPendingDistributionVisible {
+    if (pendingDistribution <= 0) return false;
+    if (pendingDistributionSnoozedUntil.isEmpty) return true;
+    final until = DateTime.tryParse(pendingDistributionSnoozedUntil);
+    if (until == null) return true;
+    return !DateTime.now().isBefore(until);
+  }
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -364,6 +391,7 @@ class LinkedWalletEntity {
         'pendingDistribution': pendingDistribution,
         'pendingDistributionWalletId': pendingDistributionWalletId,
         'pendingDistributionSourceId': pendingDistributionSourceId,
+        'pendingDistributionSnoozedUntil': pendingDistributionSnoozedUntil,
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -399,6 +427,8 @@ class LinkedWalletEntity {
             map['pendingDistributionWalletId'] as String? ?? '',
         pendingDistributionSourceId:
             map['pendingDistributionSourceId'] as String? ?? '',
+        pendingDistributionSnoozedUntil:
+            map['pendingDistributionSnoozedUntil'] as String? ?? '',
       );
 
   LinkedWalletEntity copyWith({
@@ -419,6 +449,7 @@ class LinkedWalletEntity {
     double? pendingDistribution,
     String? pendingDistributionWalletId,
     String? pendingDistributionSourceId,
+    String? pendingDistributionSnoozedUntil,
   }) {
     return LinkedWalletEntity(
       id: id ?? this.id,
@@ -440,6 +471,8 @@ class LinkedWalletEntity {
           pendingDistributionWalletId ?? this.pendingDistributionWalletId,
       pendingDistributionSourceId:
           pendingDistributionSourceId ?? this.pendingDistributionSourceId,
+      pendingDistributionSnoozedUntil: pendingDistributionSnoozedUntil ??
+          this.pendingDistributionSnoozedUntil,
     );
   }
 }

@@ -10,7 +10,6 @@ import '../../domain/entities/transaction_entity.dart';
 import '../widgets/transaction_details_sheet.dart';
 import 'recurring_transaction_composer_screen.dart';
 import 'subscription_preset_selection_screen.dart';
-import '../../../budget/presentation/screens/budget_setup_screen.dart';
 
 class DebtsAndSubscriptionsScreen extends StatefulWidget {
   const DebtsAndSubscriptionsScreen({super.key, required this.cubit});
@@ -190,18 +189,6 @@ class _DebtsAndSubscriptionsScreenState
                 ],
               ],
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () => _openBudgetSetupScreen(context),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('تعديل الميزانية الشهرية'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
             ],
           ),
         );
@@ -233,23 +220,6 @@ class _DebtsAndSubscriptionsScreenState
         ),
       ),
     ]);
-  }
-
-  void _openBudgetSetupScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(
-            title: const Text('تعديل خطة الميزانية'),
-          ),
-          body: BudgetSetupScreen(
-            cubit: widget.cubit,
-            displayMonth:
-                DateTime(DateTime.now().year, DateTime.now().month, 1),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _actionButton({

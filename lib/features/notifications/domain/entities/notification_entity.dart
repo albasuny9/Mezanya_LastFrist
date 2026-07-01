@@ -7,6 +7,7 @@ class NotificationEntity {
     required this.type,
     this.relatedLogId,
     this.readAt,
+    this.isPendingAction = false,
   });
 
   final String id;
@@ -16,6 +17,9 @@ class NotificationEntity {
   final String type;
   final String? relatedLogId;
   final DateTime? readAt;
+
+  /// إجراء من مركز الإشعارات (تأكيد/تأجيل/تخطي) — يظهر في سجل الإشعارات فقط.
+  final bool isPendingAction;
 
   bool get isRead => readAt != null;
 
@@ -27,6 +31,7 @@ class NotificationEntity {
     String? type,
     String? relatedLogId,
     DateTime? readAt,
+    bool? isPendingAction,
   }) {
     return NotificationEntity(
       id: id ?? this.id,
@@ -36,6 +41,7 @@ class NotificationEntity {
       type: type ?? this.type,
       relatedLogId: relatedLogId ?? this.relatedLogId,
       readAt: readAt ?? this.readAt,
+      isPendingAction: isPendingAction ?? this.isPendingAction,
     );
   }
 
@@ -48,6 +54,7 @@ class NotificationEntity {
       'type': type,
       'relatedLogId': relatedLogId,
       'readAt': readAt?.toIso8601String(),
+      'isPendingAction': isPendingAction,
     };
   }
 
@@ -63,6 +70,7 @@ class NotificationEntity {
       readAt: map['readAt'] != null
           ? DateTime.tryParse(map['readAt'] as String)
           : null,
+      isPendingAction: map['isPendingAction'] as bool? ?? false,
     );
   }
 }

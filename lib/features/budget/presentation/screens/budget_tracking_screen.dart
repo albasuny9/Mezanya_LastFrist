@@ -15,6 +15,7 @@ import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
+import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
 import 'budget_setup_screen.dart';
@@ -251,7 +252,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           text: 'لا توجد حصالات ممولة في هذا الشهر.')
                     ]
                   : budgetJars
-                      .map((jar) => _jarSummaryTile(state, jar, monthTx)),
+                      .map((jar) => _jarSummaryTile(jar)),
               const SizedBox(height: 18),
               _sectionTitle('الديون والأقساط'),
               const SizedBox(height: 12),
@@ -1481,16 +1482,35 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     Color? accentColor,
   }) {
     final theme = Theme.of(context);
+    final isIncomeTotal = incomeTotalLayout && title == 'الدخل الكلي';
     final accent = accentColor ??
         (title == 'الدخل الكلي'
-            ? const Color(0xFF0F9D7A)
+            ? const Color(0xFF165B47)
             : const Color(0xFFC65D2E));
-    final shellColor = incomeTotalLayout
-        ? accent.withValues(alpha: isExpanded ? 0.12 : 0.08)
-        : accent.withValues(alpha: 0.10);
-    final shellBorder = incomeTotalLayout
-        ? accent.withValues(alpha: isExpanded ? 0.28 : 0.16)
-        : accent.withValues(alpha: 0.22);
+
+    final Color shellColor;
+    final Color shellBorder;
+    final List<BoxShadow>? shellShadow;
+
+    if (isIncomeTotal) {
+      shellColor = theme.colorScheme.surface;
+      shellBorder = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+      shellShadow = null;
+    } else if (incomeTotalLayout) {
+      shellColor = accent.withValues(alpha: isExpanded ? 0.12 : 0.08);
+      shellBorder = accent.withValues(alpha: isExpanded ? 0.28 : 0.16);
+      shellShadow = [
+        BoxShadow(
+          color: accent.withValues(alpha: isExpanded ? 0.12 : 0.07),
+          blurRadius: isExpanded ? 26 : 22,
+          offset: const Offset(0, 10),
+        ),
+      ];
+    } else {
+      shellColor = accent.withValues(alpha: 0.10);
+      shellBorder = accent.withValues(alpha: 0.22);
+      shellShadow = null;
+    }
 
     return Material(
       color: Colors.transparent,
@@ -1510,15 +1530,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             color: shellColor,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: shellBorder),
-            boxShadow: incomeTotalLayout
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: isExpanded ? 0.12 : 0.07),
-                      blurRadius: isExpanded ? 26 : 22,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : null,
+            boxShadow: shellShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1539,9 +1551,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                                 title,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: incomeTotalLayout
+                                  color: isIncomeTotal
                                       ? theme.colorScheme.onSurface
-                                      : accent,
+                                      : (incomeTotalLayout
+                                          ? theme.colorScheme.onSurface
+                                          : accent),
                                 ),
                               ),
                             ),
@@ -1550,9 +1564,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                               amount.toStringAsFixed(2),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w900,
-                                color: incomeTotalLayout
-                                    ? accent.withValues(alpha: 0.96)
-                                    : null,
+                                color: isIncomeTotal
+                                    ? const Color(0xFF165B47)
+                                    : (incomeTotalLayout
+                                        ? accent.withValues(alpha: 0.96)
+                                        : null),
                               ),
                             ),
                           ],
@@ -1573,7 +1589,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     isExpanded
                         ? Icons.keyboard_arrow_up_rounded
                         : Icons.keyboard_arrow_down_rounded,
-                    color: accent,
+                    color: isIncomeTotal
+                        ? theme.colorScheme.onSurfaceVariant
+                        : accent,
                     size: 28,
                   ),
                 ],
@@ -1584,7 +1602,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   child: Divider(
                     height: 1,
                     thickness: 1,
-                    color: accent.withValues(alpha: 0.14),
+                    color: isIncomeTotal
+                        ? theme.colorScheme.outlineVariant
+                            .withValues(alpha: 0.45)
+                        : accent.withValues(alpha: 0.14),
                   ),
                 ),
                 if (incomeTotalLayout) const SizedBox(height: 8),
@@ -1850,8 +1871,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final afterSpend = (pool - spent).clamp(0.0, pool);
         final remProgress =
             _incomeRemainingProgress(source, received, budget, monthTx);
+        final sourceAccent =
+            _colorFromHex(recurring?.iconColor ?? '#165b47');
         final incomeProgressColor = remProgress == null
-            ? const Color(0xFF0F9D7A)
+            ? sourceAccent
             : _usageProgressColor(1 - remProgress);
 
         // ── snooze chip ──────────────────────────────────────────────────
@@ -1889,9 +1912,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           title: source.name,
           leading: _iconBadge(
             recurring?.icon ?? 'cash',
-            recurring?.iconColor ?? '#0f9d7a',
+            recurring?.iconColor ?? '#165b47',
             // حجم أصغر لو مأجل
-            size: isSnoozed ? 44 : 56,
+            size: isSnoozed ? 44 : 54,
+            solid: true,
           ),
           amountText: displayedAmount.truncate().toString(),
           metaText: source.isVariable
@@ -1914,6 +1938,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
+                            color: Color.lerp(sourceAccent, Colors.black, 0.35),
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -1921,22 +1946,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           afterSpend.toStringAsFixed(2),
                           style: TextStyle(
                             fontSize: 11,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.92),
+                            color: Color.lerp(sourceAccent, Colors.black, 0.35),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-          tint: isSnoozed
-              ? const Color(0xFFF5A623).withValues(alpha: 0.6)
-              : const Color(0xFF0F9D7A),
+          tint: isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
+          amountColor:
+              Color.lerp(isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
+                  Colors.black, 0.35),
+          strongTint: !isSnoozed,
           compactMeta: source.isVariable || isSnoozed,
           progress: isSnoozed ? null : remProgress,
           progressColor: incomeProgressColor,
-          embeddedInIncomeCard: true,
           onTap: () =>
               _openIncomeDetailsSheet(source, sourceTx, budget, monthTx),
           actions: (pendingMeta == null || isSnoozed)
@@ -1983,12 +2006,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       ...incomeTx.where((t) => t.incomeSourceId == null).map(
             (t) => _entityTile(
               title: t.notes?.isNotEmpty == true ? t.notes! : 'دخل إضافي',
-              leading: _iconBadge('cash', '#0f9d7a', size: 56),
+              leading: _iconBadge('cash', '#165b47', size: 54, solid: true),
               amountText: t.amount.toStringAsFixed(2),
               metaText: DateFormat('d MMMM', 'ar').format(t.createdAt),
               trailingTopText: DateFormat('HH:mm', 'ar').format(t.createdAt),
-              tint: const Color(0xFF0F9D7A),
-              embeddedInIncomeCard: true,
+              tint: const Color(0xFF165B47),
+              strongTint: true,
+              amountColor: const Color(0xFF165B47),
               onTap: () => _openTxSheet(title: 'دخل إضافي', tx: [t]),
             ),
           ),
@@ -2103,11 +2127,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Widget _jarSummaryTile(AppStateEntity state, LinkedWalletEntity jar,
-      List<TransactionEntity> monthTx) {
+  Widget _jarSummaryTile(LinkedWalletEntity jar) {
     final hasPending = jar.pendingDistribution > 0;
+    final budgetAllocated = jar.funding.isNotEmpty
+        ? jar.funding.fold<double>(0, (s, f) => s + f.plannedAmount)
+        : jar.monthlyAmount;
+    final jarAccent = _colorFromHex(jar.iconColor);
 
-    // ── شيب تأجيل لو في توزيع معلّق ──────────────────────────────────────
     Widget? pendingChip;
     if (hasPending) {
       pendingChip = Container(
@@ -2143,37 +2169,25 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     return _entityTile(
       title: jar.name,
-      leading: _iconBadge(jar.icon, jar.iconColor, size: hasPending ? 44 : 54),
+      leading: _iconBadge(
+        jar.icon,
+        jar.iconColor,
+        size: hasPending ? 44 : 54,
+        solid: true,
+      ),
       amountText: jar.balance.toStringAsFixed(2),
-      metaText: 'المخصص الشهري ${jar.monthlyAmount.toStringAsFixed(2)}',
-      supportingText: hasPending ? null : 'إجمالي رصيد الحصالة',
+      metaText:
+          'مخصص من الميزانية ${budgetAllocated.toStringAsFixed(2)}',
+      supportingText: hasPending ? null : 'الرصيد الحالي',
       supportingCustom: pendingChip,
       compactMeta: hasPending,
-      progress: hasPending
-          ? null
-          : jar.monthlyAmount <= 0
-              ? null
-              : (monthTx
-                          .where((t) =>
-                              t.type == TransactionType.expense.value &&
-                              t.walletId == jar.id)
-                          .fold<double>(0, (s, t) => s + t.amount) /
-                      jar.monthlyAmount)
-                  .clamp(0.0, 1.0)
-                  .toDouble(),
-      progressColor: hasPending
-          ? null
-          : jar.monthlyAmount <= 0
-              ? null
-              : _usageProgressColor((monthTx
-                          .where((t) =>
-                              t.type == TransactionType.expense.value &&
-                              t.walletId == jar.id)
-                          .fold<double>(0, (s, t) => s + t.amount) /
-                      jar.monthlyAmount)
-                  .clamp(0.0, 1.0)
-                  .toDouble()),
-      tint: hasPending ? const Color(0xFFF5A623).withValues(alpha: 0.6) : null,
+      tint: hasPending ? const Color(0xFFF5A623) : jarAccent,
+      amountColor: Color.lerp(
+        hasPending ? const Color(0xFFF5A623) : jarAccent,
+        Colors.black,
+        0.35,
+      ),
+      strongTint: !hasPending,
       onTap: () => _openJarDetailsSheet(jar),
       actions: hasPending
           ? [
@@ -2195,443 +2209,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
-    final state = widget.cubit.state;
-    final distribution = {
-      for (final s in jar.walletSources) s.walletId: s.amount
-    };
-    final relevantTransactions = state.transactions
-        .where((t) => t.toWalletId == jar.id || t.walletId == jar.id)
-        .where((t) =>
-            // تحويلات الحصالة الداخلية
-            t.transferType == TransferType.jarAllocation.value ||
-            t.transferType == TransferType.jarAllocationCancel.value ||
-            t.transferType == TransferType.jarAllocationSpend.value ||
-            t.transferType == TransferType.jarFundingPhysical.value ||
-            t.transferType == TransferType.depositWithJarLabel.value ||
-            t.transferType == TransferType.allocationToJar.value ||
-            t.transferType == TransferType.jarToAllocation.value ||
-            (t.type == TransactionType.income.value &&
-                t.budgetScope == BudgetScope.withinBudget.value) ||
-            // مصروفات حقيقية مخصومة من الحصالة
-            (t.type == TransactionType.expense.value &&
-                t.walletId == jar.id &&
-                t.transferType == null))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    final accent = _colorFromHex(jar.iconColor);
-
-    await showModalBottomSheet<void>(
+  Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) {
+    return showJarDetailsSheet(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: const Color(0xFFFFFBF1),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      builder: (ctx) {
-        var showWallets = false;
-        return StatefulBuilder(builder: (ctx, setSheet) {
-          return DraggableScrollableSheet(
-            initialChildSize: 0.88,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
-            expand: false,
-            builder: (ctx, scrollCtrl) {
-              final theme = Theme.of(ctx);
-              return ListView(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                children: [
-                  // ── Hero Card ────────────────────────────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          accent.withValues(alpha: 0.95),
-                          accent.withValues(alpha: 0.72),
-                        ],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
-                      borderRadius: BorderRadius.circular(26),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.30),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Center(
-                                  child: AppIconPickerDialog.iconWidgetForName(
-                                      jar.icon,
-                                      color: Colors.white,
-                                      size: 32),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(jar.name,
-                                        style: const TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w900,
-                                            color: Colors.white)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${jar.balance.toStringAsFixed(2)} جنيه',
-                                      style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.85)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _jarIconAction(Icons.settings_outlined,
-                                  onTap: () {
-                                Navigator.of(ctx).pop();
-                                Future.microtask(() {
-                                  if (!mounted) return;
-                                  _openBudgetSetupScreen();
-                                });
-                              }, tooltip: 'تعديل'),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                  child: _jarGlassMetric(
-                                      label: 'الرصيد الكلي',
-                                      value: jar.balance.toStringAsFixed(2),
-                                      accent: accent)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: _jarGlassMetric(
-                                      label: 'شهري مخطط',
-                                      value:
-                                          jar.monthlyAmount.toStringAsFixed(2),
-                                      accent: accent)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: _jarGlassMetric(
-                                      label: 'المحافظ',
-                                      value: distribution.length.toString(),
-                                      accent: accent)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: () =>
-                              setSheet(() => showWallets = !showWallets),
-                          child: Container(
-                            margin: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.28)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                AnimatedRotation(
-                                  turns: showWallets ? 0.5 : 0,
-                                  duration: const Duration(milliseconds: 260),
-                                  child: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.white,
-                                      size: 20),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  showWallets
-                                      ? 'إخفاء مكان الفلوس'
-                                      : 'مكان الفلوس',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOutCubic,
-                          child: showWallets
-                              ? Container(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Row(children: [
-                                        Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.18),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: const Icon(
-                                              Icons
-                                                  .account_balance_wallet_rounded,
-                                              color: Colors.white,
-                                              size: 17),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        const Text('توزيع الفلوس',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 15)),
-                                      ]),
-                                      const SizedBox(height: 14),
-                                      if (distribution.isEmpty)
-                                        Container(
-                                          padding: const EdgeInsets.all(16),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFFFBF1),
-                                            borderRadius:
-                                                BorderRadius.circular(14),
-                                            border: Border.all(
-                                                color: accent.withValues(
-                                                    alpha: 0.10)),
-                                          ),
-                                          child: const Text(
-                                            'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                                color: Color(0xFF8A7F72),
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13),
-                                          ),
-                                        )
-                                      else
-                                        ...distribution.entries.map((e) {
-                                          final currentState =
-                                              widget.cubit.state;
-                                          final matchedWallets = currentState
-                                              .wallets
-                                              .where((w) => w.id == e.key)
-                                              .toList();
-                                          final walletName =
-                                              matchedWallets.isEmpty
-                                                  ? 'محفظة'
-                                                  : matchedWallets.first.name;
-                                          final walletIcon = matchedWallets
-                                                  .isEmpty
-                                              ? 'account_balance_wallet'
-                                              : (matchedWallets.first.icon ??
-                                                  'account_balance_wallet');
-                                          final ratio = jar.balance <= 0
-                                              ? 0.0
-                                              : (e.value / jar.balance)
-                                                  .clamp(0.0, 1.0);
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                                bottom: 8),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(14),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.15),
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                                border: Border.all(
-                                                    color: Colors.white
-                                                        .withValues(
-                                                            alpha: 0.25)),
-                                              ),
-                                              child: Column(children: [
-                                                Row(children: [
-                                                  Container(
-                                                    width: 34,
-                                                    height: 34,
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white
-                                                          .withValues(
-                                                              alpha: 0.18),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              10),
-                                                    ),
-                                                    child: Center(
-                                                      child: AppIconPickerDialog
-                                                          .iconWidgetForName(
-                                                              walletIcon,
-                                                              color:
-                                                                  Colors.white,
-                                                              size: 17),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                      child: Text(walletName,
-                                                          style:
-                                                              const TextStyle(
-                                                                  color: Colors
-                                                                      .white,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w800,
-                                                                  fontSize:
-                                                                      14))),
-                                                  Text(
-                                                      '${e.value.toStringAsFixed(2)} جنيه',
-                                                      style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.w900,
-                                                          fontSize: 15)),
-                                                ]),
-                                                const SizedBox(height: 10),
-                                                ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          999),
-                                                  child:
-                                                      LinearProgressIndicator(
-                                                    value: ratio,
-                                                    minHeight: 5,
-                                                    backgroundColor:
-                                                        Colors.white.withValues(
-                                                            alpha: 0.16),
-                                                    valueColor:
-                                                        AlwaysStoppedAnimation(
-                                                            Colors.white
-                                                                .withValues(
-                                                                    alpha:
-                                                                        0.78)),
-                                                  ),
-                                                ),
-                                              ]),
-                                            ),
-                                          );
-                                        }),
-                                    ],
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-                  // ── Transactions ─────────────────────────────────────────
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: const Text('المعاملات',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w900)),
-                  ),
-                  const SizedBox(height: 10),
-                  if (relevantTransactions.isEmpty)
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Text(
-                        'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Color(0xFF8A7F72),
-                            fontWeight: FontWeight.w600),
-                      ),
-                    )
-                  else
-                    ...relevantTransactions.map(
-                        (t) => _trackingMonthTransactionTile(ctx, theme, t)),
-                ],
-              );
-            },
-          );
-        });
-      },
-    );
-  }
-
-  Widget _jarGlassMetric({
-    required String label,
-    required String value,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: Colors.white)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.white.withValues(alpha: 0.82),
-                  fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-
-  Widget _jarIconAction(IconData icon,
-      {required VoidCallback onTap, required String tooltip}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Tooltip(
-        message: tooltip,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.20),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-      ),
+      cubit: widget.cubit,
+      jarId: jar.id,
+      onEditJar: (_) => _openBudgetSetupScreen(),
     );
   }
 

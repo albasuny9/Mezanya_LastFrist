@@ -10,6 +10,7 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../../goals/domain/entities/goal_entity.dart';
 import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../../notifications/domain/entities/notification_entity.dart';
+import '../../../notifications/domain/notification_action_copy.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
@@ -121,6 +122,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     required String entityId,
     required String details,
     String? titleOverride,
+    bool recordInNotificationHistory = false,
     required Future<AppStateEntity> Function() apply,
   }) async {
     final before = jsonEncode(_coreMap(state));
@@ -138,18 +140,23 @@ class AppCubit extends Cubit<AppStateEntity> {
       afterState: after,
       isReverted: false,
     );
-    final notification = NotificationEntity(
-      id: _id('notif'),
-      title: title,
-      message: details,
-      createdAt: DateTime.now(),
-      type: entityType,
-      relatedLogId: log.id,
-    );
+    final notifications = recordInNotificationHistory
+        ? [
+            NotificationEntity(
+              id: _id('notif'),
+              title: title,
+              message: details,
+              createdAt: DateTime.now(),
+              type: entityType,
+              relatedLogId: log.id,
+              isPendingAction: true,
+            ),
+            ...nextRaw.notifications,
+          ].take(800).toList()
+        : nextRaw.notifications;
     final next = nextRaw.copyWith(
       logs: [log, ...nextRaw.logs].take(600).toList(),
-      notifications:
-          [notification, ...nextRaw.notifications].take(800).toList(),
+      notifications: notifications,
     );
     await _repository.saveState(next);
     emit(next);
@@ -228,6 +235,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     String? notes,
     DateTime? createdAt,
     String? details,
+    String? notificationTitleOverride,
+    bool recordInNotificationHistory = false,
   }) async {
     final walletName = walletId == null
         ? null
@@ -280,12 +289,21 @@ class AppCubit extends Cubit<AppStateEntity> {
             allocationName: allocationName,
             budgetScope: budgetScope,
           ),
-      titleOverride: notes?.isNotEmpty == true
-          ? notes
-          : incomeName ??
-              walletName ??
-              (type == TransactionType.income.value ? 'دخل' : 'مصروف'),
+      titleOverride: recordInNotificationHistory
+          ? (notificationTitleOverride ??
+              details ??
+              (notes?.isNotEmpty == true
+                  ? notes
+                  : incomeName ??
+                      walletName ??
+                      (type == TransactionType.income.value ? 'دخل' : 'مصروف')))
+          : (notes?.isNotEmpty == true
+              ? notes
+              : incomeName ??
+                  walletName ??
+                  (type == TransactionType.income.value ? 'دخل' : 'مصروف')),
       apply: () async => TransactionProcessor.apply(state, transaction),
+      recordInNotificationHistory: recordInNotificationHistory,
     );
   }
 
@@ -335,12 +353,17 @@ class AppCubit extends Cubit<AppStateEntity> {
   Future<void> updateBudgetSetup(
     BudgetSetupEntity setup, {
     String? detailsOverride,
+    String? titleOverride,
+    bool recordInNotificationHistory = false,
   }) async {
+    final details = detailsOverride ?? 'تم تعديل إعدادات الميزانية';
     await _applyAndLog(
       action: 'edit',
       entityType: 'budget',
       entityId: 'budget-setup',
-      details: detailsOverride ?? 'تم تعديل إعدادات الميزانية',
+      details: details,
+      titleOverride: recordInNotificationHistory ? (titleOverride ?? details) : null,
+      recordInNotificationHistory: recordInNotificationHistory,
       apply: () async {
         final raw = state.copyWith(budgetSetup: setup);
         return _withMonthlySnapshot(raw, setup);
@@ -515,6 +538,7 @@ class AppCubit extends Cubit<AppStateEntity> {
                 pendingDistribution: 0,
                 pendingDistributionWalletId: '',
                 pendingDistributionSourceId: '',
+                pendingDistributionSnoozedUntil: '',
               )
             : item)
         .toList();
@@ -524,6 +548,13 @@ class AppCubit extends Cubit<AppStateEntity> {
 
     emit(stagedState);
     await _repository.saveState(stagedState);
+
+    final historyTitle = isPhysical
+        ? jarPhysicalConfirmTitle(jarName: jar.name)
+        : jarAllocationConfirmTitle(jarName: jar.name);
+    final historyMessage = isPhysical
+        ? jarPhysicalConfirmMessage(amount: amount, jarName: jar.name)
+        : jarAllocationConfirmMessage(amount: amount, jarName: jar.name);
 
     await addTransaction(
       walletId: jar.pendingDistributionWalletId.isNotEmpty
@@ -545,24 +576,32 @@ class AppCubit extends Cubit<AppStateEntity> {
           ? TransferType.jarFundingPhysical.value
           : TransferType.jarFunding.value,
       notes: null,
-      details:
-          'تم تأكيد ${isPhysical ? 'خصم فعلي' : 'حجز'} ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
+      details: historyMessage,
+      notificationTitleOverride: historyTitle,
+      recordInNotificationHistory: true,
     );
   }
 
   /// تأجيل (إلغاء) توزيع معلّق على حصالة
   Future<void> postponeJarDistribution(String jarId) async {
+    final jar = state.budgetSetup.linkedWallets.firstWhere(
+      (j) => j.id == jarId,
+      orElse: () => state.budgetSetup.linkedWallets.first,
+    );
+    final amount = jar.pendingDistribution;
     final jars = state.budgetSetup.linkedWallets
         .map((j) => j.id == jarId
             ? j.copyWith(
                 pendingDistribution: 0,
                 pendingDistributionWalletId: '',
                 pendingDistributionSourceId: '',
+                pendingDistributionSnoozedUntil: '',
               )
             : j)
         .toList();
-    final jar = state.budgetSetup.linkedWallets.firstWhere((j) => j.id == jarId,
-        orElse: () => state.budgetSetup.linkedWallets.first);
+    final historyTitle = jarAllocationSkipTitle(jarName: jar.name);
+    final historyMessage =
+        jarAllocationSkipMessage(amount: amount, jarName: jar.name);
     final next = state.copyWith(
       budgetSetup: state.budgetSetup.copyWith(linkedWallets: jars),
     );
@@ -570,8 +609,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'jar',
       entityId: jarId,
-      details:
-          'تم تأجيل تحويل ${jar.pendingDistribution.toStringAsFixed(2)} لحصالة ${jar.name}',
+      details: historyMessage,
+      titleOverride: historyTitle,
+      recordInNotificationHistory: true,
       apply: () async => next,
     );
   }
@@ -597,17 +637,22 @@ class AppCubit extends Cubit<AppStateEntity> {
       pendingDistribution: 0,
       pendingDistributionWalletId: '',
       pendingDistributionSourceId: '',
+      pendingDistributionSnoozedUntil: '',
     );
 
     final next = state.copyWith(
       budgetSetup: state.budgetSetup.copyWith(allocations: allocations),
     );
+    final historyTitle = allocationConfirmTitle(name: alloc.name);
+    final historyMessage =
+        allocationConfirmMessage(amount: amount, name: alloc.name);
     await _applyAndLog(
       action: 'edit',
       entityType: 'allocation',
       entityId: allocationId,
-      details:
-          'تم تأكيد تحويل ${amount.toStringAsFixed(2)} لمخصصة ${alloc.name}',
+      details: historyMessage,
+      titleOverride: historyTitle,
+      recordInNotificationHistory: true,
       apply: () async => next,
     );
   }
@@ -615,27 +660,67 @@ class AppCubit extends Cubit<AppStateEntity> {
   /// تأجيل (إلغاء) توزيع معلّق على مخصصة
   Future<void> postponeAllocationDistribution(String allocationId) async {
     final alloc = state.budgetSetup.allocations.firstWhere(
-        (a) => a.id == allocationId,
-        orElse: () => state.budgetSetup.allocations.first);
+      (a) => a.id == allocationId,
+      orElse: () => state.budgetSetup.allocations.first,
+    );
+    final amount = alloc.pendingDistribution;
     final allocations = state.budgetSetup.allocations
         .map((a) => a.id == allocationId
             ? a.copyWith(
                 pendingDistribution: 0,
                 pendingDistributionWalletId: '',
                 pendingDistributionSourceId: '',
+                pendingDistributionSnoozedUntil: '',
               )
             : a)
         .toList();
     final next = state.copyWith(
       budgetSetup: state.budgetSetup.copyWith(allocations: allocations),
     );
+    final historyTitle = allocationSkipTitle(name: alloc.name);
+    final historyMessage =
+        allocationSkipMessage(amount: amount, name: alloc.name);
     await _applyAndLog(
       action: 'edit',
       entityType: 'allocation',
       entityId: allocationId,
-      details:
-          'تم تأجيل تحويل ${alloc.pendingDistribution.toStringAsFixed(2)} لمخصصة ${alloc.name}',
+      details: historyMessage,
+      titleOverride: historyTitle,
+      recordInNotificationHistory: true,
       apply: () async => next,
+    );
+  }
+
+  Future<void> snoozeAllocationDistribution(
+    String allocationId,
+    DateTime until,
+  ) async {
+    final allocations = state.budgetSetup.allocations
+        .map(
+          (a) => a.id == allocationId
+              ? a.copyWith(
+                  pendingDistributionSnoozedUntil: until.toIso8601String(),
+                )
+              : a,
+        )
+        .toList();
+    await updateBudgetSetup(
+      state.budgetSetup.copyWith(allocations: allocations),
+    );
+  }
+
+  Future<void> snoozeJarDistribution(String jarId, DateTime until) async {
+    final jars = state.budgetSetup.linkedWallets
+        .map(
+          (j) => j.id == jarId
+              ? j.copyWith(
+                  pendingDistributionSnoozedUntil: until.toIso8601String(),
+                )
+              : j,
+        )
+        .toList();
+    await updateBudgetSetup(
+      state.budgetSetup.copyWith(linkedWallets: jars),
     );
   }
 
@@ -922,7 +1007,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'recurring-expense-handled',
       entityId: recurring.id,
       details: logDetails,
-      titleOverride: titleOverride ?? recurring.name,
+      titleOverride: titleOverride ?? logDetails,
+      recordInNotificationHistory: true,
       apply: () async {
         // 1. Add physical transaction (updates balance/allocations)
         final stateAfterTx = TransactionProcessor.apply(state, transaction);
@@ -936,6 +1022,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     required RecurringTransactionEntity recurring,
     required DateTime snoozedUntil,
     required String logDetails,
+    String? titleOverride,
   }) async {
     final updatedRecurring = recurring.copyWith(
       snoozedUntil: snoozedUntil.toIso8601String(),
@@ -946,7 +1033,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'recurring-transaction',
       entityId: recurring.id,
       details: logDetails,
-      titleOverride: recurring.name,
+      titleOverride: titleOverride ?? logDetails,
+      recordInNotificationHistory: true,
       apply: () async => _applyRecurringSync(state, updatedRecurring),
     );
   }
@@ -955,6 +1043,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     required RecurringTransactionEntity recurring,
     required DateTime occurrence,
     required String logDetails,
+    String? titleOverride,
   }) async {
     final updatedRecurring = recurring.copyWith(
       lastHandledOccurrenceAt: occurrence.toIso8601String(),
@@ -966,7 +1055,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'recurring-transaction',
       entityId: recurring.id,
       details: logDetails,
-      titleOverride: recurring.name,
+      titleOverride: titleOverride ?? logDetails,
+      recordInNotificationHistory: true,
       apply: () async => _applyRecurringSync(state, updatedRecurring),
     );
   }

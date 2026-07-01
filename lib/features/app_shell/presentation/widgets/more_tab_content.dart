@@ -5,7 +5,6 @@ import '../../../budget/presentation/screens/budget_setup_screen.dart';
 import '../../../categories/presentation/screens/categories_screen.dart';
 import '../../../goals/presentation/screens/goals_screen.dart';
 import '../../../logs/presentation/screens/logs_screen.dart';
-import '../../../notifications/presentation/screens/notifications_center_screen.dart';
 import '../../../transactions/presentation/screens/recurring_transactions_screen.dart';
 import 'package:mezanya_app/features/settings/presentation/screens/app_settings_screen.dart';
 import 'section_page_scaffold.dart';
@@ -209,18 +208,6 @@ class _MoreTabContentState extends State<MoreTabContent> {
             context,
             MaterialPageRoute(
               builder: (_) => LogsScreen(cubit: widget.cubit),
-            ),
-          );
-        }),
-
-        _tile('الإشعارات', Icons.notifications_none, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SectionPageScaffold(
-                title: 'الإشعارات',
-                child: NotificationsCenterScreen(cubit: widget.cubit),
-              ),
             ),
           );
         }),

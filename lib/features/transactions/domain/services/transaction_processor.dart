@@ -311,6 +311,7 @@ class TransactionProcessor {
               pendingDistribution: jar.pendingDistribution + transferAmount,
               pendingDistributionWalletId: transaction.walletId ?? '',
               pendingDistributionSourceId: sourceId,
+              pendingDistributionSnoozedUntil: '',
             );
           }
         }
@@ -343,6 +344,7 @@ class TransactionProcessor {
               pendingDistribution: alloc.pendingDistribution + transferAmount,
               pendingDistributionWalletId: '',
               pendingDistributionSourceId: sourceId,
+              pendingDistributionSnoozedUntil: '',
             );
           }
         }
