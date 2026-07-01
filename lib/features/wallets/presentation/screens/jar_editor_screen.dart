@@ -32,7 +32,7 @@ class JarEditorScreen extends StatefulWidget {
 
 class _JarEditorScreenState extends State<JarEditorScreen> {
   late final TextEditingController _nameController;
-  late final TextEditingController _dayController;
+  late int _selectedDay;
   late String _selectedIcon;
   late String _selectedColor;
   late String _automationType;
@@ -44,9 +44,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.current?.name ?? '');
-    _dayController = TextEditingController(
-      text: (widget.current?.executionDay ?? 1).toString(),
-    );
+    _selectedDay = (widget.current?.executionDay ?? 1).clamp(1, 28);
     // لو حصالة جديدة — اختار لون وأيقونة عشوائية من الباليت
     const jarPalette = [
       ('#D97706', 'monetization_on'),
@@ -71,7 +69,6 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _dayController.dispose();
     super.dispose();
   }
 
@@ -177,8 +174,6 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
         )
         .toList();
 
-    final day = (int.tryParse(_dayController.text.trim()) ?? 1).clamp(1, 28);
-
     final entity = LinkedWalletEntity(
       id: widget.current?.id ?? widget.idFactory('linked'),
       name: name,
@@ -187,7 +182,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
         0,
         (sum, item) => sum + item.plannedAmount,
       ),
-      executionDay: day,
+      executionDay: _selectedDay,
       fundingSource:
           cleanedFunding.isNotEmpty ? cleanedFunding.first.incomeSourceId : '',
       funding: cleanedFunding,
@@ -473,13 +468,22 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _dayController,
-                  keyboardType: TextInputType.number,
+                DropdownButtonFormField<int>(
+                  value: _selectedDay,
                   decoration: const InputDecoration(
                     labelText: 'يوم التحويل الشهري',
-                    hintText: 'اختر يومًا من 1 إلى 28',
                   ),
+                  items: List.generate(
+                    28,
+                    (index) => DropdownMenuItem<int>(
+                      value: index + 1,
+                      child: Text('اليوم ${index + 1}'),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedDay = value);
+                  },
                 ),
               ],
             ),

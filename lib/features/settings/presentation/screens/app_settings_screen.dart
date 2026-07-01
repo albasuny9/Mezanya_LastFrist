@@ -29,6 +29,7 @@ class AppSettingsScreen extends StatefulWidget {
 
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
   late TextEditingController _nameController;
+  String _selectedLanguage = 'ar';
 
   static const _bg = Color(0xFFFFFBF1);
   static const _green = Color(0xFF2F6F5E);
@@ -123,9 +124,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
             children: [
               const SizedBox(height: 8),
-
-              // ── الملف الشخصي ─────────────────────────────────
-              _SectionHeader(label: 'الملف الشخصي', icon: Icons.person_rounded),
               _ProfileCard(
                 profileImageUrl: state.profileImageUrl,
                 googlePhotoUrl: _account?.photoUrl,
@@ -136,6 +134,25 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 uploadingImage: _uploadingImage,
                 onPickImage: _pickAndUploadProfileImage,
                 onNameChanged: (v) => widget.cubit.updateSettings(userName: v),
+              ),
+
+              const SizedBox(height: 20),
+
+              _SectionHeader(
+                label: 'إعداد اللغة والعملة',
+                icon: Icons.language_rounded,
+              ),
+              _LanguageCurrencyCard(
+                currencyCode: state.currencyCode,
+                selectedLanguage: _selectedLanguage,
+                onCurrencyChanged: (value) {
+                  if (value == null || value == state.currencyCode) return;
+                  widget.cubit.updateSettings(currencyCode: value);
+                },
+                onLanguageChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedLanguage = value);
+                },
               ),
 
               const SizedBox(height: 20),
@@ -1046,6 +1063,117 @@ class _AccountLinkCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LanguageCurrencyCard extends StatelessWidget {
+  const _LanguageCurrencyCard({
+    required this.currencyCode,
+    required this.selectedLanguage,
+    required this.onCurrencyChanged,
+    required this.onLanguageChanged,
+  });
+
+  final String currencyCode;
+  final String selectedLanguage;
+  final ValueChanged<String?> onCurrencyChanged;
+  final ValueChanged<String?> onLanguageChanged;
+
+  static const _green = Color(0xFF2F6F5E);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: _green.withValues(alpha: 0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+            color: _green.withValues(alpha: 0.07),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            _SettingsDropdownField(
+              label: 'العملة',
+              icon: Icons.attach_money_rounded,
+              value: currencyCode,
+              items: const [
+                DropdownMenuItem(value: 'EGP', child: Text('جنيه مصري (EGP)')),
+                DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي (SAR)')),
+                DropdownMenuItem(value: 'USD', child: Text('دولار أمريكي (USD)')),
+                DropdownMenuItem(value: 'EUR', child: Text('يورو (EUR)')),
+              ],
+              onChanged: onCurrencyChanged,
+            ),
+            const SizedBox(height: 14),
+            _SettingsDropdownField(
+              label: 'اللغة',
+              icon: Icons.translate_rounded,
+              value: selectedLanguage,
+              items: const [
+                DropdownMenuItem(value: 'ar', child: Text('العربية')),
+              ],
+              onChanged: onLanguageChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsDropdownField extends StatelessWidget {
+  const _SettingsDropdownField({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  static const _green = Color(0xFF2F6F5E);
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _green),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          color: _green.withValues(alpha: 0.75),
+          fontWeight: FontWeight.w700,
+        ),
+        prefixIcon: Icon(icon, color: _green),
+        filled: true,
+        fillColor: const Color(0xFFF5FAF8),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: _green.withValues(alpha: 0.18)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _green, width: 1.5),
+        ),
       ),
     );
   }
