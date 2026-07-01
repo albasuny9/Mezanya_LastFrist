@@ -251,8 +251,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                       _StaticInfoCard(
                           text: 'لا توجد حصالات ممولة في هذا الشهر.')
                     ]
-                  : budgetJars
-                      .map((jar) => _jarSummaryTile(jar)),
+                  : budgetJars.map((jar) => _jarSummaryTile(jar)),
               const SizedBox(height: 18),
               _sectionTitle('الديون والأقساط'),
               const SizedBox(height: 12),
@@ -296,32 +295,51 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final cycleEnd = _cycleEnd;
     final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
     final endLabel = DateFormat('d MMM', 'ar').format(cycleEnd);
-    final rangeLabel = '$startLabel — $endLabel';
+    final currentYear = DateTime.now().year;
+    final showYear =
+        _cycleStart.year != currentYear || cycleEnd.year != currentYear;
+    final yearText = showYear ? ' ${cycleEnd.year}' : '';
+    final rangeLabel = '$startLabel — $endLabel$yearText';
     final isCurrent = _isCurrentCycle(budget);
+    final isPast = _isPastCycle(budget);
+    final isFuture = _isFutureCycle(budget);
 
-    const green = Color(0xFF165B47);
+    Color accent;
+    Color background;
+    Color border;
+
+    if (isPast || isFuture) {
+      accent = Colors.grey.shade700;
+      background = Colors.grey.withValues(alpha: 0.08);
+      border = Colors.grey.withValues(alpha: 0.22);
+    } else {
+      accent = Theme.of(context).colorScheme.onSurface;
+      background = Theme.of(context).colorScheme.surfaceContainerHighest;
+      border = Theme.of(context).dividerColor.withValues(alpha: 0.25);
+    }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       padding: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
         // الدورة الحالية: خلفية خضرا خفيفة جداً
-        color: isCurrent ? green.withValues(alpha: 0.10) : Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
+        color: background,
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isCurrent
-              ? green.withValues(alpha: 0.22)
-              : green.withValues(alpha: 0.10),
+          color: border,
         ),
       ),
       child: Row(
         children: [
-          // زرار الأحدث (يمين في RTL → أول عنصر في الـ Row)
+          // زرار الشهر السابق
           IconButton(
-            onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.arrow_forward_ios_rounded,
-                size: 18, color: green),
-            tooltip: 'الدورة التالية',
+            onPressed: () => _goToPreviousCycle(budget),
+            icon: Icon(
+              Icons.arrow_back_ios_rounded,
+              size: 18,
+              color: accent,
+            ),
+            tooltip: 'الدورة السابقة',
           ),
           Expanded(
             child: Text(
@@ -330,16 +348,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 14,
-                color: isCurrent ? green : green.withValues(alpha: 0.7),
+                color: isCurrent ? accent : accent.withValues(alpha: 0.7),
               ),
             ),
           ),
-          // زرار الأقدم (يسار في RTL → آخر عنصر في الـ Row)
+          // زرار الشهر القادم
           IconButton(
-            onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.arrow_back_ios_rounded,
-                size: 18, color: green),
-            tooltip: 'الدورة السابقة',
+            onPressed: () => _goToNextCycle(budget),
+            icon: Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 18,
+              color: accent,
+            ),
+            tooltip: 'الدورة التالية',
           ),
         ],
       ),
@@ -570,7 +591,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         ? (expense / scale).clamp(0.0, 1.0)
         : (expense > 0 ? 1.0 : 0.0);
 
-    Widget track({required List<(double, Color)> segments, required double amount, required String label}) {
+    Widget track(
+        {required List<(double, Color)> segments,
+        required double amount,
+        required String label}) {
       final totalRatio =
           segments.fold<double>(0.0, (s, seg) => s + seg.$1).clamp(0.0, 1.0);
 
@@ -639,8 +663,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             label: 'الدخل',
             amount: income,
             segments: [
-              (normalIncomeRatio, const Color(0xFF4ADE80)), // أخضر عادي = حتى الدخل المخطط
-              (excessIncomeRatio, const Color(0xFF15803D)), // أخضر غامق = الزيادة عن المخطط
+              (
+                normalIncomeRatio,
+                const Color(0xFF4ADE80)
+              ), // أخضر عادي = حتى الدخل المخطط
+              (
+                excessIncomeRatio,
+                const Color(0xFF15803D)
+              ), // أخضر غامق = الزيادة عن المخطط
             ],
           ),
           const SizedBox(height: 8),
@@ -1291,8 +1321,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       decoration: BoxDecoration(
         color: accent.withValues(alpha: strongTint ? 0.18 : 0.10),
         borderRadius: BorderRadius.circular(24),
-        border:
-            Border.all(color: accent.withValues(alpha: strongTint ? 0.45 : 0.22)),
+        border: Border.all(
+            color: accent.withValues(alpha: strongTint ? 0.45 : 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1871,8 +1901,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final afterSpend = (pool - spent).clamp(0.0, pool);
         final remProgress =
             _incomeRemainingProgress(source, received, budget, monthTx);
-        final sourceAccent =
-            _colorFromHex(recurring?.iconColor ?? '#165b47');
+        final sourceAccent = _colorFromHex(recurring?.iconColor ?? '#165b47');
         final incomeProgressColor = remProgress == null
             ? sourceAccent
             : _usageProgressColor(1 - remProgress);
@@ -1953,9 +1982,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                       ],
                     ),
           tint: isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
-          amountColor:
-              Color.lerp(isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
-                  Colors.black, 0.35),
+          amountColor: Color.lerp(
+              isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
+              Colors.black,
+              0.35),
           strongTint: !isSnoozed,
           compactMeta: source.isVariable || isSnoozed,
           progress: isSnoozed ? null : remProgress,
@@ -2102,7 +2132,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       tint: hasPending
           ? const Color(0xFFF5A623)
           : _colorFromHex(allocation.iconColor),
-      amountColor: Color.lerp(_colorFromHex(allocation.iconColor), Colors.black, 0.35),
+      amountColor:
+          Color.lerp(_colorFromHex(allocation.iconColor), Colors.black, 0.35),
       strongTint: true,
       onTap: () => _openAllocationSheet(state, allocation, monthTx),
       actions: hasPending
@@ -2176,8 +2207,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         solid: true,
       ),
       amountText: jar.balance.toStringAsFixed(2),
-      metaText:
-          'مخصص من الميزانية ${budgetAllocated.toStringAsFixed(2)}',
+      metaText: 'مخصص من الميزانية ${budgetAllocated.toStringAsFixed(2)}',
       supportingText: hasPending ? null : 'الرصيد الحالي',
       supportingCustom: pendingChip,
       compactMeta: hasPending,

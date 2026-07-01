@@ -1340,9 +1340,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   // Allocations
                   ...allocations.map((a) {
                     final id = 'alloc:${a.id}';
+                    final remaining = a.balance;
                     final planned = a.funding
                         .fold<double>(0, (s, f) => s + f.plannedAmount);
-                    final ratio = (planned / totalIncome).clamp(0.0, 1.0);
+                    final ratio = planned <= 0
+                        ? 0.0
+                        : (remaining / planned).clamp(0.0, 1.0);
                     return Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: _AllocationOption(
@@ -1355,8 +1358,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           Navigator.pop(sheetCtx);
                         },
                         child: _AllocationRow(
-                          icon: Icons.pie_chart_outline_rounded,
-                          iconColor: const Color(0xFF2F6F5E),
+                          icon: AppIconPickerDialog.iconDataForName(a.icon),
+                          iconColor: _parseColor(a.iconColor),
                           name: a.name,
                           progressLabel: '${planned.toStringAsFixed(2)} مخطط',
                           ratio: ratio,
