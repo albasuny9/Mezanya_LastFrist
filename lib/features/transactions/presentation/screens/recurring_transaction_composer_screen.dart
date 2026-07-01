@@ -8,6 +8,7 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../data/subscription_service_presets.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/services/recurring_schedule_engine.dart';
+import '../widgets/recurring_income_post_dialog.dart';
 
 class RecurringTransactionComposerResult {
   const RecurringTransactionComposerResult._({
@@ -151,6 +152,10 @@ class _RecurringTransactionComposerScreenState
     _targetJarId = recurring?.targetJarId;
     if (_type == TransactionType.income.value) {
       _allocationId = null;
+      if (_targetJarId != null &&
+          recurring?.budgetScope == BudgetScope.withinBudget.value) {
+        _withinBudget = false;
+      }
     }
     _selectedCategoryIds.addAll(recurring?.categoryIds ?? const <String>[]);
     _selectedWeekdays.addAll(
@@ -1474,6 +1479,11 @@ class _RecurringTransactionComposerScreenState
 
   String _budgetScopeLabel(BudgetSetupEntity budget) {
     if (!_withinBudget) {
+      if (_type == TransactionType.income.value && _targetJarId != null) {
+        final j =
+            budget.linkedWallets.where((j) => j.id == _targetJarId).toList();
+        if (j.isNotEmpty) return 'حصالة: ${j.first.name}';
+      }
       return _type == TransactionType.income.value
           ? 'دخل للمحفظة فقط'
           : 'خارج الميزانية';
@@ -1569,17 +1579,16 @@ class _RecurringTransactionComposerScreenState
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _ScopeOptionTile(
-                      isSelected: _withinBudget &&
-                          _targetJarId == jar.id &&
-                          _allocationId == null,
+                      isSelected: !_withinBudget && _targetJarId == jar.id,
                       icon: Icons.savings_outlined,
                       iconColor: const Color(0xFF8B6B3D),
                       title: jar.name,
-                      subtitle: '${jar.balance.toStringAsFixed(0)} رصيد',
+                      subtitle:
+                          'دخل مباشر للحصالة — خارج الميزانية (${jar.balance.toStringAsFixed(0)} رصيد)',
                       progress: (jar.balance / totalIncome).clamp(0.0, 1.0),
                       onTap: () {
                         setState(() {
-                          _withinBudget = true;
+                          _withinBudget = false;
                           _targetJarId = jar.id;
                           _allocationId = null;
                           _isDebtOrSubscription = false;
@@ -2026,8 +2035,11 @@ class _RecurringTransactionComposerScreenState
         ? _firstPaymentDate.toIso8601String()
         : widget.initialRecurring?.anchorDate;
 
+    final draftId = widget.initialRecurring?.id ??
+        'rec-${DateTime.now().microsecondsSinceEpoch}';
+
     final recurringDraft = RecurringTransactionEntity(
-      id: widget.initialRecurring?.id ?? '',
+      id: draftId,
       name: _nameController.text.trim(),
       type: _type,
       amount: _showAmount ? amount : 0,
@@ -2059,10 +2071,10 @@ class _RecurringTransactionComposerScreenState
               !_isDebtOrSubscription
           ? _allocationId
           : null,
-      targetJarId: (_type == TransactionType.expense.value ||
-                  _type == TransactionType.income.value) &&
-              _withinBudget &&
-              !_isDebtOrSubscription
+      targetJarId: (_type == TransactionType.expense.value &&
+                  _withinBudget &&
+                  !_isDebtOrSubscription) ||
+              (_type == TransactionType.income.value && _targetJarId != null)
           ? _targetJarId
           : null,
       incomeSourceId: widget.initialRecurring?.incomeSourceId,
@@ -2100,6 +2112,7 @@ class _RecurringTransactionComposerScreenState
 
     if (widget.initialRecurring == null) {
       await widget.cubit.addRecurringTransaction(
+        id: recurring.id,
         name: recurring.name,
         type: recurring.type,
         amount: recurring.amount,
@@ -2128,6 +2141,10 @@ class _RecurringTransactionComposerScreenState
         installmentDownPayment: recurring.installmentDownPayment,
         notes: recurring.notes,
       );
+      if (recurring.type == TransactionType.income.value &&
+          (recurring.incomeSourceId ?? '').isEmpty) {
+        await _maybePromptRetroactiveIncomePost(recurring);
+      }
     } else {
       await widget.cubit.updateRecurringTransaction(
         widget.initialRecurring!.copyWith(
@@ -2171,6 +2188,37 @@ class _RecurringTransactionComposerScreenState
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> _maybePromptRetroactiveIncomePost(
+    RecurringTransactionEntity recurring,
+  ) async {
+    final due = RecurringScheduleEngine.unhandledDueOccurrence(
+      recurring,
+      DateTime.now(),
+    );
+    if (due == null || !mounted) return;
+
+    final result = await RecurringIncomePostDialog.show(
+      context,
+      name: recurring.name,
+      defaultAmount: recurring.amount,
+      occurrence: due,
+      allowVariableAmount: recurring.isVariableIncome,
+      isRetroactivePrompt: true,
+    );
+    if (!mounted || result == null || !result.approved) return;
+
+    final logMessage =
+        'تم تسجيل دخل متكرر: ${recurring.name} (${result.amount.toStringAsFixed(2)})';
+    await widget.cubit.recordRecurringIncomeOccurrence(
+      recurring: recurring,
+      amount: result.amount,
+      occurrence: result.occurrenceDate,
+      transactionNotes: recurring.name,
+      logDetails: logMessage,
+      titleOverride: logMessage,
+    );
   }
 
   Future<void> _deleteFromComposer() async {

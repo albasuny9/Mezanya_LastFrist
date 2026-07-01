@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/transaction_types.dart';
-
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
@@ -259,21 +258,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     String? incomeSourceId;
     if (budgetTargetId.startsWith('alloc:')) {
       final allocId = budgetTargetId.replaceFirst('alloc:', '');
-      final alloc = budget.allocations
-          .where((a) => a.id == allocId)
-          .toList();
+      final alloc = budget.allocations.where((a) => a.id == allocId).toList();
       if (alloc.isEmpty || alloc.first.funding.isEmpty) return;
       incomeSourceId = alloc.first.funding.first.incomeSourceId;
     } else if (budgetTargetId.startsWith('jar:')) {
       final jarId = budgetTargetId.replaceFirst('jar:', '');
-      final jar = budget.linkedWallets
-          .where((j) => j.id == jarId)
-          .toList();
+      final jar = budget.linkedWallets.where((j) => j.id == jarId).toList();
       if (jar.isEmpty || jar.first.funding.isEmpty) return;
       incomeSourceId = jar.first.funding.first.incomeSourceId;
     }
     if (incomeSourceId == null) return;
-    final src = budget.incomeSources.where((s) => s.id == incomeSourceId).toList();
+    final src =
+        budget.incomeSources.where((s) => s.id == incomeSourceId).toList();
     if (src.isEmpty) return;
     final walletExists = s.wallets.any((w) => w.id == src.first.targetWalletId);
     if (walletExists) setState(() => _walletId = src.first.targetWalletId);
@@ -589,8 +585,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       maxLines: 1,
                       decoration: InputDecoration(
                         labelText: 'ملاحظات',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -630,283 +628,252 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Submit ──
                     FilledButton(
                       onPressed: () async {
-                              // حماية من الضغط المزدوج — synchronous guard
-                              if (_isSaving || !_canSubmit) return;
-                              _isSaving = true; // يتحدد فوراً قبل أي await
-                              setState(() {});   // تحديث الـ UI لتعطيل الزر
-                              try {
-                                if (amount <= 0) {
-                                  _showValidationError(
-                                      'أدخل مبلغًا صحيحًا أكبر من صفر.');
-                                  return;
-                                }
-                                if (_walletId.isEmpty) {
-                                  _showValidationError(
-                                      'اختر محفظة أو اختر "بدون محفظة" أولًا.');
-                                  return;
-                                }
-                                if (_type == TransactionType.expense.value &&
-                                    _budgetScope ==
-                                        BudgetScope.withinBudget.value &&
-                                    _budgetTargetId.isEmpty) {
-                                  _showValidationError(
-                                      'اختر مخصصًا أو حصالة للمعاملة داخل الميزانية.');
-                                  return;
-                                }
-                                if (_budgetTargetId == 'unallocated' &&
-                                    amount > budget.unallocatedAmount) {
-                                  _showValidationError(
-                                      'المبلغ أكبر من المتاح في غير المخصص.');
-                                  return;
-                                }
-                                if (_type == TransactionType.income.value &&
-                                    _incomeBudgetScope ==
-                                        BudgetScope.withinBudget.value &&
-                                    _incomeSourceId == 'wallet-only' &&
-                                    _incomeJarId.isEmpty) {
-                                  _showValidationError(
-                                      'اختر مصدر دخل أو حصالة للدخل داخل الميزانية.');
-                                  return;
-                                }
-                                if (widget.recurringMode &&
-                                    _recurringNameController.text
-                                        .trim()
-                                        .isEmpty) {
-                                  _showValidationError(
-                                      'اكتب اسم المعاملة المتكررة.');
-                                  return;
-                                }
+                        // حماية من الضغط المزدوج — synchronous guard
+                        if (_isSaving || !_canSubmit) return;
+                        _isSaving = true; // يتحدد فوراً قبل أي await
+                        setState(() {}); // تحديث الـ UI لتعطيل الزر
+                        try {
+                          if (amount <= 0) {
+                            _showValidationError(
+                                'أدخل مبلغًا صحيحًا أكبر من صفر.');
+                            return;
+                          }
+                          if (_walletId.isEmpty) {
+                            _showValidationError(
+                                'اختر محفظة أو اختر "بدون محفظة" أولًا.');
+                            return;
+                          }
+                          if (_type == TransactionType.expense.value &&
+                              _budgetScope == BudgetScope.withinBudget.value &&
+                              _budgetTargetId.isEmpty) {
+                            _showValidationError(
+                                'اختر مخصصًا أو حصالة للمعاملة داخل الميزانية.');
+                            return;
+                          }
+                          if (_budgetTargetId == 'unallocated' &&
+                              amount > budget.unallocatedAmount) {
+                            _showValidationError(
+                                'المبلغ أكبر من المتاح في غير المخصص.');
+                            return;
+                          }
+                          if (_type == TransactionType.income.value &&
+                              _incomeBudgetScope ==
+                                  BudgetScope.withinBudget.value &&
+                              _incomeSourceId == 'wallet-only' &&
+                              _incomeJarId.isEmpty) {
+                            _showValidationError(
+                                'اختر مصدر دخل أو حصالة للدخل داخل الميزانية.');
+                            return;
+                          }
+                          if (widget.recurringMode &&
+                              _recurringNameController.text.trim().isEmpty) {
+                            _showValidationError('اكتب اسم المعاملة المتكررة.');
+                            return;
+                          }
 
-                                if (!widget.recurringMode &&
-                                    _type == TransactionType.expense.value &&
-                                    _walletId == 'no-wallet' &&
-                                    _budgetTargetId.startsWith('jar:')) {
-                                  final selectedJarId =
-                                      _budgetTargetId.replaceFirst('jar:', '');
-                                  final jar = budget.linkedWallets.firstWhere(
-                                      (j) => j.id == selectedJarId,
-                                      orElse: () => const LinkedWalletEntity(
-                                            id: '',
-                                            name: '',
-                                            monthlyAmount: 0,
-                                            executionDay: 1,
-                                            fundingSource: '',
-                                            funding: [],
-                                            icon: '',
-                                            iconColor: '',
-                                            automationType: '',
-                                            categories: [],
-                                          ));
-                                  if (jar.id.isNotEmpty) {
-                                    final fundedAmount = jar.walletSources
-                                        .fold<double>(
-                                            0,
-                                            (sum, source) =>
-                                                sum + source.amount);
-                                    final unfundedAmount =
-                                        jar.balance - fundedAmount;
-                                    if (amount > unfundedAmount) {
-                                      _showValidationError(
-                                          'المبلغ أكبر من الرصيد غير الممول في الحصالة (${unfundedAmount.toStringAsFixed(2)}). اختر محفظة البنك الممول للخصم منها.');
-                                      return;
-                                    }
-                                  }
-                                }
-
-                                if (!widget.recurringMode &&
-                                    _type == TransactionType.expense.value &&
-                                    _walletId != 'no-wallet') {
-                                  final currentWallet = wallets
-                                      .where((wallet) => wallet.id == _walletId)
-                                      .toList();
-                                  if (currentWallet.isNotEmpty) {
-                                    final approved =
-                                        await _confirmExpenseImpact(
-                                      wallet: currentWallet.first,
-                                      amount: amount,
-                                    );
-                                    if (!approved) return;
-                                  }
-                                }
-
-                                final selectedJarId = _budgetTargetId
-                                        .startsWith('jar:')
-                                    ? _budgetTargetId.replaceFirst('jar:', '')
-                                    : null;
-
-                                if (widget.recurringMode) {
-                                  final recurring = widget.initialRecurring;
-                                  final recurringEntity =
-                                      RecurringTransactionEntity(
-                                    id: recurring?.id ??
-                                        'rec-${DateTime.now().microsecondsSinceEpoch}',
-                                    name: _recurringNameController.text.trim(),
-                                    type: _type,
-                                    amount: amount,
-                                    dayOfMonth: _date.day.clamp(1, 28),
-                                    executionType: AutomationType.confirm.value,
-                                    walletId: _walletId == 'no-wallet'
-                                        ? ''
-                                        : _walletId,
-                                    budgetScope:
-                                        _type == TransactionType.expense.value
-                                            ? _budgetScope
-                                            : _incomeBudgetScope,
-                                    recurrencePattern: _recurrencePattern,
-                                    icon: _recurringIconName,
-                                    iconColor: _recurringIconColor,
-                                    weekday: (_recurrencePattern ==
-                                                RecurrencePattern
-                                                    .weekly.value ||
-                                            _recurrencePattern ==
-                                                RecurrencePattern
-                                                    .biweekly.value)
-                                        ? _recurrenceWeekday
-                                        : null,
-                                    allocationId: _type ==
-                                                TransactionType.expense.value &&
-                                            _budgetScope ==
-                                                BudgetScope
-                                                    .withinBudget.value &&
-                                            _budgetTargetId.startsWith('alloc:')
-                                        ? _budgetTargetId.replaceFirst(
-                                            'alloc:', '')
-                                        : null,
-                                    targetJarId:
-                                        _type == TransactionType.income.value &&
-                                                _incomeBudgetScope ==
-                                                    BudgetScope
-                                                        .withinBudget.value &&
-                                                _incomeJarId.isNotEmpty
-                                            ? _incomeJarId
-                                            : (_type ==
-                                                        TransactionType
-                                                            .expense.value &&
-                                                    _budgetTargetId
-                                                        .startsWith('jar:')
-                                                ? selectedJarId
-                                                : null),
-                                    incomeSourceId:
-                                        _type == TransactionType.income.value &&
-                                                _incomeSourceId != 'wallet-only'
-                                            ? _incomeSourceId
-                                            : null,
-                                    notes: _notesController.text.trim().isEmpty
-                                        ? null
-                                        : _notesController.text.trim(),
-                                    isActive: recurring?.isActive ?? true,
-                                  );
-                                  if (recurring == null) {
-                                    await widget.cubit.addRecurringTransaction(
-                                      name: recurringEntity.name,
-                                      type: recurringEntity.type,
-                                      amount: recurringEntity.amount,
-                                      dayOfMonth: recurringEntity.dayOfMonth,
-                                      executionType:
-                                          recurringEntity.executionType,
-                                      walletId: recurringEntity.walletId,
-                                      budgetScope: recurringEntity.budgetScope,
-                                      recurrencePattern:
-                                          recurringEntity.recurrencePattern,
-                                      icon: recurringEntity.icon,
-                                      iconColor: recurringEntity.iconColor,
-                                      weekday: recurringEntity.weekday,
-                                      allocationId:
-                                          recurringEntity.allocationId,
-                                      targetJarId: recurringEntity.targetJarId,
-                                      incomeSourceId:
-                                          recurringEntity.incomeSourceId,
-                                      notes: recurringEntity.notes,
-                                    );
-                                  } else {
-                                    await widget.cubit
-                                        .updateRecurringTransaction(
-                                            recurringEntity);
-                                  }
-                                } else {
-                                  if (widget.initialTransaction != null) {
-                                    await widget.cubit.deleteTransaction(
-                                      widget.initialTransaction!.id,
-                                    );
-                                  }
-                                  await widget.cubit.addTransaction(
-                                    walletId: _walletId == 'no-wallet'
-                                        ? null
-                                        : _walletId,
-                                    toWalletId:
-                                        _type == TransactionType.income.value &&
-                                                _incomeBudgetScope ==
-                                                    BudgetScope
-                                                        .withinBudget.value &&
-                                                _incomeJarId.isNotEmpty
-                                            ? _incomeJarId
-                                            : selectedJarId,
-                                    amount: amount,
-                                    type: _type,
-                                    createdAt: DateTime(
-                                      _date.year,
-                                      _date.month,
-                                      _date.day,
-                                      _time.hour,
-                                      _time.minute,
-                                    ),
-                                    allocationId: _type ==
-                                                TransactionType.expense.value &&
-                                            _budgetScope ==
-                                                BudgetScope
-                                                    .withinBudget.value &&
-                                            _budgetTargetId.startsWith('alloc:')
-                                        ? _budgetTargetId.replaceFirst(
-                                            'alloc:', '')
-                                        : null,
-                                    budgetScope: _type ==
-                                            TransactionType.expense.value
-                                        ? _budgetScope
-                                        : _type == TransactionType.income.value
-                                            ? _incomeBudgetScope
-                                            : null,
-                                    incomeSourceId:
-                                        _type == TransactionType.income.value &&
-                                                _incomeSourceId != 'wallet-only'
-                                            ? _incomeSourceId
-                                            : null,
-                                    transferType: widget.initialTransaction
-                                                ?.transferType ==
-                                            TransferType
-                                                .jarFundingPhysical.value &&
-                                        _type == TransactionType.expense.value
-                                        ? TransferType.jarFundingPhysical.value
-                                        : _type ==
-                                                    TransactionType
-                                                        .income.value &&
-                                                _incomeJarId.isNotEmpty
-                                            ? TransferType
-                                                .depositWithJarLabel.value
-                                            : null,
-                                    notes: _notesController.text.trim().isEmpty
-                                        ? null
-                                        : _notesController.text.trim(),
-                                    categoryId: _type ==
-                                            TransactionType.income.value
-                                        ? _selectedIncomeCategoryId
-                                        : _selectedCategoryId,
-                                  );
-                                }
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text(widget.recurringMode
-                                          ? 'تم حفظ المعاملة المتكررة.'
-                                          : (_type ==
-                                                  TransactionType.income.value
-                                              ? 'تم تسجيل الدخل.'
-                                              : 'تم تسجيل المعاملة.'))),
-                                );
-                                Navigator.of(context).pop();
-                              } finally {
-                                if (mounted) setState(() => _isSaving = false);
+                          if (!widget.recurringMode &&
+                              _type == TransactionType.expense.value &&
+                              _walletId == 'no-wallet' &&
+                              _budgetTargetId.startsWith('jar:')) {
+                            final selectedJarId =
+                                _budgetTargetId.replaceFirst('jar:', '');
+                            final jar = budget.linkedWallets
+                                .firstWhere((j) => j.id == selectedJarId,
+                                    orElse: () => const LinkedWalletEntity(
+                                          id: '',
+                                          name: '',
+                                          monthlyAmount: 0,
+                                          executionDay: 1,
+                                          fundingSource: '',
+                                          funding: [],
+                                          icon: '',
+                                          iconColor: '',
+                                          automationType: '',
+                                          categories: [],
+                                        ));
+                            if (jar.id.isNotEmpty) {
+                              final fundedAmount = jar.walletSources
+                                  .fold<double>(
+                                      0, (sum, source) => sum + source.amount);
+                              final unfundedAmount = jar.balance - fundedAmount;
+                              if (amount > unfundedAmount) {
+                                _showValidationError(
+                                    'المبلغ أكبر من الرصيد غير الممول في الحصالة (${unfundedAmount.toStringAsFixed(2)}). اختر محفظة البنك الممول للخصم منها.');
+                                return;
                               }
-                            },
+                            }
+                          }
+
+                          if (!widget.recurringMode &&
+                              _type == TransactionType.expense.value &&
+                              _walletId != 'no-wallet') {
+                            final currentWallet = wallets
+                                .where((wallet) => wallet.id == _walletId)
+                                .toList();
+                            if (currentWallet.isNotEmpty) {
+                              final approved = await _confirmExpenseImpact(
+                                wallet: currentWallet.first,
+                                amount: amount,
+                              );
+                              if (!approved) return;
+                            }
+                          }
+
+                          final selectedJarId =
+                              _budgetTargetId.startsWith('jar:')
+                                  ? _budgetTargetId.replaceFirst('jar:', '')
+                                  : null;
+
+                          if (widget.recurringMode) {
+                            final recurring = widget.initialRecurring;
+                            final recurringEntity = RecurringTransactionEntity(
+                              id: recurring?.id ??
+                                  'rec-${DateTime.now().microsecondsSinceEpoch}',
+                              name: _recurringNameController.text.trim(),
+                              type: _type,
+                              amount: amount,
+                              dayOfMonth: _date.day.clamp(1, 28),
+                              executionType: AutomationType.confirm.value,
+                              walletId:
+                                  _walletId == 'no-wallet' ? '' : _walletId,
+                              budgetScope:
+                                  _type == TransactionType.expense.value
+                                      ? _budgetScope
+                                      : _incomeBudgetScope,
+                              recurrencePattern: _recurrencePattern,
+                              icon: _recurringIconName,
+                              iconColor: _recurringIconColor,
+                              weekday: (_recurrencePattern ==
+                                          RecurrencePattern.weekly.value ||
+                                      _recurrencePattern ==
+                                          RecurrencePattern.biweekly.value)
+                                  ? _recurrenceWeekday
+                                  : null,
+                              allocationId: _type ==
+                                          TransactionType.expense.value &&
+                                      _budgetScope ==
+                                          BudgetScope.withinBudget.value &&
+                                      _budgetTargetId.startsWith('alloc:')
+                                  ? _budgetTargetId.replaceFirst('alloc:', '')
+                                  : null,
+                              targetJarId: _type ==
+                                          TransactionType.income.value &&
+                                      _incomeBudgetScope ==
+                                          BudgetScope.withinBudget.value &&
+                                      _incomeJarId.isNotEmpty
+                                  ? _incomeJarId
+                                  : (_type == TransactionType.expense.value &&
+                                          _budgetTargetId.startsWith('jar:')
+                                      ? selectedJarId
+                                      : null),
+                              incomeSourceId:
+                                  _type == TransactionType.income.value &&
+                                          _incomeSourceId != 'wallet-only'
+                                      ? _incomeSourceId
+                                      : null,
+                              notes: _notesController.text.trim().isEmpty
+                                  ? null
+                                  : _notesController.text.trim(),
+                              isActive: recurring?.isActive ?? true,
+                            );
+                            if (recurring == null) {
+                              await widget.cubit.addRecurringTransaction(
+                                name: recurringEntity.name,
+                                type: recurringEntity.type,
+                                amount: recurringEntity.amount,
+                                dayOfMonth: recurringEntity.dayOfMonth,
+                                executionType: recurringEntity.executionType,
+                                walletId: recurringEntity.walletId,
+                                budgetScope: recurringEntity.budgetScope,
+                                recurrencePattern:
+                                    recurringEntity.recurrencePattern,
+                                icon: recurringEntity.icon,
+                                iconColor: recurringEntity.iconColor,
+                                weekday: recurringEntity.weekday,
+                                allocationId: recurringEntity.allocationId,
+                                targetJarId: recurringEntity.targetJarId,
+                                incomeSourceId: recurringEntity.incomeSourceId,
+                                notes: recurringEntity.notes,
+                              );
+                            } else {
+                              await widget.cubit
+                                  .updateRecurringTransaction(recurringEntity);
+                            }
+                          } else {
+                            if (widget.initialTransaction != null) {
+                              await widget.cubit.deleteTransaction(
+                                widget.initialTransaction!.id,
+                              );
+                            }
+                            await widget.cubit.addTransaction(
+                              walletId:
+                                  _walletId == 'no-wallet' ? null : _walletId,
+                              toWalletId:
+                                  _type == TransactionType.income.value &&
+                                          _incomeBudgetScope ==
+                                              BudgetScope.withinBudget.value &&
+                                          _incomeJarId.isNotEmpty
+                                      ? _incomeJarId
+                                      : selectedJarId,
+                              amount: amount,
+                              type: _type,
+                              createdAt: DateTime(
+                                _date.year,
+                                _date.month,
+                                _date.day,
+                                _time.hour,
+                                _time.minute,
+                              ),
+                              allocationId: _type ==
+                                          TransactionType.expense.value &&
+                                      _budgetScope ==
+                                          BudgetScope.withinBudget.value &&
+                                      _budgetTargetId.startsWith('alloc:')
+                                  ? _budgetTargetId.replaceFirst('alloc:', '')
+                                  : null,
+                              budgetScope:
+                                  _type == TransactionType.expense.value
+                                      ? _budgetScope
+                                      : _type == TransactionType.income.value
+                                          ? _incomeBudgetScope
+                                          : null,
+                              incomeSourceId:
+                                  _type == TransactionType.income.value &&
+                                          _incomeSourceId != 'wallet-only'
+                                      ? _incomeSourceId
+                                      : null,
+                              transferType: widget.initialTransaction
+                                              ?.transferType ==
+                                          TransferType
+                                              .jarFundingPhysical.value &&
+                                      _type == TransactionType.expense.value
+                                  ? TransferType.jarFundingPhysical.value
+                                  : _type == TransactionType.income.value &&
+                                          _incomeJarId.isNotEmpty
+                                      ? TransferType.depositWithJarLabel.value
+                                      : null,
+                              notes: _notesController.text.trim().isEmpty
+                                  ? null
+                                  : _notesController.text.trim(),
+                              categoryId: _type == TransactionType.income.value
+                                  ? _selectedIncomeCategoryId
+                                  : _selectedCategoryId,
+                            );
+                          }
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(widget.recurringMode
+                                    ? 'تم حفظ المعاملة المتكررة.'
+                                    : (_type == TransactionType.income.value
+                                        ? 'تم تسجيل الدخل.'
+                                        : 'تم تسجيل المعاملة.'))),
+                          );
+                          Navigator.of(context).pop();
+                        } finally {
+                          if (mounted) setState(() => _isSaving = false);
+                        }
+                      },
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(54),
                         shape: RoundedRectangleBorder(
@@ -1328,15 +1295,44 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         });
                         Navigator.pop(sheetCtx);
                       },
-                      child: _AllocationRow(
-                        icon: Icons.category_outlined,
-                        iconColor: const Color(0xFF2F6F5E),
-                        name: 'غير المخصص',
-                        progressLabel:
-                            '${budget.unallocatedAmount.toStringAsFixed(2)} متبقي',
-                        ratio: (budget.unallocatedAmount / totalIncome)
-                            .clamp(0.0, 1.0),
-                        isSelected: _budgetTargetId == 'unallocated',
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.category_outlined,
+                              color: Color(0xFF2F6F5E),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'غير المخصص',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            budget.unallocatedAmount.toStringAsFixed(2),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (_budgetTargetId == 'unallocated') ...[
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF1E7F5C),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -2003,7 +1999,8 @@ class _CategoriesSection extends StatelessWidget {
               GestureDetector(
                 onTap: onAdd,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -2046,17 +2043,14 @@ class _CategoriesSection extends StatelessWidget {
                   onTap: () => onSelectChange(isSelected ? null : c.id),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 7),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: isSelected
-                          ? color
-                          : color.withValues(alpha: 0.10),
+                      color: isSelected ? color : color.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected
-                            ? color
-                            : color.withValues(alpha: 0.25),
+                        color:
+                            isSelected ? color : color.withValues(alpha: 0.25),
                         width: isSelected ? 1.5 : 1,
                       ),
                     ),
@@ -2221,8 +2215,20 @@ class _DateTimeRow extends StatelessWidget {
   static const _accent = Color(0xFF2F6F5E);
 
   String get _dateLabel {
-    const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
-                    'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    const months = [
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر'
+    ];
     return '${date.day} ${months[date.month - 1]}';
   }
 

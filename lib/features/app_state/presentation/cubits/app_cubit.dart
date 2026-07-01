@@ -976,6 +976,64 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  Future<void> recordRecurringIncomeOccurrence({
+    required RecurringTransactionEntity recurring,
+    required double amount,
+    required DateTime occurrence,
+    required String transactionNotes,
+    required String logDetails,
+    String? titleOverride,
+  }) async {
+    final jarId = recurring.targetJarId?.trim();
+    final hasJarTarget = jarId != null && jarId.isNotEmpty;
+    final incomeSourceId = recurring.incomeSourceId?.trim();
+    final hasBudgetSource =
+        incomeSourceId != null && incomeSourceId.isNotEmpty;
+
+    final transaction = TransactionEntity(
+      id: _id('txn'),
+      walletId: recurring.walletId,
+      toWalletId: hasJarTarget ? jarId : null,
+      amount: amount,
+      type: TransactionType.income.value,
+      budgetScope: hasBudgetSource
+          ? BudgetScope.withinBudget.value
+          : BudgetScope.outsideBudget.value,
+      incomeSourceId: hasBudgetSource ? incomeSourceId : null,
+      transferType:
+          hasJarTarget ? TransferType.depositWithJarLabel.value : null,
+      categoryId: recurring.categoryIds.isNotEmpty
+          ? recurring.categoryIds.first
+          : null,
+      notes: transactionNotes.trim().isEmpty ? recurring.name : transactionNotes,
+      createdAt: DateTime(
+        occurrence.year,
+        occurrence.month,
+        occurrence.day,
+        occurrence.hour,
+        occurrence.minute,
+      ),
+    );
+
+    final updatedRecurring = recurring.copyWith(
+      lastHandledOccurrenceAt: occurrence.toIso8601String(),
+      snoozedUntil: '',
+    );
+
+    await _applyAndLog(
+      action: 'add',
+      entityType: 'recurring-income-handled',
+      entityId: recurring.id,
+      details: logDetails,
+      titleOverride: titleOverride ?? logDetails,
+      recordInNotificationHistory: true,
+      apply: () async {
+        final stateAfterTx = TransactionProcessor.apply(state, transaction);
+        return _applyRecurringSync(stateAfterTx, updatedRecurring);
+      },
+    );
+  }
+
   Future<void> recordRecurringExpenseOccurrence({
     required RecurringTransactionEntity recurring,
     required double amount,

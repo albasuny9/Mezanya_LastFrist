@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mezanya_app/features/settings/presentation/screens/app_settings_screen.dart';
 
+import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/presentation/screens/budget_setup_screen.dart';
 import '../../../categories/presentation/screens/categories_screen.dart';
 import '../../../goals/presentation/screens/goals_screen.dart';
 import '../../../logs/presentation/screens/logs_screen.dart';
-import '../../../transactions/presentation/screens/recurring_transactions_screen.dart';
-import 'package:mezanya_app/features/settings/presentation/screens/app_settings_screen.dart';
-import 'section_page_scaffold.dart';
-
-import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/presentation/screens/debts_and_subscriptions_screen.dart';
+import '../../../transactions/presentation/screens/recurring_transactions_screen.dart';
+import 'section_page_scaffold.dart';
 
 class MoreTabContent extends StatefulWidget {
   final AppCubit cubit;
@@ -61,14 +60,24 @@ class _MoreTabContentState extends State<MoreTabContent> {
         // ── بطاقة المستخدم ──────────────────────────────────────────
         Container(
           margin: const EdgeInsets.only(bottom: 18),
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 22,
+            vertical: 18,
+          ),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
               colors: [Color(0xFF2F6F5E), Color(0xFF3C8973)],
             ),
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(28),
+            image: const DecorationImage(
+              image: AssetImage(
+                'assets/images/profile_card_pattern.png',
+              ),
+              fit: BoxFit.cover,
+              opacity: 0.08,
+            ),
             boxShadow: const [
               BoxShadow(
                 blurRadius: 16,
@@ -79,24 +88,6 @@ class _MoreTabContentState extends State<MoreTabContent> {
           ),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 34,
-                backgroundColor: Colors.white24,
-                backgroundImage: user?.photoUrl != null
-                    ? NetworkImage(user!.photoUrl!)
-                    : null,
-                child: user?.photoUrl == null
-                    ? Text(
-                        name[0],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,12 +122,34 @@ class _MoreTabContentState extends State<MoreTabContent> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 74,
+                height: 74,
                 decoration: BoxDecoration(
-                  color: Colors.white12,
-                  borderRadius: BorderRadius.circular(14),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 3,
+                  ),
                 ),
-                child: const Icon(Icons.person_outline, color: Colors.white),
+                child: ClipOval(
+                  child: user?.photoUrl != null
+                      ? Image.network(
+                          user!.photoUrl!,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          color: Colors.white24,
+                          alignment: Alignment.center,
+                          child: Text(
+                            name[0].toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 28,
+                            ),
+                          ),
+                        ),
+                ),
               ),
             ],
           ),
@@ -252,7 +265,10 @@ class _MoreTabContentState extends State<MoreTabContent> {
             title,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          trailing: const Icon(Icons.chevron_left),
+          trailing: const Icon(
+            Icons.chevron_left_rounded,
+            textDirection: TextDirection.ltr,
+          ),
         ),
       ),
     );
