@@ -1,14 +1,15 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../app_state/presentation/cubits/app_cubit.dart';
-import '../../../../features/backup/backup_service.dart';
 import '../../../../features/backup/backup_conflict_dialog.dart';
+import '../../../../features/backup/backup_service.dart';
+import '../../../app_state/presentation/cubits/app_cubit.dart';
 
 class BackupSettingsScreen extends StatefulWidget {
   final AppCubit cubit;
@@ -259,10 +260,12 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
       if (mounted) setState(() => _lastBackupAt = now);
 
       _msg('تم رفع النسخة بنجاح ✓');
-    } catch (e) {
-      _msg('فشل رفع النسخة');
-    } finally {
-      if (mounted) setState(() => loading = false);
+    } catch (e, s) {
+      debugPrint('================ BACKUP ERROR ================');
+      debugPrint(e.toString());
+      debugPrint(s.toString());
+
+      _msg(e.toString());
     }
   }
 

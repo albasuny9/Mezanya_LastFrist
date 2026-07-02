@@ -54,191 +54,197 @@ class _MoreTabContentState extends State<MoreTabContent> {
         : (googleName.isNotEmpty ? googleName : 'مستخدم ميزانية');
     final email = user?.email ?? state.googleEmail.trim();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // ── بطاقة المستخدم ──────────────────────────────────────────
-        Container(
-          margin: const EdgeInsets.only(bottom: 18),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 22,
-            vertical: 18,
-          ),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-              colors: [Color(0xFF2F6F5E), Color(0xFF3C8973)],
+    return ScrollConfiguration(
+      behavior: const ScrollBehavior().copyWith(
+        overscroll: false,
+      ),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── بطاقة المستخدم ──────────────────────────────────────────
+          Container(
+            margin: const EdgeInsets.only(bottom: 18),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 18,
             ),
-            borderRadius: BorderRadius.circular(28),
-            image: const DecorationImage(
-              image: AssetImage(
-                'assets/images/profile_card_pattern.png',
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [Color(0xFF2F6F5E), Color(0xFF3C8973)],
               ),
-              fit: BoxFit.cover,
-              opacity: 0.08,
+              borderRadius: BorderRadius.circular(28),
+              image: const DecorationImage(
+                image: AssetImage(
+                  'assets/images/profile_card_pattern.png',
+                ),
+                fit: BoxFit.cover,
+                opacity: 0.08,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  blurRadius: 16,
+                  offset: Offset(0, 6),
+                  color: Color(0x22000000),
+                ),
+              ],
             ),
-            boxShadow: const [
-              BoxShadow(
-                blurRadius: 16,
-                offset: Offset(0, 6),
-                color: Color(0x22000000),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.verified,
-                            size: 15, color: Colors.white70),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            email.isEmpty ? 'غير متصل بحساب Google' : email,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13.5,
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.verified,
+                              size: 15, color: Colors.white70),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              email.isEmpty ? 'غير متصل بحساب Google' : email,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13.5,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 74,
-                height: 74,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 3,
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                child: ClipOval(
-                  child: user?.photoUrl != null
-                      ? Image.network(
-                          user!.photoUrl!,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          color: Colors.white24,
-                          alignment: Alignment.center,
-                          child: Text(
-                            name[0].toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 28,
+                Container(
+                  width: 74,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 3,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: user?.photoUrl != null
+                        ? Image.network(
+                            user!.photoUrl!,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: Colors.white24,
+                            alignment: Alignment.center,
+                            child: Text(
+                              name[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 28,
+                              ),
                             ),
                           ),
-                        ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
 
-        _tile('إعداد الميزانية', Icons.tune_rounded, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SectionPageScaffold(
-                title: 'إعداد الميزانية',
-                child: BudgetSetupScreen(
-                  cubit: widget.cubit,
-                  displayMonth: DateTime.now(),
+          _tile('إعداد الميزانية', Icons.tune_rounded, onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SectionPageScaffold(
+                  title: 'إعداد الميزانية',
+                  child: BudgetSetupScreen(
+                    cubit: widget.cubit,
+                    displayMonth: DateTime.now(),
+                  ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
 
-        _tile('الديون والاشتراكات', Icons.account_balance_wallet_rounded,
-            onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DebtsAndSubscriptionsScreen(cubit: widget.cubit),
-            ),
-          );
-        }),
-
-        _tile('العمليات المتكررة', Icons.repeat_rounded, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SectionPageScaffold(
-                title: 'العمليات المتكررة',
-                child: RecurringTransactionsScreen(cubit: widget.cubit),
+          _tile('الديون والاشتراكات', Icons.account_balance_wallet_rounded,
+              onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    DebtsAndSubscriptionsScreen(cubit: widget.cubit),
               ),
-            ),
-          );
-        }),
+            );
+          }),
 
-        _tile('إعداد الفئات', Icons.grid_view_rounded, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SectionPageScaffold(
-                title: 'إعداد الفئات',
-                child: CategoriesScreen(cubit: widget.cubit),
+          _tile('العمليات المتكررة', Icons.repeat_rounded, onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SectionPageScaffold(
+                  title: 'العمليات المتكررة',
+                  child: RecurringTransactionsScreen(cubit: widget.cubit),
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
 
-        _tile('الأهداف', Icons.flag_rounded, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SectionPageScaffold(
-                title: 'الأهداف',
-                child: GoalsScreen(cubit: widget.cubit),
+          _tile('إعداد الفئات', Icons.grid_view_rounded, onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SectionPageScaffold(
+                  title: 'إعداد الفئات',
+                  child: CategoriesScreen(cubit: widget.cubit),
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
 
-        _tile('السجلات', Icons.receipt_long_rounded, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => LogsScreen(cubit: widget.cubit),
-            ),
-          );
-        }),
-
-        _tile('إعدادات التطبيق', Icons.settings_rounded, onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SectionPageScaffold(
-                title: 'إعدادات التطبيق',
-                child: AppSettingsScreen(cubit: widget.cubit),
+          _tile('الأهداف', Icons.flag_rounded, onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SectionPageScaffold(
+                  title: 'الأهداف',
+                  child: GoalsScreen(cubit: widget.cubit),
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
 
-        const SizedBox(height: 30),
-      ],
+          _tile('السجلات', Icons.receipt_long_rounded, onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LogsScreen(cubit: widget.cubit),
+              ),
+            );
+          }),
+
+          _tile('إعدادات التطبيق', Icons.settings_rounded, onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SectionPageScaffold(
+                  title: 'إعدادات التطبيق',
+                  child: AppSettingsScreen(cubit: widget.cubit),
+                ),
+              ),
+            );
+          }),
+
+          const SizedBox(height: 30),
+        ],
+      ),
     );
   }
 
