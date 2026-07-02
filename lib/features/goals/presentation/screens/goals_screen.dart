@@ -297,7 +297,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.savings_rounded,
+                        Icons.monetization_on_rounded,
                         color: accent,
                         size: 34,
                       ),
