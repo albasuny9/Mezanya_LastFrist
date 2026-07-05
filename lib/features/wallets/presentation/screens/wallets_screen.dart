@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
+import '../../../../core/utils/transaction_display_format.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -249,6 +250,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final reserved = _walletReservedAmount(state, wallet.id);
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     return _compactEntityTile(
+      state: state,
       title: wallet.name,
       subtitle: reserved > 0
           ? 'محجوز للحصالات: ${reserved.toStringAsFixed(2)}'
@@ -269,6 +271,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   Widget _compactEntityTile({
+    required AppStateEntity state,
     required String title,
     required String subtitle,
     required double amount,
@@ -314,7 +317,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              '${amount.toStringAsFixed(2)} جنيه',
+              '${amount.toStringAsFixed(2)} ${_currency(state)}',
               style: TextStyle(
                 color: accent,
                 fontSize: 13,
@@ -453,7 +456,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${wallet.balance.toStringAsFixed(2)} جنيه',
+                                      '${wallet.balance.toStringAsFixed(2)} ${_currency(state)}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
@@ -685,7 +688,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                                         ),
                                                       ),
                                                       Text(
-                                                        '${e.value.toStringAsFixed(2)} جنيه',
+                                                        '${e.value.toStringAsFixed(2)} ${_currency(state)}',
                                                         style: const TextStyle(
                                                           color: Colors.white,
                                                           fontWeight:
@@ -1006,7 +1009,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     decoration: InputDecoration(
                       labelText: 'المبلغ',
                       prefixIcon: const Icon(Icons.monetization_on_outlined),
-                      suffixText: 'جنيه',
+                      suffixText: currencyLabelAr(state.currencyCode),
                       helperText: walletOptions.isNotEmpty
                           ? 'المتاح من المحفظة: ${selectedWalletAmount.toStringAsFixed(2)}'
                           : null,
@@ -1121,7 +1124,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       color: _parseColor(j.iconColor)),
                   title: Text(j.name,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${j.balance.toStringAsFixed(2)} جنيه'),
+                  subtitle: Text(
+                    '${j.balance.toStringAsFixed(2)} ${_currency(state)}',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     onSelected(j.id, 'jar');
@@ -1316,7 +1321,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'المتاح من المحفظة: ${availableFromWallet.toStringAsFixed(2)} جنيه',
+                                'المتاح من المحفظة: ${availableFromWallet.toStringAsFixed(2)} ${_currency(currentState)}',
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w700,
@@ -1325,7 +1330,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'غير محدد المصدر في الحصالة: ${unallocatedJarAmount.toStringAsFixed(2)} جنيه',
+                                'غير محدد المصدر في الحصالة: ${unallocatedJarAmount.toStringAsFixed(2)} ${_currency(currentState)}',
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w700,
@@ -1357,7 +1362,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             hintText: '0.00',
                             filled: true,
                             fillColor: const Color(0xFFFFFBF1),
-                            suffixText: 'جنيه',
+                            suffixText: _currency(currentState),
                             suffixStyle: TextStyle(
                               color: accent,
                               fontWeight: FontWeight.w700,
@@ -1479,6 +1484,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   Future<void> _openWalletTransferDialog() async {
+    final state = widget.cubit.state;
     final wallets = widget.cubit.state.wallets;
     if (wallets.length < 2) return;
     var fromId = wallets.first.id;
@@ -1563,9 +1569,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     decoration: InputDecoration(
                       labelText: 'المبلغ',
                       prefixIcon: const Icon(Icons.monetization_on_outlined),
-                      suffixText: 'جنيه',
+                      suffixText: _currency(state),
                       helperText:
-                          'الرصيد المتاح: ${fromWallet.balance.toStringAsFixed(2)} جنيه',
+                          'الرصيد المتاح: ${fromWallet.balance.toStringAsFixed(2)} ${_currency(state)}',
                     ),
                     onChanged: (_) => setDialogState(() {}),
                   ),
@@ -1640,7 +1646,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 ),
                 title: Text(w.name,
                     style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text('${w.balance.toStringAsFixed(2)} جنيه'),
+                subtitle: Text(
+                  '${w.balance.toStringAsFixed(2)} ${_currency(widget.cubit.state)}',
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   onSelected(w.id);
@@ -1652,6 +1660,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   void _openWalletEditor({WalletEntity? current}) {
+    final state = widget.cubit.state;
     final nameController = TextEditingController(text: current?.name ?? '');
     final balanceController =
         TextEditingController(text: (current?.balance ?? 0).toStringAsFixed(0));
@@ -1805,10 +1814,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       controller: balanceController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'الرصيد الفعلي',
                         prefixIcon: Icon(Icons.account_balance_wallet_outlined),
-                        suffixText: 'جنيه',
+                        suffixText: _currency(state),
                       ),
                     ),
 
@@ -2083,6 +2092,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
     return Color(0xFF000000 | value);
   }
 
+  String _currency(AppStateEntity state) {
+    return currencyLabelAr(state.currencyCode);
+  }
+
   List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
     final sorted = List<LinkedWalletEntity>.from(jars);
     sorted.sort((a, b) {
@@ -2137,6 +2150,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
   }
 
   Widget _buildCard(AppStateEntity state, WalletEntity wallet, int index) {
+    final state = widget.cubit.state;
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final isColored = wallet.isHighlighted;
     final reserved = _walletReservedAmount(state, wallet.id);
@@ -2200,7 +2214,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'متاح ${available.toStringAsFixed(2)} جنيه',
+                        'متاح ${available.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -2444,6 +2458,9 @@ class _JarsListPage extends StatefulWidget {
 
 class _JarsListPageState extends State<_JarsListPage> {
   bool _reorderMode = false;
+  String _currency(AppStateEntity state) {
+    return currencyLabelAr(state.currencyCode);
+  }
 
   Color _parseColor(String hex) {
     final cleaned = hex.replaceAll('#', '');
@@ -2455,6 +2472,7 @@ class _JarsListPageState extends State<_JarsListPage> {
       List<LinkedWalletEntity> allJars, LinkedWalletEntity jar, int index) {
     final accent = _parseColor(jar.iconColor);
     final isColored = jar.isHighlighted;
+    final state = widget.cubit.state;
 
     final card = Container(
       key: ValueKey(jar.id),
@@ -2515,7 +2533,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                       const SizedBox(height: 3),
                       if (jar.monthlyAmount > 0)
                         Text(
-                          'الهدف الشهري: ${jar.monthlyAmount.toStringAsFixed(2)} جنيه',
+                          'الهدف الشهري: ${jar.monthlyAmount.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -2590,7 +2608,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          jar.balance.toStringAsFixed(2),
+                          '${jar.balance.toStringAsFixed(2)} ${_currency(widget.cubit.state)}',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,

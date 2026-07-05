@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -43,6 +44,18 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
   String? _lastBackupAt;
   BackupFrequency localFreq = BackupFrequency.onExit;
   BackupFrequency cloudFreq = BackupFrequency.weekly;
+
+  Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.email == account.email) return;
+
+    final auth = await account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: auth.idToken,
+    );
+    await FirebaseAuth.instance.signInWithCredential(credential);
+  }
 
   @override
   void initState() {
@@ -94,6 +107,9 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
   Future<void> _loadGoogle() async {
     _account = _googleSignIn.currentUser;
     _account ??= await _googleSignIn.signInSilently();
+    if (_account != null) {
+      await _signInFirebaseWithGoogle(_account!);
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -126,6 +142,10 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
   bool _guardAuth() {
     if (_account == null) {
       _msg('سجل دخول بجوجل أولًا');
+      return false;
+    }
+    if (FirebaseAuth.instance.currentUser?.email != _account!.email) {
+      _msg('ط£ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ط¬ظˆط¬ظ„ ط£ظˆظ„ظ‹ط§');
       return false;
     }
     return true;

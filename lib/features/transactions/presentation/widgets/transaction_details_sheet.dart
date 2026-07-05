@@ -1,11 +1,11 @@
-import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/utils/transaction_display_format.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
-import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
+import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
@@ -189,7 +189,7 @@ List<Widget> _transactionDetailsChildren(
       DateFormat('d MMMM yyyy', 'ar').format(transaction.createdAt);
   final timeLabel = formatTransactionTime(transaction.createdAt);
   final timestampLabel = '$dateLabel، $timeLabel';
-  final currency = _currencyLabelAr(state.currencyCode);
+  final currency = currencyLabelAr(state.currencyCode);
   final amountSign = _signFor(transaction);
   final amountValue = transaction.amount.toStringAsFixed(2);
   final amountGridText = '$amountSign$amountValue $currency';
@@ -200,7 +200,8 @@ List<Widget> _transactionDetailsChildren(
   return [
     AppDetailsSummaryCard(
       title: displayTitle,
-      subtitle: categoryLabel ?? (allocationLabel != '—' ? allocationLabel : ''),
+      subtitle:
+          categoryLabel ?? (allocationLabel != '—' ? allocationLabel : ''),
       amountSign: amountSign,
       amountValue: amountValue,
       currency: currency,
@@ -275,53 +276,9 @@ String transactionAllocationLabel(AppStateEntity state, TransactionEntity tx) {
   return '—';
 }
 
-String _currencyLabelAr(String code) {
-  switch (code.toUpperCase()) {
-    case 'EGP':
-      return 'جنيه';
-    case 'SAR':
-      return 'ريال';
-    case 'AED':
-      return 'درهم';
-    case 'USD':
-      return 'دولار';
-    case 'EUR':
-      return 'يورو';
-    case 'KWD':
-      return 'دينار كويتي';
-    case 'QAR':
-      return 'ريال قطري';
-    case 'BHD':
-      return 'دينار بحريني';
-    case 'OMR':
-      return 'ريال عماني';
-    case 'JOD':
-      return 'دينار أردني';
-    case 'LBP':
-      return 'ليرة لبنانية';
-    case 'IQD':
-      return 'دينار عراقي';
-    case 'MAD':
-      return 'درهم مغربي';
-    case 'TND':
-      return 'دينار تونسي';
-    case 'DZD':
-      return 'دينار جزائري';
-    case 'LYD':
-      return 'دينار ليبي';
-    case 'SDG':
-      return 'جنيه سوداني';
-    case 'YER':
-      return 'ريال يمني';
-    case 'SYP':
-      return 'ليرة سورية';
-    default:
-      return code;
-  }
-}
-
 class AppDetailsSummaryCard extends StatelessWidget {
   const AppDetailsSummaryCard({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.amountSign,
@@ -427,6 +384,7 @@ class AppDetailsSummaryCard extends StatelessWidget {
 
 class AppDetailsGrid extends StatelessWidget {
   const AppDetailsGrid({
+    super.key,
     required this.date,
     required this.time,
     required this.wallet,
@@ -569,6 +527,7 @@ class AppDetailsGrid extends StatelessWidget {
 
 class AppDetailsGridCell extends StatelessWidget {
   const AppDetailsGridCell({
+    super.key,
     required this.label,
     required this.value,
     required this.icon,
@@ -633,7 +592,7 @@ class AppDetailsGridCell extends StatelessWidget {
 }
 
 class AppDetailsNotesSection extends StatelessWidget {
-  const AppDetailsNotesSection({required this.notes});
+  const AppDetailsNotesSection({super.key, required this.notes});
 
   final String? notes;
 
@@ -750,8 +709,7 @@ Future<void> _openJarToJarEditor(
 }) async {
   final amountController =
       TextEditingController(text: transaction.amount.toStringAsFixed(2));
-  final notesController =
-      TextEditingController(text: transaction.notes ?? '');
+  final notesController = TextEditingController(text: transaction.notes ?? '');
   var selectedSourceJarId = transaction.fromWalletId ?? '';
   var selectedTargetJarId = transaction.toWalletId ?? '';
   var selectedDate = transaction.createdAt;
@@ -801,8 +759,7 @@ Future<void> _openJarToJarEditor(
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value:
-                    selectedSourceJarId.isEmpty ? null : selectedSourceJarId,
+                value: selectedSourceJarId.isEmpty ? null : selectedSourceJarId,
                 decoration: const InputDecoration(labelText: 'من حصالة'),
                 items: jars
                     .map(
@@ -820,8 +777,7 @@ Future<void> _openJarToJarEditor(
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value:
-                    selectedTargetJarId.isEmpty ? null : selectedTargetJarId,
+                value: selectedTargetJarId.isEmpty ? null : selectedTargetJarId,
                 decoration: const InputDecoration(labelText: 'إلى حصالة'),
                 items: jars
                     .map(
@@ -1053,7 +1009,12 @@ Future<void> _openJarReserveEditor(
             shrinkWrap: true,
             children: [
               Text(
-                transaction.transferType == TransferType.jarFunding.value ? 'تعديل تحويل من الميزانية' : (transaction.transferType == TransferType.jarFundingPhysical.value ? 'تعديل خصم لحصالة' : 'تعديل تخصيص حصالة'),
+                transaction.transferType == TransferType.jarFunding.value
+                    ? 'تعديل تحويل من الميزانية'
+                    : (transaction.transferType ==
+                            TransferType.jarFundingPhysical.value
+                        ? 'تعديل خصم لحصالة'
+                        : 'تعديل تخصيص حصالة'),
                 style: Theme.of(sheetContext)
                     .textTheme
                     .titleLarge
@@ -1247,9 +1208,8 @@ Future<void> _openJarReserveEditor(
                           type: TransactionType.transfer.value,
                           budgetScope: transaction.budgetScope,
                           incomeSourceId: transaction.incomeSourceId,
-                          transferType:
-                              transaction.transferType ??
-                                  TransferType.jarAllocation.value,
+                          transferType: transaction.transferType ??
+                              TransferType.jarAllocation.value,
                           notes: notesController.text.trim().isEmpty
                               ? null
                               : notesController.text.trim(),

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -40,6 +41,18 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   bool _uploadingImage = false;
 
+  Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.email == account.email) return;
+
+    final auth = await account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: auth.idToken,
+    );
+    await FirebaseAuth.instance.signInWithCredential(credential);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +65,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   Future<void> _initGoogle() async {
     final cached = _googleSignIn.currentUser;
     if (cached != null) {
+      await _signInFirebaseWithGoogle(cached);
       _account = cached;
       if (_nameController.text.trim().isEmpty) {
         _nameController.text = cached.displayName ?? '';
@@ -62,6 +76,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     final acc = await _googleSignIn.signInSilently();
     if (!mounted) return;
     if (acc != null) {
+      await _signInFirebaseWithGoogle(acc);
       _account = acc;
       if (_nameController.text.trim().isEmpty) {
         _nameController.text = acc.displayName ?? '';
@@ -202,6 +217,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     try {
       final account = await _googleSignIn.signIn();
       if (account == null) return;
+      await _signInFirebaseWithGoogle(account);
       _nameController.text = account.displayName ?? '';
       widget.cubit.updateSettings(
         userName: _nameController.text,
@@ -272,6 +288,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   Future<void> _signOutGoogle() async {
     await _googleSignIn.signOut();
+    await FirebaseAuth.instance.signOut();
     widget.cubit.updateSettings(googleEmail: '');
     setState(() => _account = null);
   }
@@ -1111,7 +1128,8 @@ class _LanguageCurrencyCard extends StatelessWidget {
               items: const [
                 DropdownMenuItem(value: 'EGP', child: Text('جنيه مصري (EGP)')),
                 DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي (SAR)')),
-                DropdownMenuItem(value: 'USD', child: Text('دولار أمريكي (USD)')),
+                DropdownMenuItem(
+                    value: 'USD', child: Text('دولار أمريكي (USD)')),
                 DropdownMenuItem(value: 'EUR', child: Text('يورو (EUR)')),
               ],
               onChanged: onCurrencyChanged,
