@@ -61,13 +61,14 @@ class TransactionProcessor {
         if (trackWalletSource && physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) + delta;
-          final existingSourceIdx =
-              jar.walletSources.indexWhere((s) => s.walletId == physicalWalletId);
+          final existingSourceIdx = jar.walletSources
+              .indexWhere((s) => s.walletId == physicalWalletId);
           double currentSourceAmount = 0;
           if (existingSourceIdx != -1) {
             currentSourceAmount = jar.walletSources[existingSourceIdx].amount;
           }
-          jar = jar.withUpdatedSource(physicalWalletId, currentSourceAmount + delta);
+          jar = jar.withUpdatedSource(
+              physicalWalletId, currentSourceAmount + delta);
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance + delta,
@@ -109,95 +110,94 @@ class TransactionProcessor {
           delta: -transaction.amount,
         );
       } else {
-      final isPhysicalFrom = wallets.any((w) => w.id == transaction.fromWalletId);
-      final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
+        final isPhysicalFrom =
+            wallets.any((w) => w.id == transaction.fromWalletId);
+        final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
 
-      if (isPhysicalFrom && isPhysicalTo) {
-        wallets = wallets.map((w) {
-          if (w.id == transaction.fromWalletId) {
+        if (isPhysicalFrom && isPhysicalTo) {
+          wallets = wallets.map((w) {
+            if (w.id == transaction.fromWalletId) {
+              return w.copyWith(balance: w.balance - transaction.amount);
+            }
+            if (w.id == transaction.toWalletId) {
+              return w.copyWith(balance: w.balance + transaction.amount);
+            }
+            return w;
+          }).toList();
+        } else if (isPhysicalFrom &&
+            !isPhysicalTo &&
+            transaction.transferType == TransferType.jarFundingPhysical.value) {
+          wallets = wallets.map((w) {
+            if (w.id != transaction.fromWalletId) return w;
             return w.copyWith(balance: w.balance - transaction.amount);
+          }).toList();
+          if (transaction.toWalletId != null) {
+            updateVirtualBalance(
+              id: transaction.toWalletId!,
+              delta: transaction.amount,
+              physicalWalletId:
+                  transaction.fromWalletId ?? transaction.walletId,
+              trackWalletSource: false,
+            );
+            updateJarSourceOnly(
+              jarId: transaction.toWalletId!,
+              walletId: transaction.fromWalletId ?? transaction.walletId ?? '',
+              delta: transaction.amount,
+            );
           }
-          if (w.id == transaction.toWalletId) {
-            return w.copyWith(balance: w.balance + transaction.amount);
-          }
-          return w;
-        }).toList();
-      } else if (isPhysicalFrom &&
-          !isPhysicalTo &&
-          transaction.transferType == TransferType.jarFundingPhysical.value) {
-        wallets = wallets.map((w) {
-          if (w.id != transaction.fromWalletId) return w;
-          return w.copyWith(balance: w.balance - transaction.amount);
-        }).toList();
-        if (transaction.toWalletId != null) {
+        } else if (isPhysicalFrom &&
+            !isPhysicalTo &&
+            transaction.transferType == TransferType.jarFunding.value) {
+          // jarFunding فيرشوال: يحدّث jar.balance و walletSources معاً
+          // (كان بيحدّث jar.balance بس عبر الـ else العام، لكن walletSources
+          // كانت بتفضل قديمة — ده بيخلي "توزيع الفلوس" يعرض قيمة غلط بعد
+          // أي تعديل)
           updateVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
             physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
+            trackWalletSource: false,
           );
-          // jarFundingPhysical أيضاً يحدّث walletSources لأن الفلوس جات
-          // فعلاً من محفظة حقيقية محددة
           updateJarSourceOnly(
             jarId: transaction.toWalletId!,
-            walletId:
-                transaction.fromWalletId ?? transaction.walletId ?? '',
+            walletId: transaction.fromWalletId ?? transaction.walletId ?? '',
             delta: transaction.amount,
           );
-        }
-      } else if (isPhysicalFrom &&
-          !isPhysicalTo &&
-          transaction.transferType == TransferType.jarFunding.value) {
-        // jarFunding فيرشوال: يحدّث jar.balance و walletSources معاً
-        // (كان بيحدّث jar.balance بس عبر الـ else العام، لكن walletSources
-        // كانت بتفضل قديمة — ده بيخلي "توزيع الفلوس" يعرض قيمة غلط بعد
-        // أي تعديل)
-        updateVirtualBalance(
-          id: transaction.toWalletId!,
-          delta: transaction.amount,
-          physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
-          trackWalletSource: false,
-        );
-        updateJarSourceOnly(
-          jarId: transaction.toWalletId!,
-          walletId: transaction.fromWalletId ?? transaction.walletId ?? '',
-          delta: transaction.amount,
-        );
-      } else if (transaction.transferType ==
-              TransferType.jarFunding.value &&
-          transaction.toWalletId != null) {
-        // تمويل فيرشوال من الميزانية للحصالة: نحدّث رصيد الحصالة
-        // ونحدّث walletSources عشان لوحة "توزيع الفلوس" تتزامن
-        updateVirtualBalance(
-          id: transaction.toWalletId!,
-          delta: transaction.amount,
-          physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
-          trackWalletSource: false,
-        );
-        final sourceWalletId =
-            transaction.fromWalletId ?? transaction.walletId;
-        if (sourceWalletId != null) {
-          updateJarSourceOnly(
-            jarId: transaction.toWalletId!,
-            walletId: sourceWalletId,
-            delta: transaction.amount,
-          );
-        }
-      } else {
-        if (transaction.fromWalletId != null) {
-          updateVirtualBalance(
-            id: transaction.fromWalletId!,
-            delta: -transaction.amount,
-            physicalWalletId: transaction.walletId,
-          );
-        }
-        if (transaction.toWalletId != null) {
+        } else if (transaction.transferType == TransferType.jarFunding.value &&
+            transaction.toWalletId != null) {
+          // تمويل فيرشوال من الميزانية للحصالة: نحدّث رصيد الحصالة
+          // ونحدّث walletSources عشان لوحة "توزيع الفلوس" تتزامن
           updateVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
-            physicalWalletId: transaction.walletId,
+            physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
+            trackWalletSource: false,
           );
+          final sourceWalletId =
+              transaction.fromWalletId ?? transaction.walletId;
+          if (sourceWalletId != null) {
+            updateJarSourceOnly(
+              jarId: transaction.toWalletId!,
+              walletId: sourceWalletId,
+              delta: transaction.amount,
+            );
+          }
+        } else {
+          if (transaction.fromWalletId != null) {
+            updateVirtualBalance(
+              id: transaction.fromWalletId!,
+              delta: -transaction.amount,
+              physicalWalletId: transaction.walletId,
+            );
+          }
+          if (transaction.toWalletId != null) {
+            updateVirtualBalance(
+              id: transaction.toWalletId!,
+              delta: transaction.amount,
+              physicalWalletId: transaction.walletId,
+            );
+          }
         }
-      }
       }
     } else if (transaction.type == TransactionType.income.value) {
       wallets = wallets.map((w) {
@@ -270,10 +270,9 @@ class TransactionProcessor {
             transactions.add(
               TransactionEntity(
                 id: _auditId('txn', transactions.length),
-                parentId: transaction.id,  // ربط بالمعاملة الأم
+                parentId: transaction.id, // ربط بالمعاملة الأم
                 walletId: transaction.walletId,
-                fromWalletId:
-                    hasPhysicalFunding ? null : transaction.walletId,
+                fromWalletId: hasPhysicalFunding ? null : transaction.walletId,
                 toWalletId: jar.id,
                 budgetScope: BudgetScope.withinBudget.value,
                 incomeSourceId: sourceId,
@@ -412,8 +411,8 @@ class TransactionProcessor {
         if (trackWalletSource && physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) - delta;
-          final existingSourceIdx =
-              jar.walletSources.indexWhere((s) => s.walletId == physicalWalletId);
+          final existingSourceIdx = jar.walletSources
+              .indexWhere((s) => s.walletId == physicalWalletId);
           final currentSourceAmount = existingSourceIdx == -1
               ? 0.0
               : jar.walletSources[existingSourceIdx].amount;
@@ -481,69 +480,79 @@ class TransactionProcessor {
           delta: -transaction.amount,
         );
       } else {
-      final isPhysicalFrom = wallets.any((w) => w.id == transaction.fromWalletId);
-      final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
+        final isPhysicalFrom =
+            wallets.any((w) => w.id == transaction.fromWalletId);
+        final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
 
-      if (isPhysicalFrom && isPhysicalTo) {
-        wallets = wallets.map((w) {
-          if (w.id == transaction.fromWalletId) {
+        if (isPhysicalFrom && isPhysicalTo) {
+          wallets = wallets.map((w) {
+            if (w.id == transaction.fromWalletId) {
+              return w.copyWith(balance: w.balance + transaction.amount);
+            }
+            if (w.id == transaction.toWalletId) {
+              return w.copyWith(balance: w.balance - transaction.amount);
+            }
+            return w;
+          }).toList();
+        } else if (isPhysicalFrom &&
+            !isPhysicalTo &&
+            transaction.transferType == TransferType.jarFundingPhysical.value) {
+          wallets = wallets.map((w) {
+            if (w.id != transaction.fromWalletId) return w;
             return w.copyWith(balance: w.balance + transaction.amount);
+          }).toList();
+          if (transaction.toWalletId != null) {
+            reverseVirtualBalance(
+              id: transaction.toWalletId!,
+              delta: transaction.amount,
+              physicalWalletId:
+                  transaction.fromWalletId ?? transaction.walletId,
+              trackWalletSource: false,
+            );
+            final sourceWalletId =
+                transaction.fromWalletId ?? transaction.walletId;
+            if (sourceWalletId != null) {
+              reverseJarSourceOnly(
+                jarId: transaction.toWalletId!,
+                walletId: sourceWalletId,
+                delta: transaction.amount,
+              );
+            }
           }
-          if (w.id == transaction.toWalletId) {
-            return w.copyWith(balance: w.balance - transaction.amount);
-          }
-          return w;
-        }).toList();
-      } else if (isPhysicalFrom &&
-          !isPhysicalTo &&
-          transaction.transferType == TransferType.jarFundingPhysical.value) {
-        wallets = wallets.map((w) {
-          if (w.id != transaction.fromWalletId) return w;
-          return w.copyWith(balance: w.balance + transaction.amount);
-        }).toList();
-        if (transaction.toWalletId != null) {
+        } else if (transaction.transferType == TransferType.jarFunding.value &&
+            transaction.toWalletId != null) {
+          // عكس تمويل فيرشوال: نعكس رصيد الحصالة ونعكس walletSources
           reverseVirtualBalance(
             id: transaction.toWalletId!,
             delta: transaction.amount,
             physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
             trackWalletSource: false,
           );
+          final sourceWalletId =
+              transaction.fromWalletId ?? transaction.walletId;
+          if (sourceWalletId != null) {
+            reverseJarSourceOnly(
+              jarId: transaction.toWalletId!,
+              walletId: sourceWalletId,
+              delta: transaction.amount,
+            );
+          }
+        } else {
+          if (transaction.fromWalletId != null) {
+            reverseVirtualBalance(
+              id: transaction.fromWalletId!,
+              delta: -transaction.amount,
+              physicalWalletId: transaction.walletId,
+            );
+          }
+          if (transaction.toWalletId != null) {
+            reverseVirtualBalance(
+              id: transaction.toWalletId!,
+              delta: transaction.amount,
+              physicalWalletId: transaction.walletId,
+            );
+          }
         }
-      } else if (transaction.transferType ==
-              TransferType.jarFunding.value &&
-          transaction.toWalletId != null) {
-        // عكس تمويل فيرشوال: نعكس رصيد الحصالة ونعكس walletSources
-        reverseVirtualBalance(
-          id: transaction.toWalletId!,
-          delta: transaction.amount,
-          physicalWalletId: transaction.fromWalletId ?? transaction.walletId,
-          trackWalletSource: false,
-        );
-        final sourceWalletId =
-            transaction.fromWalletId ?? transaction.walletId;
-        if (sourceWalletId != null) {
-          reverseJarSourceOnly(
-            jarId: transaction.toWalletId!,
-            walletId: sourceWalletId,
-            delta: transaction.amount,
-          );
-        }
-      } else {
-        if (transaction.fromWalletId != null) {
-          reverseVirtualBalance(
-            id: transaction.fromWalletId!,
-            delta: -transaction.amount,
-            physicalWalletId: transaction.walletId,
-          );
-        }
-        if (transaction.toWalletId != null) {
-          reverseVirtualBalance(
-            id: transaction.toWalletId!,
-            delta: transaction.amount,
-            physicalWalletId: transaction.walletId,
-          );
-        }
-      }
       }
     } else if (transaction.type == TransactionType.income.value) {
       // 1. عكس رصيد المحفظة
@@ -631,7 +640,6 @@ class TransactionProcessor {
           );
         }
       }
-
     } else if (transaction.type == TransactionType.expense.value) {
       wallets = wallets.map((w) {
         if (w.id != transaction.walletId) return w;
@@ -665,25 +673,23 @@ class TransactionProcessor {
         linkedWallets: linkedWallets,
         allocations: allocations,
       ),
-      transactions: current.transactions
-          .where((t) {
-            if (t.id == transaction.id) return false;
-            // احذف الـ sub-transactions المرتبطة بالأم
-            if (t.parentId != null && t.parentId == transaction.id) return false;
-            // Backward compat: sub-transactions قديمة بدون parentId
-            if (transaction.type == TransactionType.income.value &&
-                (t.transferType == TransferType.jarFunding.value ||
-                    t.transferType == TransferType.jarAllocation.value ||
-                    t.transferType == TransferType.jarAllocationCancel.value ||
-                    t.transferType == TransferType.jarFundingPhysical.value) &&
-                t.incomeSourceId == transaction.incomeSourceId &&
-                t.walletId == transaction.walletId &&
-                t.createdAt == transaction.createdAt) {
-              return false;
-            }
-            return true;
-          })
-          .toList(),
+      transactions: current.transactions.where((t) {
+        if (t.id == transaction.id) return false;
+        // احذف الـ sub-transactions المرتبطة بالأم
+        if (t.parentId != null && t.parentId == transaction.id) return false;
+        // Backward compat: sub-transactions قديمة بدون parentId
+        if (transaction.type == TransactionType.income.value &&
+            (t.transferType == TransferType.jarFunding.value ||
+                t.transferType == TransferType.jarAllocation.value ||
+                t.transferType == TransferType.jarAllocationCancel.value ||
+                t.transferType == TransferType.jarFundingPhysical.value) &&
+            t.incomeSourceId == transaction.incomeSourceId &&
+            t.walletId == transaction.walletId &&
+            t.createdAt == transaction.createdAt) {
+          return false;
+        }
+        return true;
+      }).toList(),
     );
   }
 }
