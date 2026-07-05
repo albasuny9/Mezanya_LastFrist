@@ -1,8 +1,6 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
-import '../widgets/jar_details_sheet.dart';
-import '../widgets/wallet_shared_widgets.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -13,6 +11,8 @@ import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/wallet_entity.dart';
+import '../widgets/jar_details_sheet.dart';
+import '../widgets/wallet_shared_widgets.dart';
 import 'jar_editor_screen.dart';
 
 class WalletsScreen extends StatefulWidget {
@@ -124,37 +124,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: _compactJarTile(state, jar),
                             )),
-                        if (jars.length > 3)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: GestureDetector(
-                              onTap: () => _openJarsPage(state),
-                              child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 9),
-                                decoration: BoxDecoration(
-                                  color: _teal.withValues(alpha: 0.07),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                      color: _teal.withValues(alpha: 0.15)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                        'عرض باقي الحصالات (${jars.length - 3})',
-                                        style: TextStyle(
-                                            color: _teal,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13)),
-                                    const SizedBox(width: 4),
-                                    Icon(Icons.expand_more_rounded,
-                                        size: 16, color: _teal),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
                       ],
                     ),
             ),
@@ -769,21 +738,16 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       text: 'لا توجد حركات مسجلة على هذه المحفظة حتى الآن.',
                     )
                   else
-                    ...walletTx.take(30).map(
-                          (t) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: SharedTransactionCard(
-                              transaction: t,
-                              appState: widget.cubit.state,
-                              viewingContextId: wallet.id,
-                              onTap: () => openTransactionDetailsSheet(
-                                ctx,
-                                cubit: widget.cubit,
-                                transaction: t,
-                              ),
-                            ),
-                          ),
-                        ),
+                    SharedTransactionDayGroups(
+                      transactions: walletTx.take(30).toList(),
+                      appState: widget.cubit.state,
+                      viewingContextId: wallet.id,
+                      onTap: (transaction) => openTransactionDetailsSheet(
+                        ctx,
+                        cubit: widget.cubit,
+                        transaction: transaction,
+                      ),
+                    ),
                 ],
               ),
             );
@@ -2732,4 +2696,3 @@ class _JarsListPageState extends State<_JarsListPage> {
     );
   }
 }
-

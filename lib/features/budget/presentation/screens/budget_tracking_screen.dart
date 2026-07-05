@@ -14,6 +14,7 @@ import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
+import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
@@ -1352,129 +1353,24 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     ThemeData theme,
     TransactionEntity item,
   ) {
-    final isIncome = item.type == TransactionType.income.value;
-    final isExpense = item.type == TransactionType.expense.value;
-    final amtColor = isIncome
-        ? const Color(0xFF0F9D7A)
-        : (isExpense ? theme.colorScheme.error : theme.colorScheme.primary);
-    final icon = isIncome
-        ? Icons.add_rounded
-        : (isExpense ? Icons.remove_rounded : Icons.swap_horiz_rounded);
-    final defaultTitle = isIncome ? 'دخل' : (isExpense ? 'مصروف' : 'تحويل');
-    final prefix = isIncome ? '+' : (isExpense ? '-' : '');
-    final category =
-        getCategoryForTransaction(widget.cubit.state, item.categoryId);
-    final tileAccent =
-        category != null ? parseCategoryColor(category.color) : amtColor;
-
-    // اسم المعاملة: الفئة أولاً → الملاحظات → النوع
-    String txTitle = defaultTitle;
-    String? txNotes;
-    if (category != null) {
-      txTitle = category.name;
-      if (item.notes != null && item.notes!.isNotEmpty) {
-        txNotes = item.notes;
-      }
-    } else if (item.notes?.isNotEmpty == true) {
-      txTitle = item.notes!;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            Navigator.pop(sheetContext);
-            final parentContext = context;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              openTransactionDetailsSheet(
-                parentContext,
-                cubit: widget.cubit,
-                transaction: item,
-              );
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant,
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: tileAccent,
-                  child: category != null
-                      ? AppIconPickerDialog.iconWidgetForName(
-                          category.icon,
-                          color: Colors.white,
-                          size: 20,
-                        )
-                      : Icon(icon, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        txTitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (txNotes != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          txNotes,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 2),
-                      Text(
-                        DateFormat('d MMMM · h:mm a', 'ar')
-                            .format(item.createdAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  '$prefix${item.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    color: amtColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return SharedTransactionCard(
+      transaction: item,
+      appState: widget.cubit.state,
+      grouped: true,
+      onTap: () {
+        Navigator.pop(sheetContext);
+        final parentContext = context;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          openTransactionDetailsSheet(
+            parentContext,
+            cubit: widget.cubit,
+            transaction: item,
+          );
+        });
+      },
     );
   }
-
   // Widget _trackingSheetTxList(
   //   BuildContext sheetContext,
   //   ThemeData theme,
@@ -4317,18 +4213,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            ...tx.map((item) => ListTile(
-                  title: Text(
-                      item.notes?.isNotEmpty == true ? item.notes! : 'معاملة'),
-                  subtitle: Text(DateFormat('d MMMM - h:mm a', 'ar')
-                      .format(item.createdAt)),
-                  trailing: Text(item.amount.toStringAsFixed(2)),
-                  onTap: () => openTransactionDetailsSheet(
-                    context,
-                    cubit: widget.cubit,
-                    transaction: item,
-                  ),
-                )),
+            SharedTransactionDayGroups(
+              transactions: tx,
+              appState: widget.cubit.state,
+              onTap: (item) => openTransactionDetailsSheet(
+                context,
+                cubit: widget.cubit,
+                transaction: item,
+              ),
+            ),
             if (tx.isEmpty) const ListTile(title: Text('لا توجد معاملات.')),
           ],
         ),
@@ -4866,6 +4759,82 @@ class _DraggableFilterableTxSheetState
 
   String get _sortLabel => _newestFirst ? 'الأحدث أولًا' : 'الأقدم أولًا';
 
+  List<Widget> _dayGroups(List<TransactionEntity> transactions) {
+    final grouped = <DateTime, List<TransactionEntity>>{};
+    for (final transaction in transactions) {
+      final day = DateTime(
+        transaction.createdAt.year,
+        transaction.createdAt.month,
+        transaction.createdAt.day,
+      );
+      grouped.putIfAbsent(day, () => <TransactionEntity>[]).add(transaction);
+    }
+
+    return [
+      for (final entry in grouped.entries)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  _dayLabel(entry.key),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8A7F72),
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFCF8),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFF3EDE4)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < entry.value.length; i++) ...[
+                      if (i > 0)
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Color(0xFFF3EDE4),
+                          indent: 16,
+                          endIndent: 16,
+                        ),
+                      widget.tileBuilder(entry.value[i]),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  String _dayLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final day = DateTime(date.year, date.month, date.day);
+    final datePart = DateFormat('d MMMM', 'ar').format(date);
+    if (day == today) return 'اليوم • $datePart';
+    if (day == yesterday) return 'أمس • $datePart';
+    return datePart;
+  }
+
   Future<void> _openFilterSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -5234,7 +5203,7 @@ class _DraggableFilterableTxSheetState
                     ],
                   ),
                   const SizedBox(height: 10),
-                  ...visible.map(widget.tileBuilder),
+                  ..._dayGroups(visible),
                   if (visible.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),

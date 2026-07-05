@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../../../core/constants/transaction_types.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -556,19 +555,15 @@ Future<void> showJarDetailsSheet({
                               const WalletInlineNote(
                                   text: 'لا توجد معاملات لهذه الفئة.')
                             else
-                              ...filtered.map(
-                                (t) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: SharedTransactionCard(
-                                    transaction: t,
-                                    appState: state,
-                                    viewingContextId: jar.id,
-                                    onTap: () => openTransactionDetailsSheet(
-                                      ctx,
-                                      cubit: cubit,
-                                      transaction: t,
-                                    ),
-                                  ),
+                              SharedTransactionDayGroups(
+                                transactions: filtered.toList(),
+                                appState: state,
+                                viewingContextId: jar.id,
+                                onTap: (transaction) =>
+                                    openTransactionDetailsSheet(
+                                  ctx,
+                                  cubit: cubit,
+                                  transaction: transaction,
                                 ),
                               ),
                           ],
@@ -823,158 +818,32 @@ Future<void> _openWalletAllocationSheet({
                             style: TextStyle(
                                 color: accent.withValues(alpha: 0.5),
                                 fontWeight: FontWeight.w600)))
-                    : ListView.builder(
+                    : ListView(
                         controller: ctrl,
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                        itemCount: walletTxns.length,
-                        itemBuilder: (_, i) {
-                          final t = walletTxns[i];
-                          final isFromBudget =
-                              t.transferType == TransferType.jarFunding.value ||
-                                  t.transferType ==
-                                      TransferType.jarFundingPhysical.value;
-                          final isDepositLabel = t.transferType ==
-                              TransferType.depositWithJarLabel.value;
-                          final isPhysicalDeduction = t.transferType ==
-                              TransferType.jarFundingPhysical.value;
-                          final isJarToJar =
-                              t.transferType == TransferType.jarToJar.value;
-                          final isJarToJarOutgoing =
-                              isJarToJar && t.fromWalletId == jar.id;
-                          final incomeName = isFromBudget
-                              ? (cubit.state.budgetSetup.incomeSources
-                                      .where((s) => s.id == t.incomeSourceId)
-                                      .map((s) => s.name)
-                                      .firstOrNull ??
-                                  'من الميزانية')
-                              : null;
-                          final counterpartJarName = isJarToJar
-                              ? (cubit.state.budgetSetup.linkedWallets
-                                      .where((j) =>
-                                          j.id ==
-                                          (isJarToJarOutgoing
-                                              ? t.toWalletId
-                                              : t.fromWalletId))
-                                      .map((j) => j.name)
-                                      .firstOrNull ??
-                                  '—')
-                              : null;
-                          final txDate = DateFormat('d MMM yyyy', 'ar')
-                              .format(t.createdAt);
-                          final isCancel = t.transferType ==
-                              TransferType.jarAllocationCancel.value;
-                          final isNegativeDisplay = isCancel ||
-                              isPhysicalDeduction ||
-                              isJarToJarOutgoing;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: GestureDetector(
-                              onTap: () => _openReservationLabelEditor(
-                                context: bCtx,
-                                cubit: cubit,
-                                jar: currentJar,
-                                walletId: walletId,
-                                currentAmount: currentJar.walletSources
-                                    .where((s) => s.walletId == walletId)
-                                    .fold<double>(0, (s, e) => s + e.amount),
-                                accent: accent,
-                              ),
-                              onLongPress: () => openTransactionDetailsSheet(
-                                bCtx,
-                                cubit: cubit,
-                                transaction: t,
-                              ),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: 0.06),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                      color: accent.withValues(alpha: 0.14)),
-                                ),
-                                child: Row(children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: (isNegativeDisplay
-                                              ? const Color(0xFFDC2626)
-                                              : (isFromBudget
-                                                  ? const Color(0xFF2F7D5E)
-                                                  : (isJarToJar
-                                                      ? const Color(0xFF16A34A)
-                                                      : accent)))
-                                          .withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                      isCancel
-                                          ? Icons.undo_rounded
-                                          : (isJarToJar
-                                              ? Icons.compare_arrows_rounded
-                                              : (isFromBudget
-                                                  ? Icons
-                                                      .monetization_on_rounded
-                                                  : Icons
-                                                      .lock_outline_rounded)),
-                                      color: isNegativeDisplay
-                                          ? const Color(0xFFDC2626)
-                                          : (isFromBudget
-                                              ? const Color(0xFF2F7D5E)
-                                              : (isJarToJar
-                                                  ? const Color(0xFF16A34A)
-                                                  : accent)),
-                                      size: 17,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            isJarToJar
-                                                ? (isJarToJarOutgoing
-                                                    ? 'تحويل مخصوم • $counterpartJarName'
-                                                    : 'تحويل إضافي • $counterpartJarName')
-                                                : (isFromBudget
-                                                    ? 'من الميزانية • $incomeName'
-                                                    : (isDepositLabel
-                                                        ? 'حجز معاملة • ${t.notes?.isNotEmpty == true ? t.notes! : 'دخل'}'
-                                                        : (isCancel
-                                                            ? 'إلغاء حجز'
-                                                            : 'حجز يدوي'))),
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 13),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(txDate,
-                                              style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: accent.withValues(
-                                                      alpha: 0.6),
-                                                  fontWeight: FontWeight.w600)),
-                                        ]),
-                                  ),
-                                  Text(
-                                    '${isNegativeDisplay ? "-" : "+"}${t.amount.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                        color: isNegativeDisplay
-                                            ? const Color(0xFFDC2626)
-                                            : (isJarToJar
-                                                ? const Color(0xFF16A34A)
-                                                : accent),
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15),
-                                  ),
-                                ]),
-                              ),
+                        children: [
+                          SharedTransactionDayGroups(
+                            transactions: walletTxns,
+                            appState: liveState,
+                            viewingContextId: currentJar.id,
+                            onTap: (_) => _openReservationLabelEditor(
+                              context: bCtx,
+                              cubit: cubit,
+                              jar: currentJar,
+                              walletId: walletId,
+                              currentAmount: currentJar.walletSources
+                                  .where((s) => s.walletId == walletId)
+                                  .fold<double>(0, (s, e) => s + e.amount),
+                              accent: accent,
                             ),
-                          );
-                        },
+                            onLongPress: (transaction) =>
+                                openTransactionDetailsSheet(
+                              bCtx,
+                              cubit: cubit,
+                              transaction: transaction,
+                            ),
+                          ),
+                        ],
                       ),
               ),
             ],
