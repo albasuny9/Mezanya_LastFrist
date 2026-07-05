@@ -151,7 +151,7 @@ Future<void> showJarDetailsSheet({
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        '${jar.balance.toStringAsFixed(2)} جنيه',
+                                        '${jar.balance.toStringAsFixed(2)} ${state.currencyCode}',
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -426,7 +426,7 @@ Future<void> showJarDetailsSheet({
                                                                 fontSize: 14)),
                                                       ),
                                                       Text(
-                                                        '${e.value.toStringAsFixed(2)} جنيه',
+                                                        '${e.value.toStringAsFixed(2)}${state.currencyCode}',
                                                         style: const TextStyle(
                                                             color: Colors.white,
                                                             fontWeight:
@@ -597,9 +597,6 @@ class JarCompactSummaryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final distribution = jarWalletDistribution(state, jar.id);
     final accent = parseJarSheetColor(jar.iconColor);
-    final subtitle = distribution.isEmpty
-        ? 'لم يتم توزيعها على محافظ بعد'
-        : 'موزعة على ${distribution.length} محفظة';
 
     return GestureDetector(
       onTap: onTap,
@@ -642,23 +639,12 @@ class JarCompactSummaryTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: accent.withValues(alpha: 0.65),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             Text(
-              '${jar.balance.toStringAsFixed(2)} جنيه',
+              '${jar.balance.toStringAsFixed(2)} ${state.currencyCode}',
               style: TextStyle(
                 color: accent,
                 fontSize: 13,
