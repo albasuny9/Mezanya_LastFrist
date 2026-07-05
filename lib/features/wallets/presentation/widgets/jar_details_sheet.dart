@@ -215,8 +215,7 @@ Future<void> showJarDetailsSheet({
                                 children: [
                                   AnimatedRotation(
                                     turns: showWallets ? 0.5 : 0,
-                                    duration:
-                                        const Duration(milliseconds: 260),
+                                    duration: const Duration(milliseconds: 260),
                                     child: const Icon(
                                       Icons.keyboard_arrow_down_rounded,
                                       color: Colors.white,
@@ -284,7 +283,8 @@ Future<void> showJarDetailsSheet({
                                                 context: context,
                                                 cubit: cubit,
                                                 jar: jar,
-                                                mode: _JarAdjustmentMode.allocate,
+                                                mode:
+                                                    _JarAdjustmentMode.allocate,
                                               ),
                                               child: Container(
                                                 padding:
@@ -366,11 +366,11 @@ Future<void> showJarDetailsSheet({
                                                   walletId: e.key,
                                                   walletName: walletName,
                                                   walletIcon: walletIcon,
-                                                  walletColor: matchedWallets
-                                                          .isEmpty
-                                                      ? null
-                                                      : matchedWallets
-                                                          .first.iconColor,
+                                                  walletColor:
+                                                      matchedWallets.isEmpty
+                                                          ? null
+                                                          : matchedWallets
+                                                              .first.iconColor,
                                                   relevantTransactions:
                                                       relevantTransactions,
                                                 ),
@@ -418,15 +418,13 @@ Future<void> showJarDetailsSheet({
                                                       const SizedBox(width: 10),
                                                       Expanded(
                                                         child: Text(walletName,
-                                                            style:
-                                                                const TextStyle(
-                                                                    color: Colors
-                                                                        .white,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w800,
-                                                                    fontSize:
-                                                                        14)),
+                                                            style: const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                fontSize: 14)),
                                                       ),
                                                       Text(
                                                         '${e.value.toStringAsFixed(2)} جنيه',
@@ -800,8 +798,8 @@ Future<void> _openWalletAllocationSheet({
                       ]),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(12),
@@ -918,7 +916,8 @@ Future<void> _openWalletAllocationSheet({
                                               : (isFromBudget
                                                   ? Icons
                                                       .monetization_on_rounded
-                                                  : Icons.lock_outline_rounded)),
+                                                  : Icons
+                                                      .lock_outline_rounded)),
                                       color: isNegativeDisplay
                                           ? const Color(0xFFDC2626)
                                           : (isFromBudget
@@ -1027,8 +1026,7 @@ Future<void> _openReservationLabelEditor({
           TextField(
             controller: ctrl,
             autofocus: true,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'المبلغ المحجوز من هذه المحفظة',
               suffixText: 'جنيه',
@@ -1095,10 +1093,9 @@ Future<void> _openJarAdjustmentDialog({
   if (availableWallets.isEmpty) return;
 
   final accent = parseJarSheetColor(jar.iconColor);
-  var walletId =
-      availableWallets.any((wallet) => wallet.id == initialWalletId)
-          ? initialWalletId!
-          : availableWallets.first.id;
+  var walletId = availableWallets.any((wallet) => wallet.id == initialWalletId)
+      ? initialWalletId!
+      : availableWallets.first.id;
   final amountController = TextEditingController();
   final notesController = TextEditingController();
 
@@ -1114,8 +1111,7 @@ Future<void> _openJarAdjustmentDialog({
         final currentJar = cubit.state.budgetSetup.linkedWallets
             .where((j) => j.id == jar.id)
             .firstOrNull;
-        final unallocatedAmount = _jarUnallocatedAmount(
-            currentJar ?? jar);
+        final unallocatedAmount = _jarUnallocatedAmount(currentJar ?? jar);
         const title = 'تحديد مصدر أموال الحصالة';
 
         return Padding(
@@ -1215,8 +1211,8 @@ Future<void> _openJarAdjustmentDialog({
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFFBF1),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                              color: accent.withValues(alpha: 0.16)),
+                          border:
+                              Border.all(color: accent.withValues(alpha: 0.16)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
@@ -1362,8 +1358,8 @@ Future<void> _openJarAdjustmentDialog({
                         onPressed: () => Navigator.of(ctx).pop(),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(
-                              color: accent.withValues(alpha: 0.30)),
+                          side:
+                              BorderSide(color: accent.withValues(alpha: 0.30)),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
                           foregroundColor: const Color(0xFF8A7F72),

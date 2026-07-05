@@ -10,6 +10,11 @@ import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/services/recurring_schedule_engine.dart';
 import '../widgets/recurring_income_post_dialog.dart';
 
+double _safeProgress(double value, double total) {
+  if (total <= 0 || !value.isFinite || !total.isFinite) return 0;
+  return (value / total).clamp(0.0, 1.0).toDouble();
+}
+
 class RecurringTransactionComposerResult {
   const RecurringTransactionComposerResult._({
     this.recurring,
@@ -1585,7 +1590,7 @@ class _RecurringTransactionComposerScreenState
                       title: jar.name,
                       subtitle:
                           'دخل مباشر للحصالة — خارج الميزانية (${jar.balance.toStringAsFixed(0)} رصيد)',
-                      progress: (jar.balance / totalIncome).clamp(0.0, 1.0),
+                      progress: _safeProgress(jar.balance, totalIncome),
                       onTap: () {
                         setState(() {
                           _withinBudget = false;
@@ -1617,7 +1622,7 @@ class _RecurringTransactionComposerScreenState
                     iconColor: Theme.of(context).colorScheme.primary,
                     title: a.name,
                     subtitle: '${planned.toStringAsFixed(0)} مخطط',
-                    progress: (planned / totalIncome).clamp(0.0, 1.0),
+                    progress: _safeProgress(planned, totalIncome),
                     onTap: () {
                       setState(() {
                         _withinBudget = true;
@@ -1645,7 +1650,7 @@ class _RecurringTransactionComposerScreenState
                     iconColor: const Color(0xFF8B6B3D),
                     title: jar.name,
                     subtitle: '${jar.balance.toStringAsFixed(0)} رصيد',
-                    progress: (jar.balance / totalIncome).clamp(0.0, 1.0),
+                    progress: _safeProgress(jar.balance, totalIncome),
                     onTap: () {
                       setState(() {
                         _withinBudget = true;
@@ -2343,6 +2348,9 @@ class _ScopeOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final progressValue = progress?.isFinite == true
+        ? progress!.clamp(0.0, 1.0).toDouble()
+        : null;
     return Material(
       color: isSelected
           ? theme.colorScheme.primary.withValues(alpha: 0.08)
@@ -2398,7 +2406,7 @@ class _ScopeOptionTile extends StatelessWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(999),
                         child: LinearProgressIndicator(
-                          value: progress,
+                          value: progressValue,
                           minHeight: 4,
                           backgroundColor: iconColor.withValues(alpha: 0.12),
                           valueColor: AlwaysStoppedAnimation<Color>(iconColor),

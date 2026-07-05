@@ -45,8 +45,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
             .length;
         final remainingAmount =
             (totalTargets - savedAmount).clamp(0.0, double.infinity);
-        final completedAmount =
-            savedAmount.clamp(0.0, totalTargets > 0 ? totalTargets : savedAmount);
+        final completedAmount = totalTargets <= 0
+            ? 0.0
+            : savedAmount.clamp(0.0, totalTargets).toDouble();
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -334,7 +335,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         ),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

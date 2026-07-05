@@ -1259,8 +1259,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             // ── Allocation list ──
             final allocations = budget.allocations;
             final jars = budget.linkedWallets;
-            final totalIncome =
-                budget.totalIncome <= 0 ? 1.0 : budget.totalIncome;
 
             return SizedBox(
               height: MediaQuery.of(sheetCtx).size.height * 0.84,
@@ -2401,6 +2399,8 @@ class _AllocationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progressValue =
+        ratio.isFinite ? ratio.clamp(0.0, 1.0).toDouble() : 0.0;
     return Row(
       children: [
         Container(
@@ -2440,7 +2440,7 @@ class _AllocationRow extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: ratio,
+                  value: progressValue,
                   minHeight: 6,
                   backgroundColor: iconColor.withValues(alpha: 0.12),
                   valueColor: AlwaysStoppedAnimation<Color>(iconColor),

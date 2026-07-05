@@ -362,7 +362,7 @@ class LinkedWalletEntity {
   double get labeledTotal => walletSources.fold(0.0, (s, e) => s + e.amount);
 
   /// الجزء غير المصنف من رصيد الحصالة
-  double get unlabeledAmount => (balance - labeledTotal).clamp(0.0, balance);
+  double get unlabeledAmount => balance - labeledTotal;
 
   /// تحديث مصدر محفظة معينة (أو إضافته لو مش موجود)
   LinkedWalletEntity withUpdatedSource(String walletId, double amount) {
