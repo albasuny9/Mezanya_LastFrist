@@ -1,0 +1,218 @@
+```text
+Before making ANY code changes, read the project documentation first.
+
+The project contains an architectural documentation folder:
+
+docs/architecture/
+
+Read these files completely and in this exact order:
+
+1. docs/architecture/MEZANYA-STRICT-ARCHITECTURAL-REFACTOR-SPECIFICATION.md
+2. docs/architecture/refactor-budget-feature.md
+3. docs/architecture/refactor-wallets-feature.md
+4. docs/architecture/refactor-transactions-feature.md
+5. docs/architecture/refactor-notifications-feature.md
+6. docs/architecture/refactor-home-feature.md
+7. docs/architecture/refactor-settings-appcubit-feature.md
+
+These files are the authoritative specification for this repository.
+
+Do NOT ignore them.
+
+Do NOT summarize them.
+
+Follow them exactly.
+
+--------------------------------------------------
+
+After reading all documentation:
+
+Immediately begin executing the refactoring plan.
+
+Execution order is mandatory:
+
+1. Budget Feature
+2. Wallets Feature
+3. Transactions Feature
+4. Notifications Feature
+5. Home Feature
+6. Settings + AppShell + AppCubit
+
+Never change this order.
+
+Never work on two features simultaneously.
+
+--------------------------------------------------
+
+VERY IMPORTANT
+
+Do NOT create another plan.
+
+Do NOT generate another roadmap.
+
+Do NOT create another architecture proposal.
+
+The planning phase is already finished.
+
+The documentation inside docs/architecture is the final approved plan.
+
+Start implementing immediately.
+
+--------------------------------------------------
+
+Implementation Rules
+
+Follow the specification exactly.
+
+Zero behavior changes.
+
+Zero UI changes.
+
+Zero financial logic changes.
+
+Zero database changes.
+
+Zero Firestore changes.
+
+Zero public API changes.
+
+Never redesign.
+
+Never optimize.
+
+Never "improve" business logic.
+
+Only perform structural refactoring.
+
+--------------------------------------------------
+
+Within every feature execute only:
+
+Phase 1
+Extract Widgets
+
+↓
+
+Verify compilation
+
+↓
+
+Commit
+
+↓
+
+Phase 2
+Extract Constants / Helpers
+
+↓
+
+Verify compilation
+
+↓
+
+Commit
+
+↓
+
+Phase 3
+Extract Models
+
+↓
+
+Verify compilation
+
+↓
+
+Commit
+
+↓
+
+Phase 4
+Extract Services
+
+↓
+
+Verify compilation
+
+↓
+
+Commit
+
+↓
+
+Phase 5
+Remove ONLY provably identical duplication
+
+↓
+
+Verify compilation
+
+↓
+
+Commit
+
+--------------------------------------------------
+
+Never skip verification.
+
+After every logical extraction:
+
+- flutter analyze
+- ensure project compiles
+- ensure application launches
+
+If verification fails:
+
+STOP.
+
+Fix only the structural issue.
+
+Never change business behavior.
+
+--------------------------------------------------
+
+Do NOT create services simply because they seem useful.
+
+Extract only responsibilities that already exist.
+
+Move code exactly as implemented.
+
+Never rewrite financial logic.
+
+Never change execution order.
+
+Never change arithmetic.
+
+Never change conditions.
+
+Never change side effects.
+
+--------------------------------------------------
+
+TransactionProcessor, AppCubit, Budget calculations, Wallet calculations, Jar calculations, Notifications, Recurring logic and Firestore serialization are considered financial core infrastructure.
+
+Treat them as immutable.
+
+Move only.
+
+Never redesign.
+
+--------------------------------------------------
+
+At the end of each execution provide:
+
+- Files created
+- Files modified
+- Responsibilities extracted
+- Verification performed
+- flutter analyze result
+- Compile result
+- Remaining work
+- Next recommended execution
+
+Then continue with the next logical extraction until the current feature is fully completed according to the approved documentation.
+
+Begin immediately with:
+
+Budget Feature → Phase 1 → Widget Extraction.
+```

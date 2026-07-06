@@ -1,0 +1,1 @@
+- [Budget Phase 1 Widget Extraction](budget-phase1-widget-extraction.md) — Phase 1 complete; screen shrunk from 5273→3207 lines, 19 widget files created, flutter analyze: no issues.
