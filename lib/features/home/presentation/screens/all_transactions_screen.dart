@@ -716,7 +716,7 @@ class _PeriodTopBar extends StatelessWidget {
                     label,
                     textAlign: TextAlign.center,
                     style: AppTheme.dateTextStyle(
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: _green,
                     ),

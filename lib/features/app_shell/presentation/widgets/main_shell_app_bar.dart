@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mezanya_app/core/theme/app_theme.dart';
 
 class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
   const MainShellAppBar({
@@ -38,7 +39,11 @@ class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
             builder: (context, snapshot) {
               return Text(
                 snapshot.data ?? '',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: AppTheme.dateTextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               );
             },
           ),

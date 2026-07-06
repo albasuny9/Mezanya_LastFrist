@@ -26,7 +26,7 @@ class AppTheme {
   }) {
     return TextStyle(
       fontFamily: AppFonts.classic,
-      fontSize: fontSize,
+      fontSize: fontSize != null ? fontSize + 2 : 18,
       fontWeight: fontWeight,
       color: color,
       height: height,

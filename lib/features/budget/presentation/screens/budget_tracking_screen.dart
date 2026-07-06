@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
+import 'package:mezanya_app/core/theme/app_theme.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -161,6 +162,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 // تمويل داخلي للحصالة وليست دخلاً ضمن الميزانية الشهرية
                 t.transferType != TransferType.depositWithJarLabel.value)
             .toList();
+        final budgetExpenseTx = monthTx
+            .where((t) =>
+                t.type == TransactionType.expense.value &&
+                t.budgetScope == BudgetScope.withinBudget.value)
+            .toList();
+
+        final jarFundingTx = monthTx
+            .where((t) =>
+                (t.transferType == TransferType.jarFunding.value ||
+                    t.transferType == TransferType.jarFundingPhysical.value) &&
+                t.budgetScope == BudgetScope.withinBudget.value)
+            .toList();
         final expenseTx = monthTx
             .where((t) => t.type == TransactionType.expense.value)
             .toList();
@@ -310,58 +323,87 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     Color border;
 
     if (isPast || isFuture) {
-      accent = Colors.grey.shade700;
-      background = Colors.grey.withValues(alpha: 0.08);
-      border = Colors.grey.withValues(alpha: 0.22);
+      accent = const Color(0xFF5C6E53);
+      background = const Color(0xFFF6F3EA);
+      border = const Color(0xFFC6CFB6);
     } else {
-      accent = Theme.of(context).colorScheme.onSurface;
-      background = Theme.of(context).colorScheme.surfaceContainerHighest;
-      border = Theme.of(context).dividerColor.withValues(alpha: 0.25);
+      accent = const Color(0xFF355E3B); // أخضر زيتوني
+      background = const Color(0xFFF5F0E6);
+      border = const Color(0xFFA7B48E);
     }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         // الدورة الحالية: خلفية خضرا خفيفة جداً
         color: background,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: border,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           // زرار الشهر السابق
-          IconButton(
-            onPressed: () => _goToPreviousCycle(budget),
-            icon: Icon(
-              Icons.arrow_back_ios_rounded,
-              size: 18,
-              color: accent,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(100),
+              onTap: () => _goToPreviousCycle(budget),
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF355E3B),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                  size: 15,
+                ),
+              ),
             ),
-            tooltip: 'الدورة السابقة',
           ),
           Expanded(
             child: Text(
               rangeLabel,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
+              style: AppTheme.dateTextStyle(
                 fontSize: 14,
+                fontWeight: FontWeight.w700,
                 color: isCurrent ? accent : accent.withValues(alpha: 0.7),
               ),
             ),
           ),
           // زرار الشهر القادم
-          IconButton(
-            onPressed: () => _goToNextCycle(budget),
-            icon: Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 18,
-              color: accent,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(100),
+              onTap: () => _goToNextCycle(budget),
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF355E3B),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white,
+                  size: 15,
+                ),
+              ),
             ),
-            tooltip: 'الدورة التالية',
           ),
         ],
       ),
@@ -467,15 +509,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         ? 1.0
         : (remainingIncome / totalIncomeActual).clamp(-0.5, 1.0);
 
-    const cGreen1 = Color(0xFF165B47);
-    const cGreen2 = Color(0xFF2F7D5E);
-    const cGreen3 = Color(0xFF8DCB9B);
-    const cYellow1 = Color(0xFF8B6C14);
-    const cYellow2 = Color(0xFFAA8C20);
-    const cYellow3 = Color(0xFFD4B040);
-    const cRed1 = Color(0xFF8E4A37);
-    const cRed2 = Color(0xFFC96B47);
-    const cRed3 = Color(0xFFE07055);
+    // Green (Olive)
+    const cGreen1 = Color(0xFF2F5D50);
+    const cGreen2 = Color(0xFF4E7A69);
+    const cGreen3 = Color(0xFF93B59D);
+
+// Amber
+    const cYellow1 = Color(0xFF8A6C2E);
+    const cYellow2 = Color(0xFFB08B3F);
+    const cYellow3 = Color(0xFFD9BF78);
+
+// Terracotta
+    const cRed1 = Color(0xFF7A4A3A);
+    const cRed2 = Color(0xFFA8654D);
+    const cRed3 = Color(0xFFD19478);
 
     Color g1, g2, g3, shadow;
     if (healthRatio <= 0.0) {
@@ -522,8 +569,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       child: Stack(
         children: [
           PositionedDirectional(
-            top: -14,
-            start: -4,
+            top: 5,
+            end: 10,
             child: Icon(
               Icons.account_balance_wallet_rounded,
               size: 92,
@@ -532,7 +579,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           ),
           PositionedDirectional(
             bottom: -18,
-            end: -4,
+            end: 4,
             child: Icon(
               Icons.auto_graph_rounded,
               size: 82,
@@ -543,7 +590,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'الباقي من الدخل الشهري',
+                'الباقي من الدخل ',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: Colors.white.withValues(alpha: 0.96),
                   fontWeight: FontWeight.w800,
