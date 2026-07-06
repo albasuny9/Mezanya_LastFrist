@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
 
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/transaction_types.dart';
-
+import '../../../../core/utils/transaction_display_format.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
@@ -41,7 +41,8 @@ class MoneyScreen extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final start = today.subtract(const Duration(days: 6));
     return visibleTx.where((t) {
-      final day = DateTime(t.createdAt.year, t.createdAt.month, t.createdAt.day);
+      final day =
+          DateTime(t.createdAt.year, t.createdAt.month, t.createdAt.day);
       return !day.isBefore(start) && !day.isAfter(today);
     }).toList();
   }
@@ -228,7 +229,7 @@ class _HeroCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    currencyCode,
+                    currencyLabelAr(currencyCode),
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.70),
                       fontSize: 15,
@@ -726,7 +727,8 @@ class _AnalysisPreview extends StatelessWidget {
             ),
           )
         else
-          const _EmptyHint(text: 'لا توجد حركة دخل أو مصروف في الأيام الأخيرة.'),
+          const _EmptyHint(
+              text: 'لا توجد حركة دخل أو مصروف في الأيام الأخيرة.'),
       ],
     );
   }

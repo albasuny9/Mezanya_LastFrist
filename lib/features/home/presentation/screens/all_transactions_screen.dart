@@ -1,8 +1,10 @@
-import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../widgets/recent_transaction_card.dart';
@@ -713,7 +715,7 @@ class _PeriodTopBar extends StatelessWidget {
                   child: Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: AppTheme.dateTextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: _green,
@@ -954,8 +956,10 @@ class _DatePickerBox extends StatelessWidget {
               date == null
                   ? 'اختر تاريخ'
                   : DateFormat('d MMMM yyyy', 'ar').format(date!),
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: Color(0xFF165b47)),
+              style: AppTheme.dateTextStyle(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF165b47),
+              ),
             ),
           ],
         ),
@@ -1026,10 +1030,10 @@ class _DayGroup extends StatelessWidget {
             child: Text(
               _dateLabel(),
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: AppTheme.dateTextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF8A7F72),
+                color: const Color(0xFF8A7F72),
               ),
             ),
           ),
