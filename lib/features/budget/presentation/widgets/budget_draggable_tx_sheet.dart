@@ -20,9 +20,11 @@
 // calculations, or change the filtering/sorting logic.
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../domain/utils/budget_date_format.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 // Filter by transaction kind (type).
 enum BudgetTxKindFilter { all, expense, income, transfer }
@@ -146,18 +148,18 @@ class _BudgetDraggableFilterableTxSheetState
     switch (_dateFilter) {
       case BudgetTxDateFilter.day:
         final day = _selectedDay ?? widget.initialMonth;
-        return 'يوم ${DateFormat('d MMMM yyyy', 'ar').format(day)}';
+        return 'يوم ${budgetFormatFullDate(day)}';
       case BudgetTxDateFilter.week:
         final start = _selectedWeekStart ?? widget.initialMonth;
         final end = start.add(const Duration(days: 6));
-        return 'أسبوع ${DateFormat('d/M', 'ar').format(start)} - ${DateFormat('d/M', 'ar').format(end)}';
+        return 'أسبوع ${budgetFormatShortNumericDate(start)} - ${budgetFormatShortNumericDate(end)}';
       case BudgetTxDateFilter.month:
-        return DateFormat('MMMM yyyy', 'ar').format(widget.initialMonth);
+        return budgetFormatMonthYear(widget.initialMonth);
       case BudgetTxDateFilter.year:
         return 'سنة ${widget.initialMonth.year}';
       case BudgetTxDateFilter.custom:
         if (_customRange == null) return 'مدى مخصص';
-        return '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}';
+        return '${budgetFormatFullDate(_customRange!.start)} - ${budgetFormatFullDate(_customRange!.end)}';
       case BudgetTxDateFilter.all:
         return 'كل المعاملات';
     }
@@ -203,15 +205,15 @@ class _BudgetDraggableFilterableTxSheetState
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF8A7F72),
+                    color: kBudgetMutedText,
                   ),
                 ),
               ),
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFCF8),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFF3EDE4)),
+                  color: kBudgetSheetSurface,
+                  borderRadius: BorderRadius.circular(kBudgetRadiusM),
+                  border: Border.all(color: kBudgetSheetBorder),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.03),
@@ -228,7 +230,7 @@ class _BudgetDraggableFilterableTxSheetState
                         const Divider(
                           height: 1,
                           thickness: 1,
-                          color: Color(0xFFF3EDE4),
+                          color: kBudgetSheetBorder,
                           indent: 16,
                           endIndent: 16,
                         ),
@@ -248,7 +250,7 @@ class _BudgetDraggableFilterableTxSheetState
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final day = DateTime(date.year, date.month, date.day);
-    final datePart = DateFormat('d MMMM', 'ar').format(date);
+    final datePart = budgetFormatMediumDate(date);
     if (day == today) return 'اليوم • $datePart';
     if (day == yesterday) return 'أمس • $datePart';
     return datePart;
@@ -268,7 +270,7 @@ class _BudgetDraggableFilterableTxSheetState
                 height: 34,
                 decoration: BoxDecoration(
                   color: widget.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusXS),
                 ),
                 child: Icon(icon, color: widget.accent, size: 18),
               ),
@@ -293,7 +295,7 @@ class _BudgetDraggableFilterableTxSheetState
             color: Colors.transparent,
             child: InkWell(
               onTap: onTap,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(kBudgetRadiusMd),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 12),
@@ -301,7 +303,7 @@ class _BudgetDraggableFilterableTxSheetState
                   color: selected
                       ? widget.accent.withValues(alpha: 0.10)
                       : widget.theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusMd),
                   border: Border.all(
                     color: selected
                         ? widget.accent.withValues(alpha: 0.34)
@@ -416,8 +418,7 @@ class _BudgetDraggableFilterableTxSheetState
                   const SizedBox(height: 10),
                   optionTile(
                     title: 'الشهر المعروض',
-                    subtitle: DateFormat('MMMM yyyy', 'ar')
-                        .format(widget.initialMonth),
+                    subtitle: budgetFormatMonthYear(widget.initialMonth),
                     selected: _dateFilter == BudgetTxDateFilter.month,
                     onTap: () {
                       setState(
@@ -441,8 +442,7 @@ class _BudgetDraggableFilterableTxSheetState
                     title: 'يوم محدد',
                     subtitle: _selectedDay == null
                         ? 'اختر يومًا بعينه'
-                        : DateFormat('d MMMM yyyy', 'ar')
-                            .format(_selectedDay!),
+                        : budgetFormatFullDate(_selectedDay!),
                     selected: _dateFilter == BudgetTxDateFilter.day,
                     onTap: () async {
                       final picked = await showDatePicker(
@@ -464,7 +464,7 @@ class _BudgetDraggableFilterableTxSheetState
                     title: 'أسبوع',
                     subtitle: _selectedWeekStart == null
                         ? 'اختر بداية الأسبوع'
-                        : '${DateFormat('d/M', 'ar').format(_selectedWeekStart!)} - ${DateFormat('d/M', 'ar').format(_selectedWeekStart!.add(const Duration(days: 6)))}',
+                        : '${budgetFormatShortNumericDate(_selectedWeekStart!)} - ${budgetFormatShortNumericDate(_selectedWeekStart!.add(const Duration(days: 6)))}',
                     selected: _dateFilter == BudgetTxDateFilter.week,
                     onTap: () async {
                       final picked = await showDatePicker(
@@ -487,7 +487,7 @@ class _BudgetDraggableFilterableTxSheetState
                     title: 'من تاريخ إلى تاريخ',
                     subtitle: _customRange == null
                         ? 'حدد مدى زمني مخصص'
-                        : '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}',
+                        : '${budgetFormatFullDate(_customRange!.start)} - ${budgetFormatFullDate(_customRange!.end)}',
                     selected: _dateFilter == BudgetTxDateFilter.custom,
                     onTap: () async {
                       final picked = await showDateRangePicker(
@@ -538,7 +538,7 @@ class _BudgetDraggableFilterableTxSheetState
         builder: (context, scrollController) {
           return ClipRRect(
             borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
+                const BorderRadius.vertical(top: Radius.circular(kBudgetRadiusL)),
             child: Material(
               color: theme.colorScheme.surface,
               child: ListView(
@@ -553,7 +553,7 @@ class _BudgetDraggableFilterableTxSheetState
                       decoration: BoxDecoration(
                         color: theme.colorScheme.onSurfaceVariant
                             .withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                       ),
                     ),
                   ),

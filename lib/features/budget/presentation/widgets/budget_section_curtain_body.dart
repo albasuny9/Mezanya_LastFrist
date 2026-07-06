@@ -15,6 +15,7 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetSectionCurtainBody extends StatelessWidget {
   const BudgetSectionCurtainBody({
@@ -30,7 +31,7 @@ class BudgetSectionCurtainBody extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(kBudgetRadiusCard),
         border: Border.all(
           color: Theme.of(context)
               .colorScheme

@@ -16,6 +16,8 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetSetupPromptCard extends StatelessWidget {
   const BudgetSetupPromptCard({
@@ -35,7 +37,7 @@ class BudgetSetupPromptCard extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(kBudgetRadiusSetupCard),
         border: Border.all(
           color: Theme.of(context).colorScheme.outlineVariant,
         ),
@@ -55,16 +57,16 @@ class BudgetSetupPromptCard extends StatelessWidget {
             height: 84,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFFE8F5E9), Color(0xFFD8F3E5)],
+                colors: [kBudgetSetupGradientLight, kBudgetSetupGradientDark],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(kBudgetRadiusCard),
             ),
             child: const Icon(
               Icons.calendar_month_rounded,
               size: 42,
-              color: Color(0xFF0F9D7A),
+              color: kBudgetDefaultAccent,
             ),
           ),
           const SizedBox(height: 16),

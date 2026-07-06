@@ -17,6 +17,8 @@
 // modify any business values, or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 import 'budget_summary_row.dart';
 
 class BudgetCycleSummaryCard extends StatelessWidget {
@@ -54,7 +56,7 @@ class BudgetCycleSummaryCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(kBudgetRadiusCard),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
@@ -74,25 +76,25 @@ class BudgetCycleSummaryCard extends StatelessWidget {
                 // زرار تحليل الدورة
                 InkWell(
                   onTap: onViewAnalysis,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusS),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
                       color:
-                          const Color(0xFF1E7F5C).withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(14),
+                          kBudgetIncomeGreenBright.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusS),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.auto_graph_rounded,
-                            size: 16, color: Color(0xFF1E7F5C)),
+                            size: 16, color: kBudgetIncomeGreenBright),
                         const SizedBox(width: 5),
                         Text(
                           'تحليل الدورة',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF1E7F5C),
+                            color: kBudgetIncomeGreenBright,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -127,16 +129,16 @@ class BudgetCycleSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                   child: LinearProgressIndicator(
                     value: spendRatio,
                     minHeight: 8,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       spendRatio < 0.7
-                          ? const Color(0xFF1E7F5C)
+                          ? kBudgetIncomeGreenBright
                           : spendRatio < 0.9
-                              ? const Color(0xFFE4B83F)
-                              : const Color(0xFFC65D2E),
+                              ? kBudgetWarningYellow
+                              : kBudgetDangerOrange,
                     ),
                   ),
                 ),

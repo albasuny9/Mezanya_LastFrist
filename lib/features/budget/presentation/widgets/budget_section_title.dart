@@ -15,6 +15,8 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetSectionTitle extends StatelessWidget {
   const BudgetSectionTitle({super.key, required this.title});
@@ -23,7 +25,7 @@ class BudgetSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF165B47);
+    const accent = kBudgetIncomeGreen;
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Row(
@@ -32,7 +34,7 @@ class BudgetSectionTitle extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(kBudgetRadiusXS),
             ),
             child: Text(
               title,

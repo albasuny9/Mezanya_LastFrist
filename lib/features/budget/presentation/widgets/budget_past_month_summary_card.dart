@@ -15,6 +15,7 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_layout.dart';
 import 'budget_summary_row.dart';
 
 class BudgetPastMonthSummaryCard extends StatelessWidget {
@@ -38,7 +39,7 @@ class BudgetPastMonthSummaryCard extends StatelessWidget {
             .colorScheme
             .surfaceContainerHighest
             .withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(kBudgetRadiusCard),
         border: Border.all(
           color: Theme.of(context).colorScheme.outlineVariant,
         ),

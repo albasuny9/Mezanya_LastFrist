@@ -17,6 +17,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:mezanya_app/core/widgets/app_icon_picker_dialog.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetIconBadge extends StatelessWidget {
   const BudgetIconBadge(
@@ -48,7 +49,7 @@ class BudgetIconBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: solid ? color : color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(kBudgetRadiusMd),
       ),
       child: Center(
         child: AppIconPickerDialog.iconWidgetForName(

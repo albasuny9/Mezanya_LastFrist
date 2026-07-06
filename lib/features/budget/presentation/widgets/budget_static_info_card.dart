@@ -15,6 +15,7 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetStaticInfoCard extends StatelessWidget {
   const BudgetStaticInfoCard({super.key, required this.text});
@@ -28,7 +29,7 @@ class BudgetStaticInfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(kBudgetRadiusXL),
         border: Border.all(
           color: Theme.of(context).colorScheme.outlineVariant,
         ),

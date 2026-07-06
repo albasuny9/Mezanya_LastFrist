@@ -17,6 +17,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:mezanya_app/core/theme/app_theme.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetMonthBar extends StatelessWidget {
   const BudgetMonthBar({
@@ -43,21 +45,21 @@ class BudgetMonthBar extends StatelessWidget {
     Color border;
 
     if (isPast || isFuture) {
-      accent = const Color(0xFF5C6E53);
-      background = const Color(0xFFF6F3EA);
-      border = const Color(0xFFC6CFB6);
+      accent = kBudgetMonthBarAccentOther;
+      background = kBudgetMonthBarBgOther;
+      border = kBudgetMonthBarBorderOther;
     } else {
-      accent = const Color(0xFF355E3B); // أخضر زيتوني
-      background = const Color(0xFFF5F0E6);
-      border = const Color(0xFFA7B48E);
+      accent = kBudgetMonthBarAccentCurrent; // أخضر زيتوني
+      background = kBudgetMonthBarBgCurrent;
+      border = kBudgetMonthBarBorderCurrent;
     }
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: kBudgetAnimMonthBar,
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(kBudgetRadiusMd),
         border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
@@ -73,13 +75,13 @@ class BudgetMonthBar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: InkWell(
-              borderRadius: BorderRadius.circular(100),
+              borderRadius: BorderRadius.circular(kBudgetRadiusPill),
               onTap: onPrevious,
               child: Container(
                 width: 30,
                 height: 30,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF355E3B),
+                  color: kBudgetMonthBarAccentCurrent,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -105,13 +107,13 @@ class BudgetMonthBar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: InkWell(
-              borderRadius: BorderRadius.circular(100),
+              borderRadius: BorderRadius.circular(kBudgetRadiusPill),
               onTap: onNext,
               child: Container(
                 width: 30,
                 height: 30,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF355E3B),
+                  color: kBudgetMonthBarAccentCurrent,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(

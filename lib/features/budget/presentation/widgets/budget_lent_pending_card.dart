@@ -16,6 +16,8 @@
 // serialization, or rewrite the pending/overdue logic.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 
@@ -58,7 +60,7 @@ class BudgetLentPendingCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(kBudgetRadiusL),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
@@ -79,14 +81,13 @@ class BudgetLentPendingCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color:
-                        const Color(0xFFC65D2E).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    color: kBudgetDangerOrange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusS),
                   ),
                   child: Text(
                     'متأخر $overdueCount',
                     style: const TextStyle(
-                      color: Color(0xFFC65D2E),
+                      color: kBudgetDangerOrange,
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
                     ),
@@ -122,7 +123,7 @@ class BudgetLentPendingCard extends StatelessWidget {
                       const Icon(
                         Icons.pending_outlined,
                         size: 18,
-                        color: Color(0xFF165B47),
+                        color: kBudgetIncomeGreen,
                       ),
                       const SizedBox(width: 8),
                       Expanded(

@@ -1,0 +1,337 @@
+You are continuing an existing architectural refactoring effort for the Mezanya Flutter project.
+
+IMPORTANT:
+
+Do NOT start planning again.
+
+Do NOT generate another roadmap.
+
+Do NOT analyze the project architecture again.
+
+Do NOT create new task lists.
+
+The planning phase has already been completed.
+
+The project documentation already contains the complete specification and execution plan.
+
+======================================================================
+STEP 1 — READ THE DOCUMENTATION
+======================================================================
+
+Read ONLY these files first:
+
+docs/architecture/MEZANYA-STRICT-ARCHITECTURAL-REFACTOR-SPECIFICATION.md
+
+docs/architecture/refactor-budget-feature.md
+
+Do not read plans for other features yet.
+
+Those are out of scope.
+
+======================================================================
+STEP 2 — UNDERSTAND CURRENT PROJECT STATE
+======================================================================
+
+This repository is NOT at the beginning of the refactor.
+
+Budget Feature Phase 1 has ALREADY been completed.
+
+Git commit:
+
+3a8a9d04b9e3457c421ca669ddd4c3ab9cdad51f
+
+DO NOT repeat Phase 1.
+
+DO NOT recreate widgets.
+
+DO NOT move widgets again.
+
+DO NOT reorganize widget files again.
+
+Instead, inspect the current codebase and understand what has already been extracted.
+
+Assume Phase 1 is the current baseline.
+
+======================================================================
+CURRENT STATUS
+======================================================================
+
+Completed:
+
+✅ Budget Feature
+Phase 1
+Widget Extraction
+
+Already finished:
+
+- Presentation widgets extracted
+- budget_tracking_screen.dart reduced significantly
+- flutter analyze passed
+- application compiled successfully
+- application launched successfully
+- runtime behavior verified manually
+
+Treat this as the new baseline.
+
+======================================================================
+YOUR TASK
+======================================================================
+
+Continue with:
+
+Budget Feature
+
+Phase 2
+
+Extract Constants and Helpers
+
+ONLY.
+
+Nothing else.
+
+======================================================================
+PHASE 2 SCOPE
+======================================================================
+
+Allowed:
+
+Extract:
+
+- magic numbers
+- border radius values
+- repeated EdgeInsets
+- repeated Durations
+- repeated Colors
+- repeated Strings
+- repeated icon sizes
+- repeated spacing constants
+
+Extract formatting helpers ONLY.
+
+Examples:
+
+Currency formatting
+
+Date formatting
+
+Text formatting
+
+Color helpers
+
+UI helper methods
+
+DO NOT extract business helpers.
+
+======================================================================
+STRICTLY FORBIDDEN
+======================================================================
+
+Do NOT:
+
+Create Services
+
+Create Models
+
+Extract business logic
+
+Modify calculations
+
+Modify filtering
+
+Modify transaction processing
+
+Modify budget calculations
+
+Modify wallet calculations
+
+Modify jar calculations
+
+Modify recurring logic
+
+Modify notification logic
+
+Modify Firestore
+
+Modify Cubit
+
+Modify App State
+
+Modify execution order
+
+Modify arithmetic
+
+Modify widget behavior
+
+Modify UI appearance
+
+Rename public APIs
+
+Rewrite code
+
+Optimize code
+
+Improve code
+
+Simplify code
+
+======================================================================
+DO NOT TOUCH
+======================================================================
+
+TransactionProcessor
+
+AppCubit
+
+Repositories
+
+Firestore
+
+BudgetMetricsService
+
+BudgetTransactionFilter
+
+BudgetRecurringPlanService
+
+Wallet logic
+
+Jar logic
+
+Financial calculations
+
+Anything related to balances
+
+Anything related to monthly summaries
+
+======================================================================
+BEFORE CREATING ANY CONSTANT
+======================================================================
+
+Search the project first.
+
+If an equivalent constant already exists:
+
+Reuse it.
+
+Do NOT duplicate constants.
+
+Do NOT introduce parallel constants.
+
+======================================================================
+HELPER RULES
+======================================================================
+
+Helpers are ONLY allowed for presentation formatting.
+
+Examples:
+
+Currency formatter
+
+Date formatter
+
+Padding helpers
+
+Border helpers
+
+Color helpers
+
+Typography helpers
+
+NOT allowed:
+
+Budget helper
+
+Transaction helper
+
+Allocation helper
+
+Wallet helper
+
+Financial helper
+
+======================================================================
+EXTRACTION STRATEGY
+======================================================================
+
+Work incrementally.
+
+One logical extraction at a time.
+
+After every extraction:
+
+Run:
+
+flutter analyze
+
+Verify compilation.
+
+If compilation fails:
+
+STOP.
+
+Fix only the structural issue.
+
+Continue.
+
+======================================================================
+DOCUMENTATION
+======================================================================
+
+Every new file must contain a file-level documentation comment explaining:
+
+Purpose
+
+Responsibility
+
+Dependencies
+
+Why the file exists
+
+What it must never do
+
+======================================================================
+QUALITY RULES
+======================================================================
+
+Zero behavior changes.
+
+Zero UI changes.
+
+Zero financial logic changes.
+
+Zero execution-order changes.
+
+Zero business-rule changes.
+
+Zero database changes.
+
+Existing implementation is always the source of truth.
+
+Architecture improvements must never change runtime behavior.
+
+======================================================================
+WHEN FINISHED
+======================================================================
+
+Provide:
+
+1. Files created
+
+2. Files modified
+
+3. Constants extracted
+
+4. Helpers extracted
+
+5. Verification performed
+
+6. flutter analyze result
+
+7. Compile result
+
+8. Remaining work before Phase 3
+
+Then STOP.
+
+Do not begin Phase 3.
+
+Wait for further instructions.

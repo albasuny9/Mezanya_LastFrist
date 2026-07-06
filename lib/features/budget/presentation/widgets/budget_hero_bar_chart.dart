@@ -15,6 +15,8 @@
 // in, access state, call Cubit methods, or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetHeroBarChart extends StatelessWidget {
   const BudgetHeroBarChart({
@@ -75,14 +77,14 @@ class BudgetHeroBarChart extends StatelessWidget {
                   height: 10,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                   ),
                 ),
                 if (totalRatio > 0)
                   FractionallySizedBox(
                     widthFactor: totalRatio,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                       child: Row(
                         children: segments
                             .where((seg) => seg.$1 > 0)
@@ -120,7 +122,7 @@ class BudgetHeroBarChart extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(kBudgetRadiusM),
         border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
       ),
       child: Column(
@@ -131,11 +133,11 @@ class BudgetHeroBarChart extends StatelessWidget {
             segments: [
               (
                 normalIncomeRatio,
-                const Color(0xFF4ADE80),
+                kBudgetChartIncomeGreen,
               ), // أخضر عادي = حتى الدخل المخطط
               (
                 excessIncomeRatio,
-                const Color(0xFF15803D),
+                kBudgetChartIncomeExcessGreen,
               ), // أخضر غامق = الزيادة عن المخطط
             ],
           ),
@@ -144,7 +146,7 @@ class BudgetHeroBarChart extends StatelessWidget {
             label: 'المصروف',
             amount: expense,
             segments: [
-              (expenseRatio, const Color(0xFFF87171)),
+              (expenseRatio, kBudgetChartExpenseRed),
             ],
           ),
         ],

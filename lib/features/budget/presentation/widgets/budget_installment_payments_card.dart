@@ -17,9 +17,11 @@
 // financial values, or call Cubit methods directly.
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/utils/budget_date_format.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetInstallmentPaymentsCard extends StatefulWidget {
   const BudgetInstallmentPaymentsCard({
@@ -59,7 +61,7 @@ class _BudgetInstallmentPaymentsCardState
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    const accent = Color(0xFFC65D2E);
+    const accent = kBudgetDangerOrange;
     final now = DateTime.now();
     final nextMonth = DateTime(
       now.year,
@@ -71,7 +73,7 @@ class _BudgetInstallmentPaymentsCardState
       decoration: BoxDecoration(
         color:
             theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(kBudgetRadiusMd),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
@@ -82,7 +84,7 @@ class _BudgetInstallmentPaymentsCardState
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(18)),
+                const BorderRadius.vertical(top: Radius.circular(kBudgetRadiusMd)),
             child: Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 12),
@@ -93,7 +95,7 @@ class _BudgetInstallmentPaymentsCardState
                     height: 36,
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusIcon),
                     ),
                     child: Icon(Icons.credit_card_rounded,
                         color: accent, size: 18),
@@ -110,7 +112,7 @@ class _BudgetInstallmentPaymentsCardState
                   ),
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
+                    duration: kBudgetAnimFast,
                     child: Icon(
                       Icons.keyboard_arrow_down_rounded,
                       color: theme.colorScheme.onSurfaceVariant,
@@ -127,7 +129,7 @@ class _BudgetInstallmentPaymentsCardState
             crossFadeState: _expanded
                 ? CrossFadeState.showSecond
                 : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
+            duration: kBudgetAnimFast,
           ),
         ],
       ),
@@ -147,7 +149,7 @@ class _BudgetInstallmentPaymentsCardState
           _paymentRow(
             theme: theme,
             label: widget.showNextPayment ? 'الدفعة الحالية' : 'دفعة واحدة',
-            date: DateFormat('d MMMM yyyy', 'ar').format(widget.dueDate),
+            date: budgetFormatFullDate(widget.dueDate),
             amount: widget.installmentAmt,
             isPaid: widget.currentPaid,
             buttonLabel: 'دفع الآن',
@@ -158,7 +160,7 @@ class _BudgetInstallmentPaymentsCardState
             _paymentRow(
               theme: theme,
               label: 'الدفعة القادمة',
-              date: DateFormat('d MMMM yyyy', 'ar').format(nextMonth),
+              date: budgetFormatFullDate(nextMonth),
               amount: widget.installmentAmt,
               isPaid: widget.nextPaid,
               buttonLabel: 'تسديد الآن',
@@ -179,14 +181,14 @@ class _BudgetInstallmentPaymentsCardState
     required String buttonLabel,
     required VoidCallback? onPay,
   }) {
-    const accent = Color(0xFFC65D2E);
+    const accent = kBudgetDangerOrange;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isPaid
             ? Colors.green.withValues(alpha: 0.07)
             : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(kBudgetRadiusS),
         border: Border.all(
           color: isPaid
               ? Colors.green.withValues(alpha: 0.3)

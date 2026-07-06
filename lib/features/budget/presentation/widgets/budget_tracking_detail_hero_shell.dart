@@ -16,6 +16,7 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetTrackingDetailHeroShell extends StatelessWidget {
   const BudgetTrackingDetailHeroShell({
@@ -37,7 +38,7 @@ class BudgetTrackingDetailHeroShell extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: strongTint ? 0.18 : 0.10),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(kBudgetRadiusCard),
         border: Border.all(
           color: accent.withValues(alpha: strongTint ? 0.45 : 0.22),
         ),

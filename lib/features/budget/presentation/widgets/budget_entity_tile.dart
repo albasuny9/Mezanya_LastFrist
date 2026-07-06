@@ -16,6 +16,8 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 
 class BudgetEntityTile extends StatelessWidget {
   const BudgetEntityTile({
@@ -59,11 +61,11 @@ class BudgetEntityTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tileTint = tint ?? theme.colorScheme.surface;
-    final accentStrip = tint ?? const Color(0xFF0F9D7A);
+    final accentStrip = tint ?? kBudgetDefaultAccent;
     final decoration = embeddedInIncomeCard
         ? BoxDecoration(
             color: accentStrip.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(kBudgetRadiusMd),
             border: Border.all(
               color: accentStrip.withValues(alpha: 0.22),
             ),
@@ -72,14 +74,14 @@ class BudgetEntityTile extends StatelessWidget {
             color: tint == null
                 ? theme.colorScheme.surface
                 : tileTint.withValues(alpha: strongTint ? 0.16 : 0.08),
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(kBudgetRadiusCard),
             border: Border.all(
               color: tint == null
                   ? theme.colorScheme.outlineVariant
                   : tileTint.withValues(alpha: strongTint ? 0.45 : 0.24),
             ),
           );
-    final radius = embeddedInIncomeCard ? 18.0 : 24.0;
+    final radius = embeddedInIncomeCard ? kBudgetRadiusMd : kBudgetRadiusCard;
     return Container(
       margin: EdgeInsets.only(bottom: embeddedInIncomeCard ? 8 : 10),
       decoration: decoration,
@@ -160,14 +162,14 @@ class BudgetEntityTile extends StatelessWidget {
                             fontSize: 17,
                             fontWeight: FontWeight.w900,
                           ).copyWith(
-                            color: amountColor ?? const Color(0xFF165B47),
+                            color: amountColor ?? kBudgetIncomeGreen,
                           ),
                         ),
                         const SizedBox(height: 2),
                         const Icon(
                           Icons.chevron_right_rounded,
                           size: 18,
-                          color: Color(0xFF9E9E9E),
+                          color: kBudgetChevronGrey,
                         ),
                       ],
                     ),
@@ -176,7 +178,7 @@ class BudgetEntityTile extends StatelessWidget {
                 if (progress != null) ...[
                   const SizedBox(height: 10),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 7,

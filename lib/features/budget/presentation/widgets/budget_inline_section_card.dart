@@ -17,6 +17,8 @@
 // or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 import 'budget_section_curtain_body.dart';
 
 class BudgetInlineSectionCard extends StatelessWidget {
@@ -47,8 +49,8 @@ class BudgetInlineSectionCard extends StatelessWidget {
     final isIncomeTotal = incomeTotalLayout && title == 'الدخل الكلي';
     final accent = accentColor ??
         (title == 'الدخل الكلي'
-            ? const Color(0xFF165B47)
-            : const Color(0xFFC65D2E));
+            ? kBudgetIncomeGreen
+            : kBudgetDangerOrange);
 
     final Color shellColor;
     final Color shellBorder;
@@ -77,10 +79,10 @@ class BudgetInlineSectionCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(kBudgetRadiusCard),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: kBudgetAnimMed,
           curve: Curves.easeOut,
           padding: EdgeInsets.fromLTRB(
             incomeTotalLayout ? 18 : 16,
@@ -90,7 +92,7 @@ class BudgetInlineSectionCard extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: shellColor,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(kBudgetRadiusCard),
             border: Border.all(color: shellBorder),
             boxShadow: shellShadow,
           ),
@@ -127,7 +129,7 @@ class BudgetInlineSectionCard extends StatelessWidget {
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w900,
                                 color: isIncomeTotal
-                                    ? const Color(0xFF165B47)
+                                    ? kBudgetIncomeGreen
                                     : (incomeTotalLayout
                                         ? accent.withValues(alpha: 0.96)
                                         : null),

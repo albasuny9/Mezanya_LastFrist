@@ -18,6 +18,9 @@ import '../../../transactions/presentation/widgets/transaction_details_sheet.dar
 import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../../domain/utils/budget_date_format.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 import 'budget_setup_screen.dart';
 import 'cycle_analysis_screen.dart';
 import '../widgets/budget_static_info_card.dart';
@@ -169,8 +172,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
         // ── computed for BudgetMonthBar ────────────────────────────────
         final cycleEndForBar = _cycleEnd;
-        final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
-        final endLabel = DateFormat('d MMM', 'ar').format(cycleEndForBar);
+        final startLabel = budgetFormatShortDate(_cycleStart);
+        final endLabel = budgetFormatShortDate(cycleEndForBar);
         final currentYear = DateTime.now().year;
         final showYear = _cycleStart.year != currentYear ||
             cycleEndForBar.year != currentYear;
@@ -431,7 +434,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
 
   String _monthWordLabel(DateTime date) {
-    return DateFormat('d MMMM', 'ar').format(date);
+    return budgetFormatMediumDate(date);
   }
 
   String _recurrenceLabel(String pattern) {
@@ -452,26 +455,26 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final value = ratio.clamp(0.0, 1.0).toDouble();
     if (value <= 0.4) {
       return Color.lerp(
-            const Color(0xFF1D8F62),
-            const Color(0xFFE4B83F),
+            kBudgetIncomeGreenMed,
+            kBudgetWarningYellow,
             value / 0.4,
           ) ??
-          const Color(0xFF1D8F62);
+          kBudgetIncomeGreenMed;
     }
     if (value <= 0.7) {
       return Color.lerp(
-            const Color(0xFFE4B83F),
-            const Color(0xFFE78A2E),
+            kBudgetWarningYellow,
+            kBudgetWarningOrange,
             (value - 0.4) / 0.3,
           ) ??
-          const Color(0xFFE4B83F);
+          kBudgetWarningYellow;
     }
     return Color.lerp(
-          const Color(0xFFE78A2E),
-          const Color(0xFFC63D32),
+          kBudgetWarningOrange,
+          kBudgetDangerRed,
           (value - 0.7) / 0.3,
         ) ??
-        const Color(0xFFC63D32);
+        kBudgetDangerRed;
   }
 
   // Widget _trackingSheetGrabHandle(ThemeData theme) {
@@ -482,7 +485,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   //       margin: const EdgeInsets.only(bottom: 14),
   //       decoration: BoxDecoration(
   //         color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-  //         borderRadius: BorderRadius.circular(999),
+  //         borderRadius: BorderRadius.circular(kBudgetRadiusPill),
   //       ),
   //     ),
   //   );
@@ -767,23 +770,23 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           snoozeChip = Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
+              color: kBudgetPendingAmber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(kBudgetRadiusL),
               border: Border.all(
-                color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+                color: kBudgetPendingAmber.withValues(alpha: 0.4),
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.schedule_rounded,
-                    size: 13, color: Color(0xFFF5A623)),
+                    size: 13, color: kBudgetPendingAmber),
                 const SizedBox(width: 4),
                 Text(
                   pendingMeta!['status'] as String,
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Color(0xFFF5A623),
+                    color: kBudgetPendingAmber,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -836,9 +839,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                         ),
                       ],
                     ),
-          tint: isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
+          tint: isSnoozed ? kBudgetPendingAmber : sourceAccent,
           amountColor: Color.lerp(
-              isSnoozed ? const Color(0xFFF5A623) : sourceAccent,
+              isSnoozed ? kBudgetPendingAmber : sourceAccent,
               Colors.black,
               0.35),
           strongTint: !isSnoozed,
@@ -893,11 +896,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               title: t.notes?.isNotEmpty == true ? t.notes! : 'دخل إضافي',
               leading: BudgetIconBadge('cash', '#165b47', size: 54, solid: true),
               amountText: t.amount.toStringAsFixed(2),
-              metaText: DateFormat('d MMMM', 'ar').format(t.createdAt),
+              metaText: budgetFormatMediumDate(t.createdAt),
               trailingTopText: DateFormat('HH:mm', 'ar').format(t.createdAt),
-              tint: const Color(0xFF165B47),
+              tint: kBudgetIncomeGreen,
               strongTint: true,
-              amountColor: const Color(0xFF165B47),
+              amountColor: kBudgetIncomeGreen,
               onTap: () => _openTxSheet(title: 'دخل إضافي', tx: [t]),
             ),
           ),
@@ -939,16 +942,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       pendingChip = Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(20),
+          color: kBudgetPendingAmber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(kBudgetRadiusL),
           border: Border.all(
-            color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+            color: kBudgetPendingAmber.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
           children: [
             const Icon(Icons.schedule_rounded,
-                size: 13, color: Color(0xFFF5A623)),
+                size: 13, color: kBudgetPendingAmber),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -957,7 +960,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Color(0xFFF5A623),
+                  color: kBudgetPendingAmber,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -985,7 +988,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       progress: hasPending ? null : ratio,
       progressColor: hasPending ? null : color,
       tint: hasPending
-          ? const Color(0xFFF5A623)
+          ? kBudgetPendingAmber
           : BudgetIconBadge.colorFromHex(allocation.iconColor),
       amountColor:
           Color.lerp(BudgetIconBadge.colorFromHex(allocation.iconColor), Colors.black, 0.35),
@@ -1025,16 +1028,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       pendingChip = Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(20),
+          color: kBudgetPendingAmber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(kBudgetRadiusL),
           border: Border.all(
-            color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+            color: kBudgetPendingAmber.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
           children: [
             const Icon(Icons.schedule_rounded,
-                size: 13, color: Color(0xFFF5A623)),
+                size: 13, color: kBudgetPendingAmber),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -1043,7 +1046,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Color(0xFFF5A623),
+                  color: kBudgetPendingAmber,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1066,9 +1069,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       supportingText: hasPending ? null : 'الرصيد الحالي',
       supportingCustom: pendingChip,
       compactMeta: hasPending,
-      tint: hasPending ? const Color(0xFFF5A623) : jarAccent,
+      tint: hasPending ? kBudgetPendingAmber : jarAccent,
       amountColor: Color.lerp(
-        hasPending ? const Color(0xFFF5A623) : jarAccent,
+        hasPending ? kBudgetPendingAmber : jarAccent,
         Colors.black,
         0.35,
       ),
@@ -1144,7 +1147,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         supportingText: 'الأصل ${principal.toStringAsFixed(2)}',
         progress: paidRatio,
         progressColor: Colors.green,
-        tint: isPending ? const Color(0xFFC65D2E) : null,
+        tint: isPending ? kBudgetDangerOrange : null,
         onTap: () => _openDebtDetailsSheet(debt, allDebtTx, remaining),
         actions: recurring == null
             ? <Widget>[]
@@ -1272,8 +1275,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         amountText: out > 0 ? out.toStringAsFixed(2) : inc.toStringAsFixed(2),
         metaText: '$activityLabel\n$balanceLabel$statusLabel',
         tint: isOverdue
-            ? const Color(0xFFC65D2E)
-            : (out > 0 ? null : const Color(0xFF1a7a4a)),
+            ? kBudgetDangerOrange
+            : (out > 0 ? null : kBudgetLentGreen),
         onTap: () => _openBudgetLentDetailsSheet(record, state),
         embeddedInIncomeCard: true,
         actions: const [],
@@ -1286,13 +1289,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(kBudgetRadiusCard),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(kBudgetRadiusCard),
             onTap: () => setState(() => _isLentExpanded = !_isLentExpanded),
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -1321,7 +1324,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: hasOverdueGlobal
-                                    ? const Color(0xFFC65D2E)
+                                    ? kBudgetDangerOrange
                                     : theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
@@ -1336,7 +1339,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF165B47),
+                              color: kBudgetIncomeGreen,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -1374,7 +1377,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     RecurringTransactionEntity person,
     AppStateEntity state,
   ) async {
-    const accent = Color(0xFF1a7a4a);
+    const accent = kBudgetLentGreen;
     final personName = person.lentPersonName ?? person.name;
     final theme = Theme.of(context);
 
@@ -1524,7 +1527,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         : (state.wallets.isNotEmpty ? state.wallets.first.id : '');
     DateTime lentDate = DateTime.now();
     DateTime returnDate = DateTime.now().add(const Duration(days: 30));
-    const accent = Color(0xFF1a7a4a);
+    const accent = kBudgetLentGreen;
     final personName = person.lentPersonName ?? person.name;
 
     await showModalBottomSheet<void>(
@@ -1547,7 +1550,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     height: 5,
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                     ),
                   ),
                 ),
@@ -1556,11 +1559,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)],
+                      colors: [kBudgetLentDialogGradientDark, kBudgetLentDialogGradientLight],
                       begin: Alignment.topRight,
                       end: Alignment.bottomLeft,
                     ),
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusXL),
                   ),
                   child: Row(children: [
                     Container(
@@ -1610,7 +1613,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusM),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -1630,7 +1633,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   const SizedBox(height: 12),
                 ],
                 InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusM),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: ctx,
@@ -1646,7 +1649,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusM),
                     ),
                     child: Row(children: [
                       Icon(Icons.calendar_month_outlined,
@@ -1660,7 +1663,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 ),
                 const SizedBox(height: 10),
                 InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusM),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: ctx,
@@ -1677,7 +1680,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusM),
                     ),
                     child: Row(children: [
                       Icon(Icons.calendar_month_outlined,
@@ -1830,7 +1833,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble(),
         progressColor: Colors.teal,
         tint: (isDueOrLate || shouldShowDecision)
-            ? const Color(0xFFC65D2E)
+            ? kBudgetDangerOrange
             : null,
         onTap: () => _openSubscriptionDetailsSheet(
           debt: debt,
@@ -1962,7 +1965,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 final statusColor = isPaid
                     ? Colors.green
                     : (isDueOrLate
-                        ? const Color(0xFFC65D2E)
+                        ? kBudgetDangerOrange
                         : theme.colorScheme.onSurfaceVariant);
 
                 return Padding(
@@ -2120,7 +2123,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ),
               const SizedBox(height: 8),
               ClipRRect(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                 child: LinearProgressIndicator(
                   value: ratio,
                   minHeight: 8,
@@ -2170,7 +2173,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     List<TransactionEntity> monthTx,
   ) async {
     final theme = Theme.of(context);
-    const accent = Color(0xFF0F9D7A);
+    const accent = kBudgetDefaultAccent;
     final dueDate = _incomeDueDateForMonth(source, _month);
     final received = sourceIncomeTx.fold<double>(0, (s, t) => s + t.amount);
     final displayedAmount = received <= 0 ? source.amount : received;
@@ -2294,7 +2297,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 if (remProgress != null) ...[
                   const SizedBox(height: 8),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                     child: LinearProgressIndicator(
                       value: remProgress,
                       minHeight: 8,
@@ -2369,7 +2372,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     double remaining,
   ) async {
     final theme = Theme.of(context);
-    const accent = Color(0xFFC65D2E);
+    const accent = kBudgetDangerOrange;
     final state = widget.cubit.state;
     final budget = state.budgetSetup;
     final recurring = _linkedRecurringDebt(state, debt);
@@ -2502,7 +2505,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               if (paidRatio != null) ...[
                 const SizedBox(height: 8),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                   child: LinearProgressIndicator(
                     value: paidRatio,
                     minHeight: 8,

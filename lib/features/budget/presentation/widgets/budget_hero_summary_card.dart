@@ -16,6 +16,8 @@
 // modify financial values, or contain any business rules.
 
 import 'package:flutter/material.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 import 'budget_hero_bar_chart.dart';
 
 class BudgetHeroSummaryCard extends StatelessWidget {
@@ -42,19 +44,19 @@ class BudgetHeroSummaryCard extends StatelessWidget {
         : (remainingIncome / totalIncomeActual).clamp(-0.5, 1.0);
 
     // Green (Olive)
-    const cGreen1 = Color(0xFF2F5D50);
-    const cGreen2 = Color(0xFF4E7A69);
-    const cGreen3 = Color(0xFF93B59D);
+    const cGreen1 = kBudgetHeroGreenDark;
+    const cGreen2 = kBudgetHeroGreenMid;
+    const cGreen3 = kBudgetHeroGreenLight;
 
     // Amber
-    const cYellow1 = Color(0xFF8A6C2E);
-    const cYellow2 = Color(0xFFB08B3F);
-    const cYellow3 = Color(0xFFD9BF78);
+    const cYellow1 = kBudgetHeroYellowDark;
+    const cYellow2 = kBudgetHeroYellowMid;
+    const cYellow3 = kBudgetHeroYellowLight;
 
     // Terracotta
-    const cRed1 = Color(0xFF7A4A3A);
-    const cRed2 = Color(0xFFA8654D);
-    const cRed3 = Color(0xFFD19478);
+    const cRed1 = kBudgetHeroRedDark;
+    const cRed2 = kBudgetHeroRedMid;
+    const cRed3 = kBudgetHeroRedLight;
 
     Color g1, g2, g3, shadow;
     if (healthRatio <= 0.0) {
@@ -89,7 +91,7 @@ class BudgetHeroSummaryCard extends StatelessWidget {
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(kBudgetRadiusHero),
         boxShadow: [
           BoxShadow(
             color: shadow.withValues(alpha: 0.22),
