@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/transaction_types.dart';
+import '../../../../core/utils/transaction_display_format.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -151,7 +152,7 @@ Future<void> showJarDetailsSheet({
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        '${jar.balance.toStringAsFixed(2)} ${state.currencyCode}',
+                                        '${jar.balance.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -426,7 +427,7 @@ Future<void> showJarDetailsSheet({
                                                                 fontSize: 14)),
                                                       ),
                                                       Text(
-                                                        '${e.value.toStringAsFixed(2)}${state.currencyCode}',
+                                                        '${e.value.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
                                                         style: const TextStyle(
                                                             color: Colors.white,
                                                             fontWeight:
@@ -644,7 +645,7 @@ class JarCompactSummaryTile extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              '${jar.balance.toStringAsFixed(2)} ${state.currencyCode}',
+              '${jar.balance.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
               style: TextStyle(
                 color: accent,
                 fontSize: 13,
@@ -786,7 +787,7 @@ Future<void> _openWalletAllocationSheet({
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${currentTotal.toStringAsFixed(2)} جنيه',
+                      '${currentTotal.toStringAsFixed(2)} ${currencyLabelAr(cubit.state.currencyCode)}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
@@ -884,7 +885,7 @@ Future<void> _openReservationLabelEditor({
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'المبلغ المحجوز من هذه المحفظة',
-              suffixText: 'جنيه',
+              suffixText: currencyLabelAr(cubit.state.currencyCode),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: accent, width: 2),
@@ -1108,7 +1109,7 @@ Future<void> _openJarAdjustmentDialog({
                                 size: 14, color: accent),
                             const SizedBox(width: 6),
                             Text(
-                              'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} جنيه',
+                              'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} ${currencyLabelAr(cubit.state.currencyCode)}',
                               style: TextStyle(
                                 color: accent,
                                 fontWeight: FontWeight.w700,
@@ -1140,7 +1141,7 @@ Future<void> _openJarAdjustmentDialog({
                           hintText: '0.00',
                           filled: true,
                           fillColor: const Color(0xFFFFFBF1),
-                          suffixText: 'جنيه',
+                          suffixText: currencyLabelAr(cubit.state.currencyCode),
                           suffixStyle: TextStyle(
                             color: accent,
                             fontWeight: FontWeight.w700,
