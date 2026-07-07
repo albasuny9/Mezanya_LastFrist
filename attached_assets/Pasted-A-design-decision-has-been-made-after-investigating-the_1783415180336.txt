@@ -1,0 +1,162 @@
+A design decision has been made after investigating the automatic restore behavior.
+
+DO NOT disable Android Auto Backup completely.
+
+Instead, implement a precise solution.
+
+======================================================================
+OBJECTIVE
+======================================================================
+
+Prevent Android Auto Backup from restoring the application's financial database automatically after reinstall.
+
+Keep Android backup available for ordinary application preferences.
+
+Financial data must only be restored through Mezanya's own Backup/Restore system.
+
+======================================================================
+CURRENT PROBLEM
+======================================================================
+
+Android currently restores SharedPreferences automatically after reinstall.
+
+The application's entire financial database is stored inside:
+
+korassa_app_state
+
+Because of that, Android restores an old snapshot before the app starts.
+
+This bypasses Mezanya's own restore flow.
+
+======================================================================
+REQUIRED BEHAVIOR
+======================================================================
+
+After reinstall:
+
+Application settings may be restored.
+
+BUT
+
+Financial data must NEVER be restored automatically by Android.
+
+Instead:
+
+If a Mezanya backup exists (Cloud or Local),
+
+the application should offer Restore normally.
+
+======================================================================
+IMPLEMENTATION
+======================================================================
+
+Investigate the best Android-supported solution.
+
+Prefer:
+
+Android 12+
+
+dataExtractionRules
+
+Android 11 and below
+
+fullBackupContent
+
+Exclude ONLY the financial application state.
+
+DO NOT disable all Android backups unless technically unavoidable.
+
+======================================================================
+IMPORTANT
+======================================================================
+
+The following MUST continue to be backed up normally if possible:
+
+Theme
+
+Language
+
+Appearance
+
+UI preferences
+
+Notification settings
+
+Backup preferences
+
+Other lightweight application preferences
+
+======================================================================
+The following MUST NOT be restored automatically by Android:
+
+korassa_app_state
+
+Financial transactions
+
+Wallets
+
+Budget data
+
+Allocations
+
+Savings jars
+
+Goals
+
+Recurring transactions
+
+Installments
+
+Subscriptions
+
+Debts
+
+Monthly snapshots
+
+Any financial entity
+
+======================================================================
+DO NOT CHANGE
+======================================================================
+
+BackupService
+
+RestoreService
+
+Firestore structure
+
+Serialization
+
+AppCubit behavior
+
+Business logic
+
+Only modify Android backup configuration.
+
+======================================================================
+VERIFY
+======================================================================
+
+After implementation provide:
+
+1.
+
+Which Android files were modified.
+
+2.
+
+Which SharedPreferences are excluded.
+
+3.
+
+Which SharedPreferences remain backed up.
+
+4.
+
+Why this approach is preferable to android:allowBackup="false".
+
+5.
+
+Confirm that financial data can only be restored through Mezanya Backup.
+
+Do not modify any other feature.
