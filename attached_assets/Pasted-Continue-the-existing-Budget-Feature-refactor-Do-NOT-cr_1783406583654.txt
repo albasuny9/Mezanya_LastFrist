@@ -1,0 +1,271 @@
+Continue the existing Budget Feature refactor.
+
+Do NOT create a new plan.
+
+Do NOT revisit Phases 1–3.
+
+Budget Feature Phases 1, 2 and 3 are considered COMPLETE.
+
+Your task is NOT another extraction phase.
+
+Your task is a final Architecture Review and Cleanup.
+
+======================================================================
+OBJECTIVE
+======================================================================
+
+Review the current Budget Feature architecture.
+
+Improve structure ONLY when there is a clear architectural benefit.
+
+Do NOT refactor simply to reduce line count.
+
+Do NOT create new abstractions unless absolutely necessary.
+
+The Budget Feature is approaching completion.
+
+This is a stabilization pass.
+
+======================================================================
+READ FIRST
+======================================================================
+
+Read only:
+
+docs/architecture/MEZANYA-STRICT-ARCHITECTURAL-REFACTOR-SPECIFICATION.md
+
+docs/architecture/refactor-budget-feature.md
+
+Then inspect the CURRENT implementation.
+
+Do not inspect unrelated features.
+
+======================================================================
+VERIFY FIRST
+======================================================================
+
+Before touching anything:
+
+Run flutter analyze.
+
+Ensure the project compiles.
+
+Do not modify code until verification succeeds.
+
+======================================================================
+REVIEW CHECKLIST
+======================================================================
+
+Review the following:
+
+1.
+
+Service responsibilities
+
+Verify every service has a single clear responsibility.
+
+Do NOT split services unless there is a real architectural violation.
+
+Do NOT create additional services unless strictly required.
+
+2.
+
+Widget responsibilities
+
+Verify extracted widgets only contain presentation.
+
+No calculations.
+
+No business logic.
+
+No Cubit mutations.
+
+3.
+
+Dependency direction
+
+Presentation
+
+↓
+
+Domain services
+
+↓
+
+Entities
+
+Never the opposite.
+
+4.
+
+Constants
+
+Look for duplicated constants.
+
+Reuse existing constants.
+
+Do not create additional constants unless duplicates exist.
+
+5.
+
+Imports
+
+Remove unused imports.
+
+Remove unused exports.
+
+Remove dead code.
+
+6.
+
+Private methods remaining in budget_tracking_screen.dart
+
+Review every remaining private method.
+
+For each one answer:
+
+- Should remain in the screen
+- Already belongs there
+- No action required
+
+OR
+
+- Can safely move
+
+Move ONLY if the architectural benefit is obvious.
+
+======================================================================
+STRICTLY FORBIDDEN
+======================================================================
+
+Do NOT create:
+
+BudgetHelper
+
+BudgetUiService
+
+BudgetSummaryService
+
+BudgetCalculationService
+
+BudgetAllocationService
+
+BudgetFormattingService
+
+BudgetPresentationService
+
+BudgetViewModel
+
+DTOs
+
+Adapters
+
+Facades
+
+Managers
+
+Controllers
+
+Providers
+
+Any new abstraction layer.
+
+======================================================================
+DO NOT TOUCH
+======================================================================
+
+Financial calculations
+
+Wallet logic
+
+Jar logic
+
+TransactionProcessor
+
+AppCubit
+
+Firestore
+
+RecurringScheduleEngine
+
+BudgetMetricsService logic
+
+BudgetRecurringPlanService logic
+
+BudgetTransactionFilter logic
+
+BudgetCycleService logic
+
+BudgetIncomeMetricsService logic
+
+Do not rewrite existing algorithms.
+
+======================================================================
+GOAL
+======================================================================
+
+If everything is already architecturally clean:
+
+Do nothing.
+
+It is acceptable to finish this phase without creating any new files.
+
+Architecture quality is more important than reducing line count.
+
+======================================================================
+WHEN FINISHED
+======================================================================
+
+Provide a report containing:
+
+1.
+
+Architecture score (0–10)
+
+2.
+
+Remaining technical debt
+
+3.
+
+Services review
+
+4.
+
+Widgets review
+
+5.
+
+Dependency review
+
+6.
+
+Constants review
+
+7.
+
+Dead code removed (if any)
+
+8.
+
+Files modified
+
+9.
+
+flutter analyze result
+
+10.
+
+Compile result
+
+Finally answer ONE question:
+
+"Is the Budget Feature architecture now considered complete?"
+
+If YES:
+
+Recommend closing the Budget Feature and moving to the Wallets Feature.
+
+Do not begin Wallets automatically.
+
+Wait for approval.

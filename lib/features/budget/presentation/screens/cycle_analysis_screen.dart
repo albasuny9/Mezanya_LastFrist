@@ -3,12 +3,14 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../categories/domain/entities/category_entity.dart';
+import '../../../transactions/domain/entities/transaction_entity.dart';
 
 class CycleAnalysisScreen extends StatelessWidget {
   const CycleAnalysisScreen({
     super.key,
-    required this.cubit,
+    required this.transactions,
+    required this.categories,
     required this.cycleStart,
     required this.cycleEnd,
     required this.totalIncomeActual,
@@ -20,7 +22,8 @@ class CycleAnalysisScreen extends StatelessWidget {
     required this.plannedDebts,
   });
 
-  final AppCubit cubit;
+  final List<TransactionEntity> transactions;
+  final List<CategoryEntity> categories;
   final DateTime cycleStart;
   final DateTime cycleEnd;
   final double totalIncomeActual;
@@ -119,8 +122,7 @@ class CycleAnalysisScreen extends StatelessWidget {
 
   // ── category breakdown ─────────────────────────────────────────────────
   Map<String, double> _categoryBreakdown() {
-    final state = cubit.state;
-    final txs = state.transactions
+    final txs = transactions
         .where((t) =>
             t.type == TransactionType.expense.value &&
             !t.createdAt.isBefore(cycleStart) &&
@@ -131,7 +133,7 @@ class CycleAnalysisScreen extends StatelessWidget {
     for (final tx in txs) {
       final cat = tx.categoryId ?? 'غير مصنف';
       // resolve name
-      final catName = state.categories
+      final catName = categories
               .where((c) => c.id == cat)
               .map((c) => c.name)
               .cast<String?>()
@@ -148,8 +150,7 @@ class CycleAnalysisScreen extends StatelessWidget {
 
   // ── daily trend ────────────────────────────────────────────────────────
   List<_DayPoint> _dailyTrend() {
-    final state = cubit.state;
-    final txs = state.transactions
+    final txs = transactions
         .where((t) =>
             !t.createdAt.isBefore(cycleStart) && !t.createdAt.isAfter(cycleEnd))
         .toList();

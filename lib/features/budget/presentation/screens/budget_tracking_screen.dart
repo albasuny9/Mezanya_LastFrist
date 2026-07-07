@@ -311,7 +311,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 onViewAnalysis: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => CycleAnalysisScreen(
-                      cubit: widget.cubit,
+                      transactions: widget.cubit.state.transactions,
+                      categories: widget.cubit.state.categories,
                       cycleStart: _cycleStart,
                       cycleEnd: _cycleEnd,
                       totalIncomeActual: totalIncomeActual,
@@ -1302,8 +1303,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     theme: theme,
                     accent: accent,
                     person: cur,
-                    cubit: widget.cubit,
-                    sheetCtx: sheetContext,
                   );
                 },
               ),

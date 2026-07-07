@@ -18,7 +18,6 @@
 import 'package:flutter/material.dart';
 import '../constants/budget_colors.dart';
 import '../constants/budget_layout.dart';
-import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 
 class BudgetLentPendingCard extends StatelessWidget {
@@ -27,15 +26,11 @@ class BudgetLentPendingCard extends StatelessWidget {
     required this.theme,
     required this.accent,
     required this.person,
-    required this.cubit,
-    required this.sheetCtx,
   });
 
   final ThemeData theme;
   final Color accent;
   final RecurringTransactionEntity person;
-  final AppCubit cubit;
-  final BuildContext sheetCtx;
 
   @override
   Widget build(BuildContext context) {
