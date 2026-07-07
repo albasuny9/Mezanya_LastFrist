@@ -1,5 +1,6 @@
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../../core/constants/transaction_types.dart';
+import 'money_location_review_entity.dart';
 
 class IncomeSourceEntity {
   const IncomeSourceEntity({
@@ -314,6 +315,7 @@ class LinkedWalletEntity {
     this.pendingDistributionWalletId = '',
     this.pendingDistributionSourceId = '',
     this.pendingDistributionSnoozedUntil = '',
+    this.moneyLocationReviews = const [],
   });
 
   final String id;
@@ -347,6 +349,11 @@ class LinkedWalletEntity {
   final String pendingDistributionSourceId;
 
   final String pendingDistributionSnoozedUntil;
+
+  /// مراجعات مكان الفلوس المعلّقة
+  /// تُنشأ عند اكتشاف تعارض في مكان الفلوس بدلاً من الحذف الصامت.
+  /// لا تحجب إنشاء المعاملات — المستخدم يراجعها لاحقاً في تفاصيل الحصالة.
+  final List<MoneyLocationReview> moneyLocationReviews;
 
   bool get isPendingDistributionVisible {
     if (pendingDistribution <= 0) return false;
@@ -392,6 +399,8 @@ class LinkedWalletEntity {
         'pendingDistributionWalletId': pendingDistributionWalletId,
         'pendingDistributionSourceId': pendingDistributionSourceId,
         'pendingDistributionSnoozedUntil': pendingDistributionSnoozedUntil,
+        'moneyLocationReviews':
+            moneyLocationReviews.map((r) => r.toMap()).toList(),
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -429,6 +438,11 @@ class LinkedWalletEntity {
             map['pendingDistributionSourceId'] as String? ?? '',
         pendingDistributionSnoozedUntil:
             map['pendingDistributionSnoozedUntil'] as String? ?? '',
+        moneyLocationReviews:
+            (map['moneyLocationReviews'] as List<dynamic>? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .map(MoneyLocationReview.fromMap)
+                .toList(),
       );
 
   LinkedWalletEntity copyWith({
@@ -450,6 +464,7 @@ class LinkedWalletEntity {
     String? pendingDistributionWalletId,
     String? pendingDistributionSourceId,
     String? pendingDistributionSnoozedUntil,
+    List<MoneyLocationReview>? moneyLocationReviews,
   }) {
     return LinkedWalletEntity(
       id: id ?? this.id,
@@ -473,6 +488,8 @@ class LinkedWalletEntity {
           pendingDistributionSourceId ?? this.pendingDistributionSourceId,
       pendingDistributionSnoozedUntil: pendingDistributionSnoozedUntil ??
           this.pendingDistributionSnoozedUntil,
+      moneyLocationReviews:
+          moneyLocationReviews ?? this.moneyLocationReviews,
     );
   }
 }

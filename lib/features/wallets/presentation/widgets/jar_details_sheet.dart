@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../budget/domain/entities/money_location_review_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
@@ -454,6 +455,21 @@ Future<void> showJarDetailsSheet({
                         ],
                       ),
                     ),
+                    // ── قائمة مراجعات مكان الفلوس ────────────────────────
+                    if (jar.moneyLocationReviews.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _jarSheetSectionHeader('يحتاج مراجعة'),
+                      const SizedBox(height: 8),
+                      ...jar.moneyLocationReviews.map(
+                        (review) => _MoneyLocationReviewCard(
+                          review: review,
+                          jar: jar,
+                          cubit: cubit,
+                          state: state,
+                        ),
+                      ),
+                    ],
+                    // ─────────────────────────────────────────────────────
                     const SizedBox(height: 16),
                     _jarSheetSectionHeader('المعاملات'),
                     const SizedBox(height: 8),
@@ -1357,4 +1373,125 @@ Widget _jarSheetSectionHeader(String title) {
       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
     ),
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// بطاقة مراجعة مكان الفلوس
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// بطاقة تعرض عنصر مراجعة مكان فلوس داخل تفاصيل الحصالة.
+///
+/// تُعرض عندما يكتشف [MoneyLocationEngine] تعارضاً في مكان الفلوس
+/// (مثل: صرف من محفظة غير مدرجة في مصادر الحصالة، أو مجموع تصنيفات
+/// يتجاوز رصيد الحصالة).
+///
+/// تتيح للمستخدم تجاهل المراجعة أو حلّها يدوياً عبر ضبط مصادر الحصالة.
+class _MoneyLocationReviewCard extends StatelessWidget {
+  const _MoneyLocationReviewCard({
+    required this.review,
+    required this.jar,
+    required this.cubit,
+    required this.state,
+  });
+
+  final MoneyLocationReview review;
+  final LinkedWalletEntity jar;
+  final AppCubit cubit;
+  final AppStateEntity state;
+
+  String get _typeLabel {
+    switch (review.type) {
+      case 'spending-wallet-mismatch':
+        return 'صُرف من محفظة غير مدرجة في أماكن الأموال';
+      case 'source-went-negative':
+        return 'تعارض في تصنيف مكان الفلوس';
+      case 'labeled-exceeds-balance':
+        return 'مجموع التصنيفات يتجاوز الرصيد';
+      default:
+        return 'يحتاج مراجعة';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3CD),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD4A017).withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.info_outline_rounded,
+              color: Color(0xFFC58B00),
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _typeLabel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: Color(0xFF7A5500),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${review.amount.toStringAsFixed(2)} '
+                    '${currencyLabelAr(state.currencyCode)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF7A5500),
+                    ),
+                  ),
+                  if (review.notes != null && review.notes!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        review.notes!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFA07020),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                await cubit.resolveMoneyLocationReview(
+                  jarId: jar.id,
+                  reviewId: review.id,
+                );
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFC58B00),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              child: const Text(
+                'تجاهل',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -26,6 +26,7 @@ class AppStateEntity {
     required this.lastAutoBackupAt,
     required this.monthlyBudgetSnapshots,
     this.profileImageUrl = '',
+    this.moneyLocationMigrationDone = false,
   });
 
   final List<WalletEntity> wallets;
@@ -45,6 +46,10 @@ class AppStateEntity {
   final String lastAutoBackupAt;
   final Map<String, Map<String, dynamic>> monthlyBudgetSnapshots;
   final String profileImageUrl;
+
+  /// علامة تدل على أن ترحيل مراجعات مكان الفلوس قد تم مرة واحدة.
+  /// يضمن ألا تُعاد إنشاء المراجعات بعد أن يتجاهلها المستخدم.
+  final bool moneyLocationMigrationDone;
 
   factory AppStateEntity.initial() {
     return AppStateEntity(
@@ -101,6 +106,7 @@ class AppStateEntity {
     String? lastAutoBackupAt,
     Map<String, Map<String, dynamic>>? monthlyBudgetSnapshots,
     String? profileImageUrl,
+    bool? moneyLocationMigrationDone,
   }) {
     return AppStateEntity(
       wallets: wallets ?? this.wallets,
@@ -122,6 +128,8 @@ class AppStateEntity {
       monthlyBudgetSnapshots:
           monthlyBudgetSnapshots ?? this.monthlyBudgetSnapshots,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      moneyLocationMigrationDone:
+          moneyLocationMigrationDone ?? this.moneyLocationMigrationDone,
     );
   }
 
@@ -153,6 +161,7 @@ class AppStateEntity {
       'lastAutoBackupAt': lastAutoBackupAt,
       'monthlyBudgetSnapshots': monthlyBudgetSnapshots,
       'profileImageUrl': profileImageUrl,
+      'moneyLocationMigrationDone': moneyLocationMigrationDone,
     };
   }
 
@@ -224,6 +233,8 @@ class AppStateEntity {
         ),
       ),
       profileImageUrl: map['profileImageUrl'] as String? ?? '',
+      moneyLocationMigrationDone:
+          map['moneyLocationMigrationDone'] as bool? ?? false,
     );
   }
 }

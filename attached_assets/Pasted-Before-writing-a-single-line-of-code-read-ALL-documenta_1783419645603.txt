@@ -1,0 +1,162 @@
+Before writing a single line of code, read ALL documentation inside:
+
+docs/architecture/
+
+This folder is the single source of truth for the Mezanya architecture.
+
+Especially read every document related to:
+
+- Jars
+- Wallets
+- Budget
+- Transactions
+- App Architecture
+
+Do NOT skip any document.
+
+======================================================================
+
+After reading the documentation:
+
+Study the CURRENT implementation of the Jar system.
+
+Understand how:
+
+- Jar Balance
+- walletSources
+- Money Locations
+- TransactionProcessor
+- TransferTypes
+- Wallets
+
+currently work.
+
+======================================================================
+
+Your mission is NOT to patch bugs.
+
+Your mission is to redesign and implement the Money Location Engine properly.
+
+The current implementation contains years of accumulated changes and historical logic.
+
+You must clean it up while preserving financial correctness.
+
+======================================================================
+
+GOAL
+
+Create a new Money Location architecture where:
+
+- Financial balances are always correct.
+- Money Location is treated as a separate domain.
+- The user is NEVER interrupted while creating transactions.
+- Money Location inconsistencies become review tasks inside the Jar.
+- The implementation is maintainable.
+- There is one clear source of truth.
+- No duplicated logic.
+- No conflicting update paths.
+
+======================================================================
+
+DESIGN REQUIREMENTS
+
+Money Location represents ONLY where the money currently exists.
+
+It is NOT a wallet balance.
+
+It is NOT another financial balance.
+
+It is metadata describing the last known location of Jar money.
+
+======================================================================
+
+The following concepts must be clearly defined and implemented:
+
+- Money Locations
+- Unknown Money
+- Pending Review
+- Pending Adjustments
+- Review Queue
+- Resolution Flow
+
+======================================================================
+
+For EVERY transaction type, redesign and implement the correct behavior.
+
+Including:
+
+- jarFunding
+- jarFundingPhysical
+- depositWithJarLabel
+- jarAllocation
+- jarAllocationCancel
+- jarAllocationSpend
+- allocationToJar
+- jarToAllocation
+- jarToJar
+
+For each one define exactly:
+
+- What changes in Wallet Balance.
+- What changes in Jar Balance.
+- What changes in Money Locations.
+- What creates Pending Review.
+- What resolves Pending Review.
+
+======================================================================
+
+IMPLEMENTATION RULES
+
+Work incrementally.
+
+Never rewrite everything at once.
+
+Each commit must leave the application compiling.
+
+Run flutter analyze after every completed step.
+
+Never break existing financial balances.
+
+Preserve existing IDs and serialization whenever possible.
+
+======================================================================
+
+USER EXPERIENCE
+
+Never expose technical terms like:
+
+walletSources
+Reservation
+Internal State
+
+Instead present concepts such as:
+
+أماكن الأموال
+
+غير محدد
+
+يحتاج مراجعة
+
+تنظيم أماكن الأموال
+
+The user should be able to organize money locations later without interrupting transaction creation.
+
+======================================================================
+
+VERY IMPORTANT
+
+If you discover that the current architecture conflicts with the documentation, follow the documentation.
+
+If you discover duplicated historical logic, consolidate it into a single implementation.
+
+If a migration is required, implement a safe migration path.
+
+======================================================================
+
+At the end provide:
+
+1. Architecture changes.
+2. Files modified.
+3. Migration strategy.
+4. Any behavioral changes.
+5. Why the new architecture is safer than the previous one.

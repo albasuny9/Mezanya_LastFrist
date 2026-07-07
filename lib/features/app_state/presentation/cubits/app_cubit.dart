@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/transaction_types.dart';
+import '../../../budget/domain/entities/money_location_review_entity.dart';
+import '../../../budget/domain/services/money_location_engine.dart';
 import '../../../transactions/domain/services/transaction_processor.dart';
 
 import '../../../budget/domain/entities/budget_setup_entity.dart';
@@ -30,12 +32,55 @@ class AppCubit extends Cubit<AppStateEntity> {
     appState = _ensureDefaultSavingsJarSync(appState);
     appState = _migrateDefaultWalletIconsSync(appState);
     appState = _migrateOrphanedDebtRecurringSync(appState);
+    appState = _migrateMoneyLocationInconsistenciesSync(appState);
     final key = _monthKey();
     if (!appState.monthlyBudgetSnapshots.containsKey(key)) {
       appState = _withMonthlySnapshot(appState, appState.budgetSetup);
     }
     await _repository.saveState(appState);
     emit(appState);
+  }
+
+  /// ترحيل — يكشف تعارضات walletSources الموجودة في بيانات قديمة
+  /// ويحوّلها إلى عناصر مراجعة [MoneyLocationReview] بدلاً من تركها صامتة.
+  ///
+  /// ## متى يعمل
+  /// مرة واحدة فقط في حياة التطبيق على كل جهاز ([moneyLocationMigrationDone = false]).
+  /// بعد أول تشغيل ناجح يُعيَّن العلَم إلى true لمنع إعادة الترحيل.
+  /// هذا يضمن أن المستخدم يرى المراجعات مرة واحدة ولا تُعاد بعد تجاهلها.
+  ///
+  /// التعارضات الجديدة التي تحدث بعد التحديث تُعالَج بالمحرك مباشرةً (ليست
+  /// مسؤولية هذا الترحيل).
+  ///
+  /// آمن تماماً: لا يُعدَّل jar.balance أو wallet.balance.
+  AppStateEntity _migrateMoneyLocationInconsistenciesSync(
+    AppStateEntity source,
+  ) {
+    // الترحيل يعمل مرة واحدة فقط — المستخدم قد يتجاهل المراجعات فلا نعيدها
+    if (source.moneyLocationMigrationDone) return source;
+
+    final jars =
+        List<LinkedWalletEntity>.from(source.budgetSetup.linkedWallets);
+    var changed = false;
+
+    for (var i = 0; i < jars.length; i++) {
+      final jar = jars[i];
+      final newReviews = MoneyLocationEngine.detectInconsistencies(jar);
+      if (newReviews.isNotEmpty) {
+        jars[i] = jar.copyWith(
+          moneyLocationReviews: [...jar.moneyLocationReviews, ...newReviews],
+        );
+        changed = true;
+      }
+    }
+
+    // دائماً نُعيَّن العلَم حتى لو لم تكن هناك تعارضات (لتجنب إعادة الفحص)
+    return source.copyWith(
+      budgetSetup: changed
+          ? source.budgetSetup.copyWith(linkedWallets: jars)
+          : source.budgetSetup,
+      moneyLocationMigrationDone: true,
+    );
   }
 
   /// مزامنة الديون/الاشتراكات القديمة التي تُحفظ كـ RecurringTransaction
@@ -448,41 +493,48 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
-  /// يعدّل قيمة حجز محفظة في الحصالة مباشرةً (فقط walletSources).
-  /// مش بيعمل أي معاملة — الحجز مجرد label لمكان الفلوس.
-  /// لو newAmount = 0 بيحذف الـ label ده خالص.
+  /// يعدّل تصنيف مكان فلوس محفظة في الحصالة (walletSources فقط).
+  ///
+  /// ## التغيير المعماري
+  /// النسخة السابقة كانت تجمع بين:
+  ///   1. طفرة مباشرة على walletSources (خارج TransactionProcessor)
+  ///   2. إضافة transaction مراجعة (audit)
+  ///
+  /// هذا أدى إلى تعارض: حذف الـ audit transaction كان يُعيد عكس walletSources
+  /// مرة ثانية رغم أن الطفرة المباشرة لم تُعكس بعد (المشكلة #1 في التوثيق).
+  ///
+  /// ## السلوك الجديد
+  /// تمرير التغيير عبر [addTransaction] فقط ← [TransactionProcessor.apply]
+  /// ← [MoneyLocationEngine.applyLocationDelta].
+  /// هذا يجعل walletSources قابلاً للإعادة الكاملة من سجل المعاملات.
   Future<void> relabelJarWalletSource({
     required String jarId,
     required String walletId,
     required double newAmount,
   }) async {
-    final linkedWallets =
-        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
-    final idx = linkedWallets.indexWhere((j) => j.id == jarId);
-    if (idx == -1) return;
-    final jar = linkedWallets[idx];
+    final jarMatches =
+        state.budgetSetup.linkedWallets.where((j) => j.id == jarId).toList();
+    if (jarMatches.isEmpty) return;
+    final jar = jarMatches.first;
+
     final oldAmount = jar.walletSources
         .where((s) => s.walletId == walletId)
         .fold<double>(0, (sum, s) => sum + s.amount);
-    final newSources = [
-      ...jar.walletSources.where((s) => s.walletId != walletId),
-      if (newAmount > 0) JarWalletSource(walletId: walletId, amount: newAmount),
-    ];
-    linkedWallets[idx] = jar.copyWith(walletSources: newSources);
-    final walletName = state.wallets
-        .where((w) => w.id == walletId)
-        .map((w) => w.name)
-        .firstOrNull ?? walletId;
     final diff = newAmount - oldAmount;
-    final diffStr = diff >= 0
-        ? 'إضافة ${diff.toStringAsFixed(2)} جنيه'
-        : 'تخفيض ${(-diff).toStringAsFixed(2)} جنيه';
+    if (diff == 0) return; // لا تغيير — لا داعي لمعاملة
+
+    final walletName = state.wallets
+            .where((w) => w.id == walletId)
+            .map((w) => w.name)
+            .firstOrNull ??
+        walletId;
     final detail = newAmount <= 0
-        ? 'حذف حجز $walletName من ${jar.name}'
-        : '$diffStr لحجز $walletName في ${jar.name}';
-    final now = DateTime.now();
-    final auditTx = TransactionEntity(
-      id: 'lbl-${now.millisecondsSinceEpoch}',
+        ? 'حذف تصنيف $walletName من ${jar.name}'
+        : '${diff > 0 ? 'إضافة' : 'تخفيض'} ${diff.abs().toStringAsFixed(2)} '
+            'جنيه لتصنيف $walletName في ${jar.name}';
+
+    // المسار الوحيد: addTransaction ← TransactionProcessor ← MoneyLocationEngine
+    await addTransaction(
       walletId: walletId,
       fromWalletId: walletId,
       toWalletId: jarId,
@@ -492,18 +544,29 @@ class AppCubit extends Cubit<AppStateEntity> {
           ? TransferType.jarAllocation.value
           : TransferType.jarAllocationCancel.value,
       notes: detail,
-      createdAt: now,
     );
-    final next = state.copyWith(
-      budgetSetup: state.budgetSetup.copyWith(linkedWallets: linkedWallets),
-      transactions: [...state.transactions, auditTx],
+  }
+
+  /// يحل (يحذف) عنصر مراجعة مكان فلوس من حصالة معينة.
+  ///
+  /// يُستخدم بعد مراجعة المستخدم للتعارض وتصحيحه يدوياً، أو تجاهله.
+  /// لا يُعدَّل jar.balance أو wallet.balance.
+  Future<void> resolveMoneyLocationReview({
+    required String jarId,
+    required String reviewId,
+  }) async {
+    final jars =
+        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    final idx = jars.indexWhere((j) => j.id == jarId);
+    if (idx == -1) return;
+
+    jars[idx] = MoneyLocationEngine.resolveReview(
+      jar: jars[idx],
+      reviewId: reviewId,
     );
-    await _applyAndLog(
-      action: 'edit',
-      entityType: 'jar',
-      entityId: jarId,
-      details: detail,
-      apply: () async => next,
+
+    await updateBudgetSetup(
+      state.budgetSetup.copyWith(linkedWallets: jars),
     );
   }
 
