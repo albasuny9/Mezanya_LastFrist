@@ -213,6 +213,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               onNext: () => _goToNextCycle(budget),
             ),
             const SizedBox(height: 12),
+            // TODO(debug): remove before release
+            () {
+              debugPrint('── BudgetHeroSummaryCard inputs ──────────────────');
+              debugPrint('  totalIncomeActual  : $totalIncomeActual');
+              debugPrint('  totalExpenseActual : $totalExpenseActual');
+              debugPrint('  remainingIncome    : $remainingIncome');
+              debugPrint('──────────────────────────────────────────────────');
+              return const SizedBox.shrink();
+            }(),
             BudgetHeroSummaryCard(
               totalIncomeActual: totalIncomeActual,
               totalExpenseActual: totalExpenseActual,
