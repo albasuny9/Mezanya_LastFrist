@@ -22,13 +22,17 @@ class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: 12,
       title: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-            child: Icon(
-              Icons.insights_rounded,
-              size: 18,
-              color: Theme.of(context).colorScheme.primary,
+          Container(
+            width: 32,
+            height: 32,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Image.asset(
+              'appbar_icon.png',
+              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 8),

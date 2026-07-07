@@ -40,6 +40,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  assets:
+    - assets/appbar_icon.png
+
   fonts:
     - family: IBM Plex Sans Arabic
       fonts:
@@ -56,7 +59,7 @@ flutter:
           style: italic
         - asset: assets/fonts/Amiri-Bold.ttf
           weight: 700
-
+          
 flutter_launcher_icons:
   android: launcher_icon
   ios: true
