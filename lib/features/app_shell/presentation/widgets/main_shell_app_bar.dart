@@ -19,23 +19,18 @@ class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      titleSpacing: 12,
+      titleSpacing: 1,
       title: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(999),
-            ),
+          SizedBox(
+            width: 50,
+            height: 55,
             child: Image.asset(
-              'appbar_icon.png',
+              'assets/appbar_icon.png',
               fit: BoxFit.contain,
             ),
           ),
-          const SizedBox(width: 8),
+          //const SizedBox(width: 1),
           const Text('الميزانية'),
           const Spacer(),
           FutureBuilder<String>(
