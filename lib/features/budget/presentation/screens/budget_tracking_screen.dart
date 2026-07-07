@@ -17,6 +17,7 @@ import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_cycle_service.dart';
 import '../../domain/services/budget_income_metrics_service.dart';
+import '../../domain/services/budget_metrics_service.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
 import '../../domain/services/budget_transaction_filter.dart';
 import '../../domain/utils/budget_date_format.dart';
@@ -152,15 +153,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 // تمويل داخلي للحصالة وليست دخلاً ضمن الميزانية الشهرية
                 t.transferType != TransferType.depositWithJarLabel.value)
             .toList();
-        final expenseTx = monthTx
-            .where((t) => t.type == TransactionType.expense.value)
-            .toList();
         final incomeSectionChildren =
             _incomeInlineCards(state, budget, incomeTx, monthTx);
         final totalIncomeActual =
             incomeTx.fold<double>(0, (s, t) => s + t.amount);
         final totalExpenseActual =
-            expenseTx.fold<double>(0, (s, t) => s + t.amount);
+            BudgetMetricsService.computeActualBudgetExpense(monthTx);
         final remainingIncome = totalIncomeActual - totalExpenseActual;
         // final totalDebts = budget.debts.fold<double>(0, (s, d) => s + d.amount);
         final isCurrentMonthView = _isCurrentCycle(budget);
