@@ -1,7 +1,11 @@
+import 'package:intl/intl.dart';
+
 import '../../../../core/constants/transaction_types.dart';
-import '../../domain/entities/budget_setup_entity.dart';
+import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
+import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
+import '../../domain/entities/budget_setup_entity.dart';
 
 class BudgetRecurringPlanService {
   const BudgetRecurringPlanService._();
@@ -120,6 +124,95 @@ class BudgetRecurringPlanService {
       cycleEnd: cycleEnd,
     );
     return perOccurrence * count;
+  }
+
+  // ── Debt payment queries ──────────────────────────────────────────────────
+
+  /// Returns `true` if [t] is an expense whose notes contain [debt.name],
+  /// meaning it counts as a payment toward that debt.
+  ///
+  /// Extracted from `_transactionCountsTowardDebt` in
+  /// `budget_tracking_screen.dart`.
+  static bool transactionCountsTowardDebt(
+    TransactionEntity t,
+    DebtEntity debt,
+  ) {
+    if (t.type != TransactionType.expense.value) return false;
+    final n = t.notes ?? '';
+    return n.contains(debt.name);
+  }
+
+  /// Returns all historical expense transactions that count as payments toward
+  /// [debt], sorted newest-first.
+  ///
+  /// Extracted from `_allDebtPayments` in `budget_tracking_screen.dart`.
+  static List<TransactionEntity> allDebtPayments(
+    AppStateEntity state,
+    DebtEntity debt,
+  ) {
+    final list = state.transactions
+        .where((t) => transactionCountsTowardDebt(t, debt))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
+  /// Returns a metadata map describing the pending/due/snoozed status of a
+  /// recurring debt or subscription, or `null` when no prompt applies.
+  ///
+  /// Keys: `status` (String), `occurrence` (DateTime?), `pending` (bool),
+  /// `snoozed` (bool).
+  ///
+  /// Extracted from `_expensePendingMeta` in `budget_tracking_screen.dart`.
+  static Map<String, dynamic>? expensePendingMeta(
+    RecurringTransactionEntity? recurring,
+  ) {
+    if (recurring == null) {
+      return null;
+    }
+    final now = DateTime.now();
+    final fallbackOccurrence =
+        RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
+            RecurringScheduleEngine.nextOccurrence(recurring, now);
+    final snoozedUntil = recurring.snoozedUntil == null
+        ? null
+        : DateTime.tryParse(recurring.snoozedUntil!);
+    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+      return <String, dynamic>{
+        'status':
+            'مؤجل حتى ${DateFormat('d MMMM - h:mm a', 'ar').format(snoozedUntil)}',
+        'occurrence': fallbackOccurrence,
+        'pending': false,
+        'snoozed': true,
+      };
+    }
+    final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
+    if (prompt != null) {
+      return <String, dynamic>{
+        'status': switch (prompt.state) {
+          RecurringExpensePromptState.upcoming =>
+            'مستحق قريبًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
+          RecurringExpensePromptState.due =>
+            'مستحق الآن ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
+          RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
+              ? 'دورة فائتة تحتاج قرارًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}'
+              : 'استحقاق متأخر ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
+        },
+        'occurrence': prompt.occurrence,
+        'pending': true,
+        'snoozed': false,
+      };
+    }
+
+    final occurrence = fallbackOccurrence;
+    if (occurrence == null) return null;
+    return <String, dynamic>{
+      'status':
+          'الاستحقاق القادم ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
+      'occurrence': occurrence,
+      'pending': false,
+      'snoozed': false,
+    };
   }
 
   static double pendingDecisionAmount({

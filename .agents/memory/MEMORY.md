@@ -1,2 +1,3 @@
 - [Budget Phase 1 Widget Extraction](budget-phase1-widget-extraction.md) — Phase 1 complete; screen shrunk from 5273→3207 lines, 19 widget files created, flutter analyze: no issues.
 - [Budget Phase 2 Constants Extraction](budget-phase2-constants-extraction.md) — Phase 2 complete; 3 constant/helper files created, all 19 widgets + budget_tracking_screen.dart updated, flutter analyze: no issues.
+- [Budget Phase 3 Service Extraction](budget-phase3-service-extraction.md) — Phase 3 complete; 2 services extended, 2 services created, 14 methods moved, screen now 2919 lines, flutter analyze: no issues. Key nuance: always pass _isCurrentMonthView() not pre-computed variable to BudgetCycleService.

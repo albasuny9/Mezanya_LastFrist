@@ -1,7 +1,5 @@
 // ignore_for_file: no_wildcard_variable_uses
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
@@ -17,7 +15,10 @@ import '../../../transactions/presentation/widgets/shared_transaction_card.dart'
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/services/budget_cycle_service.dart';
+import '../../domain/services/budget_income_metrics_service.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../../domain/services/budget_transaction_filter.dart';
 import '../../domain/utils/budget_date_format.dart';
 import '../constants/budget_colors.dart';
 import '../constants/budget_layout.dart';
@@ -133,7 +134,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        final budget = _budgetForMonth(state);
+        final budget = BudgetCycleService.budgetForMonth(state, _cycleStart, _cycleEnd, _isCurrentCycle(state.budgetSetup));
         final futureMonth = _isFutureMonth();
         final pastMonth = _isPastMonth();
         final hasBudgetPlan = _hasBudgetPlan(budget);
@@ -143,7 +144,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           return jar.funding
               .any((f) => f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
         }).toList();
-        final monthTx = _monthTransactions(state.transactions);
+        final monthTx = BudgetTransactionFilter.forCycle(state.transactions, _cycleStart, _cycleEnd);
         final incomeTx = monthTx
             .where((t) =>
                 t.type == TransactionType.income.value &&
@@ -164,7 +165,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         // final totalDebts = budget.debts.fold<double>(0, (s, d) => s + d.amount);
         final isCurrentMonthView = _isCurrentCycle(budget);
         final hasPendingIncome =
-            isCurrentMonthView && _hasPendingIncome(budget, incomeTx);
+            isCurrentMonthView && BudgetCycleService.hasPendingIncome(widget.cubit.state, budget, incomeTx, _isCurrentMonthView(), _month);
         final monthKey = budget.cycleKeyFor(_cycleStart);
         final shouldAutoExpandIncome =
             hasPendingIncome && _dismissedAutoIncomeMonthKey != monthKey;
@@ -344,52 +345,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
 
-  List<TransactionEntity> _monthTransactions(List<TransactionEntity> tx) {
-    final end = _cycleEnd;
-    return tx
-        .where((t) =>
-            !t.createdAt.isBefore(_cycleStart) &&
-            !t.createdAt.isAfter(end) &&
-            !_isJarReserveTx(t))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  }
-
-  BudgetSetupEntity _budgetForMonth(AppStateEntity state) {
-    final budget = state.budgetSetup;
-
-    // الدورة الحالية: دايمًا نستخدم budgetSetup الحالي لضمان ظهور آخر التحديثات
-    if (_isCurrentCycle(budget)) return state.budgetSetup;
-
-    final cycleKey = budget.cycleKeyFor(_cycleStart);
-
-    // جرب الـ snapshot الجديد بمفتاح الدورة
-    final cycleSnapshot = state.monthlyBudgetSnapshots[cycleKey];
-    if (cycleSnapshot != null && cycleSnapshot.isNotEmpty) {
-      return BudgetSetupEntity.fromMap(cycleSnapshot);
-    }
-
-    // fallback: مفتاح الشهر القديم للتوافق مع البيانات السابقة
-    final oldKey =
-        '${_cycleStart.year}-${_cycleStart.month.toString().padLeft(2, '0')}';
-    final oldSnapshot = state.monthlyBudgetSnapshots[oldKey];
-    if (oldSnapshot != null && oldSnapshot.isNotEmpty) {
-      return BudgetSetupEntity.fromMap(oldSnapshot);
-    }
-
-    final end = _cycleEnd;
-    for (final log in state.logs) {
-      if (log.timestamp.isAfter(end)) continue;
-      try {
-        final map = jsonDecode(log.afterState) as Map<String, dynamic>;
-        return AppStateEntity.fromMap(map).budgetSetup;
-      } catch (_) {
-        continue;
-      }
-    }
-    return state.budgetSetup;
-  }
-
   bool _isFutureMonth() => _isFutureCycle(widget.cubit.state.budgetSetup);
 
   bool _isPastMonth() => _isPastCycle(widget.cubit.state.budgetSetup);
@@ -563,22 +518,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
 
 
-  bool _hasPendingIncome(
-    BudgetSetupEntity budget,
-    List<TransactionEntity> incomeTx,
-  ) {
-    final state = widget.cubit.state;
-    for (final source in budget.incomeSources) {
-      final sourceTx =
-          incomeTx.where((t) => t.incomeSourceId == source.id).toList();
-      final pendingMeta = _incomePendingMeta(state, source, sourceTx);
-      if (pendingMeta?['pending'] == true) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // bool _hasPendingDebt(
   //   AppStateEntity state,
   //   BudgetSetupEntity budget,
@@ -589,7 +528,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   //     final tx = monthTx.where((t) => t.notes?.contains(debt.name) == true);
   //     final paid = tx.fold<double>(0, (s, t) => s + t.amount);
   //     final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
-  //     final pendingMeta = _expensePendingMeta(recurring);
+  //     final pendingMeta = BudgetRecurringPlanService.expensePendingMeta(recurring);
   //     if (pendingMeta?['pending'] == true && remaining > 0) {
   //       return true;
   //     }
@@ -599,144 +538,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   bool _isCurrentMonthView() => _isCurrentCycle(widget.cubit.state.budgetSetup);
 
-  RecurringTransactionEntity? _linkedRecurringIncome(
-    AppStateEntity state,
-    IncomeSourceEntity source,
-  ) {
-    final linked = state.recurringTransactions.where(
-      (item) =>
-          item.type == TransactionType.income.value &&
-          item.budgetScope == BudgetScope.withinBudget.value &&
-          (item.incomeSourceId == source.id ||
-              ((item.incomeSourceId ?? '').isEmpty &&
-                  item.name == source.name &&
-                  item.walletId == source.targetWalletId)),
-    );
-    if (linked.isEmpty) {
-      return null;
-    }
-    return linked.first;
-  }
-
-  Map<String, dynamic>? _incomePendingMeta(
-    AppStateEntity state,
-    IncomeSourceEntity source,
-    List<TransactionEntity> sourceTx,
-  ) {
-    if (source.isVariable || sourceTx.isNotEmpty || !_isCurrentMonthView()) {
-      return null;
-    }
-    final recurring = _linkedRecurringIncome(state, source);
-    final dueDate = _incomeDueDateForMonth(source, _month);
-    final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
-    final canEarly = reminderLeadDays > 0 &&
-        !today.isBefore(reminderDate) &&
-        today.isBefore(dueDate);
-    final isDueOrLate = !today.isBefore(dueDate);
-    if (!canEarly && !isDueOrLate) return null;
-
-    // ── snooze check ──────────────────────────────────────────────────────
-    if (source.isSnoozed) {
-      final until = source.snoozedUntilDate!;
-      return <String, dynamic>{
-        'pending': false,
-        'snoozed': true,
-        'canEarly': false,
-        'isDueOrLate': isDueOrLate,
-        'status': 'مؤجل حتى ${DateFormat('d/M - HH:mm', 'ar').format(until)}',
-        'dateLabel': '${dueDate.day}/${dueDate.month}',
-        'timeLabel': null,
-      };
-    }
-
-    final dateLabel = '${dueDate.day}/${dueDate.month}';
-    final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
-        ? recurring!.scheduledTime!
-        : null;
-    final status = isDueOrLate
-        ? 'مستحق الآن • $dateLabel${timeLabel == null ? '' : ' • $timeLabel'}'
-        : 'بكر • $dateLabel${timeLabel == null ? '' : ' • $timeLabel'}';
-    return <String, dynamic>{
-      'pending': true,
-      'snoozed': false,
-      'canEarly': canEarly,
-      'isDueOrLate': isDueOrLate,
-      'status': status,
-      'dateLabel': dateLabel,
-      'timeLabel': timeLabel,
-    };
-  }
-
-
-  double _incomeDisplayPool(IncomeSourceEntity source, double received) {
-    if (source.isVariable) return 0;
-    return received > 0 ? received : source.amount;
-  }
-
-  double _spentAttributedToIncomeSource(
-    BudgetSetupEntity budget,
-    List<TransactionEntity> monthTx,
-    String incomeSourceId,
-  ) {
-    final counted = <String>{};
-    var total = 0.0;
-
-    for (final alloc in budget.allocations) {
-      final fromThis = alloc.funding
-          .where((f) => f.incomeSourceId == incomeSourceId)
-          .fold<double>(0, (s, f) => s + f.plannedAmount);
-      if (fromThis <= 0) continue;
-      final plannedTotal =
-          alloc.funding.fold<double>(0, (s, f) => s + f.plannedAmount);
-      if (plannedTotal <= 0) continue;
-      final share = fromThis / plannedTotal;
-      for (final t in monthTx.where((x) =>
-          x.type == TransactionType.expense.value &&
-          x.allocationId == alloc.id)) {
-        counted.add(t.id);
-        total += t.amount * share;
-      }
-    }
-
-    for (final debt in budget.debts) {
-      if (debt.fundingSource != incomeSourceId) continue;
-      for (final t in monthTx.where((x) =>
-          x.type == TransactionType.expense.value &&
-          x.notes?.contains(debt.name) == true)) {
-        if (!counted.contains(t.id)) {
-          counted.add(t.id);
-          total += t.amount;
-        }
-      }
-    }
-
-    return total;
-  }
-
-  double? _incomeRemainingProgress(
-    IncomeSourceEntity source,
-    double received,
-    BudgetSetupEntity budget,
-    List<TransactionEntity> monthTx,
-  ) {
-    if (source.isVariable) return null;
-    final pool = _incomeDisplayPool(source, received);
-    if (pool <= 0) return null;
-    final spent = _spentAttributedToIncomeSource(budget, monthTx, source.id);
-    final ratio = ((pool - spent) / pool).clamp(0.0, 1.0);
-    return ratio;
-  }
-
-  List<TransactionEntity> _monthTransactionsForIncomeSource(
-    List<TransactionEntity> sourceIncomeTx,
-  ) {
-    final incomeOnly = [...sourceIncomeTx];
-    incomeOnly.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return incomeOnly;
-  }
 
   List<Widget> _incomeInlineCards(
     AppStateEntity state,
@@ -749,16 +550,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final sourceTx =
             incomeTx.where((t) => t.incomeSourceId == source.id).toList();
         final received = sourceTx.fold<double>(0, (s, t) => s + t.amount);
-        final recurring = _linkedRecurringIncome(state, source);
-        final pendingMeta = _incomePendingMeta(state, source, sourceTx);
+        final recurring = BudgetCycleService.linkedRecurringIncome(state, source);
+        final pendingMeta = BudgetCycleService.incomePendingMeta(state, source, sourceTx, _isCurrentMonthView(), _month);
         final isSnoozed = pendingMeta?['snoozed'] == true;
         final displayedAmount = received <= 0 ? source.amount : received;
-        final pool = _incomeDisplayPool(source, received);
+        final pool = BudgetIncomeMetricsService.incomeDisplayPool(source, received);
         final spent =
-            _spentAttributedToIncomeSource(budget, monthTx, source.id);
+            BudgetIncomeMetricsService.spentAttributedToIncomeSource(budget, monthTx, source.id);
         final afterSpend = (pool - spent).clamp(0.0, pool);
         final remProgress =
-            _incomeRemainingProgress(source, received, budget, monthTx);
+            BudgetIncomeMetricsService.incomeRemainingProgress(source, received, budget, monthTx);
         final sourceAccent = BudgetIconBadge.colorFromHex(recurring?.iconColor ?? '#165b47');
         final incomeProgressColor = remProgress == null
             ? sourceAccent
@@ -807,7 +608,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           amountText: displayedAmount.truncate().toString(),
           metaText: source.isVariable
               ? 'غير ثابت'
-              : _monthWordLabel(_incomeDueDateForMonth(source, _month)),
+              : _monthWordLabel(BudgetCycleService.incomeDueDateForMonth(source, _month)),
           trailingTopText: recurring?.scheduledTime?.isNotEmpty == true
               ? recurring!.scheduledTime!
               : null,
@@ -1118,7 +919,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final widgets = <Widget>[];
     for (final debt in installments) {
       final recurring = _linkedRecurringDebt(state, debt);
-      final allDebtTx = _allDebtPayments(state, debt);
+      final allDebtTx = BudgetRecurringPlanService.allDebtPayments(state, debt);
       final paid = allDebtTx.fold<double>(0, (s, t) => s + t.amount);
       final principal = debt.principalTotal ?? debt.amount;
       final remaining = (principal - paid).clamp(0.0, principal);
@@ -1126,9 +927,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           principal <= 0 ? 0.0 : (paid / principal).clamp(0.0, 1.0);
       final pct = (paidRatio * 100).round().clamp(0, 100);
       final monthPaid = monthTx
-          .where((t) => _transactionCountsTowardDebt(t, debt))
+          .where((t) => BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
-      final pendingMeta = _expensePendingMeta(recurring);
+      final pendingMeta = BudgetRecurringPlanService.expensePendingMeta(recurring);
       final isSnoozed = pendingMeta?['snoozed'] == true;
       final isPending =
           pendingMeta?['pending'] == true && monthPaid < debt.amount;
@@ -1776,7 +1577,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       );
       final cycleDue = amountPerOccurrence * cycleDates.length;
       final cyclePaid = monthTx
-          .where((t) => _transactionCountsTowardDebt(t, debt))
+          .where((t) => BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
 
       int paidCount = amountPerOccurrence > 0
@@ -1790,7 +1591,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
       final today = DateTime.now();
       final todayMidnight = DateTime(today.year, today.month, today.day);
-      final pendingMeta = _expensePendingMeta(recurring);
+      final pendingMeta = BudgetRecurringPlanService.expensePendingMeta(recurring);
       final isSnoozed = pendingMeta?['snoozed'] == true;
 
       bool isDueOrLate = false;
@@ -1889,7 +1690,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final accent = BudgetIconBadge.colorFromHex(recurring?.iconColor ?? '#4a7c59');
 
     final tx = monthTx
-        .where((t) => _transactionCountsTowardDebt(t, debt))
+        .where((t) => BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -2042,7 +1843,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final ratio = funded <= 0 ? 0.0 : (remaining / funded).clamp(0.0, 1.0);
     final progressColor = _usageProgressColor(1 - ratio);
     final tx = state.transactions
-        .where((t) => !_isJarReserveTx(t) && t.allocationId == allocation.id)
+        .where((t) => !BudgetTransactionFilter.isJarReserveTx(t) && t.allocationId == allocation.id)
         .toList();
 
     await showModalBottomSheet<void>(
@@ -2141,7 +1942,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   Future<void> _editAllocation(AllocationEntity _) async {
     final state = widget.cubit.state;
-    final budget = _budgetForMonth(state);
+    final budget = BudgetCycleService.budgetForMonth(state, _cycleStart, _cycleEnd, _isCurrentCycle(state.budgetSetup));
     final result = await openAllocationEditorScreen(
       context,
       current: _,
@@ -2174,20 +1975,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) async {
     final theme = Theme.of(context);
     const accent = kBudgetDefaultAccent;
-    final dueDate = _incomeDueDateForMonth(source, _month);
+    final dueDate = BudgetCycleService.incomeDueDateForMonth(source, _month);
     final received = sourceIncomeTx.fold<double>(0, (s, t) => s + t.amount);
     final displayedAmount = received <= 0 ? source.amount : received;
-    final pool = _incomeDisplayPool(source, received);
-    final spent = _spentAttributedToIncomeSource(budget, monthTx, source.id);
+    final pool = BudgetIncomeMetricsService.incomeDisplayPool(source, received);
+    final spent = BudgetIncomeMetricsService.spentAttributedToIncomeSource(budget, monthTx, source.id);
     final afterSpend = (pool - spent).clamp(0.0, pool);
     final remProgress =
-        _incomeRemainingProgress(source, received, budget, monthTx);
+        BudgetIncomeMetricsService.incomeRemainingProgress(source, received, budget, monthTx);
     final pendingMeta =
-        _incomePendingMeta(widget.cubit.state, source, sourceIncomeTx);
+        BudgetCycleService.incomePendingMeta(widget.cubit.state, source, sourceIncomeTx, _isCurrentMonthView(), _month);
     final canEarly = pendingMeta?['canEarly'] == true;
     final isDueOrLate = pendingMeta?['isDueOrLate'] == true;
-    final recurring = _linkedRecurringIncome(widget.cubit.state, source);
-    final cycleTx = _monthTransactionsForIncomeSource(sourceIncomeTx);
+    final recurring = BudgetCycleService.linkedRecurringIncome(widget.cubit.state, source);
+    final cycleTx = BudgetTransactionFilter.sortedForIncomeSource(sourceIncomeTx);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -2404,7 +2205,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     // حسابات دفعات القسط في هذه الدورة
     final monthTx = state.transactions
-        .where((t) => _transactionCountsTowardDebt(t, debt))
+        .where((t) => BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
         .where((t) =>
             !t.createdAt.isBefore(_cycleStart) &&
             !t.createdAt.isAfter(_cycleEnd))
@@ -2549,7 +2350,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final wallets = state.wallets;
     final fallbackWalletId =
         wallets.isNotEmpty ? wallets.first.id : 'wallet-cash-default';
-    final linkedRecurring = _linkedRecurringIncome(state, current);
+    final linkedRecurring = BudgetCycleService.linkedRecurringIncome(state, current);
     final draftRecurring = linkedRecurring ??
         RecurringTransactionEntity(
           id: '',
@@ -2834,80 +2635,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         debt,
       );
 
-  bool _transactionCountsTowardDebt(
-    TransactionEntity t,
-    DebtEntity debt,
-  ) {
-    if (t.type != TransactionType.expense.value) return false;
-    final n = t.notes ?? '';
-    return n.contains(debt.name);
-  }
 
-  List<TransactionEntity> _allDebtPayments(
-    AppStateEntity state,
-    DebtEntity debt,
-  ) {
-    final list = state.transactions
-        .where((t) => _transactionCountsTowardDebt(t, debt))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
-  }
 
-  DateTime? _nextRecurringOccurrence(
-    RecurringTransactionEntity recurring,
-    DateTime now,
-  ) =>
-      RecurringScheduleEngine.nextOccurrence(recurring, now);
 
-  Map<String, dynamic>? _expensePendingMeta(
-      RecurringTransactionEntity? recurring) {
-    if (recurring == null) {
-      return null;
-    }
-    final now = DateTime.now();
-    final fallbackOccurrence = _dueOccurrenceNow(recurring, now) ??
-        _nextRecurringOccurrence(recurring, now);
-    final snoozedUntil = recurring.snoozedUntil == null
-        ? null
-        : DateTime.tryParse(recurring.snoozedUntil!);
-    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
-      return <String, dynamic>{
-        'status':
-            'مؤجل حتى ${DateFormat('d MMMM - h:mm a', 'ar').format(snoozedUntil)}',
-        'occurrence': fallbackOccurrence,
-        'pending': false,
-        'snoozed': true,
-      };
-    }
-    final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
-    if (prompt != null) {
-      return <String, dynamic>{
-        'status': switch (prompt.state) {
-          RecurringExpensePromptState.upcoming =>
-            'مستحق قريبًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
-          RecurringExpensePromptState.due =>
-            'مستحق الآن ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
-          RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
-              ? 'دورة فائتة تحتاج قرارًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}'
-              : 'استحقاق متأخر ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
-        },
-        'occurrence': prompt.occurrence,
-        'pending': true,
-        'snoozed': false,
-      };
-    }
-
-    final occurrence = fallbackOccurrence;
-    if (occurrence == null) return null;
-    return <String, dynamic>{
-      'status':
-          'الاستحقاق القادم ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
-      'occurrence': occurrence,
-      'pending': false,
-      'snoozed': false,
-    };
-  }
 
   bool _occurrenceWasHandled(
     RecurringTransactionEntity recurring,
@@ -2959,7 +2689,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         }
         if (debt.isInstallment) {
           final paid = monthTx
-              .where((t) => _transactionCountsTowardDebt(t, debt))
+              .where((t) => BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
               .fold<double>(0, (sum, t) => sum + t.amount);
           final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
           if (remaining <= 0) {
@@ -3003,12 +2733,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     } finally {
       _processingAutomaticDebts = false;
     }
-  }
-
-  DateTime _incomeDueDateForMonth(IncomeSourceEntity source, DateTime month) {
-    final lastDay = DateTime(month.year, month.month + 1, 0).day;
-    final day = source.date.clamp(1, lastDay);
-    return DateTime(month.year, month.month, day);
   }
 
   Future<void> _recordIncomeFromTracking(IncomeSourceEntity source,
@@ -3056,7 +2780,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   // Removed local _showPostponeDialog in favor of RecurringPostponeDialog
 
   Future<void> _postponeIncome(IncomeSourceEntity source) async {
-    final dueDate = _incomeDueDateForMonth(source, _month);
+    final dueDate = BudgetCycleService.incomeDueDateForMonth(source, _month);
     final result = await RecurringPostponeDialog.show(
       context,
       name: source.name,
@@ -3084,7 +2808,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   Future<void> _postponeDebt(RecurringTransactionEntity recurring) async {
     final now = DateTime.now();
     final occurrence = _dueOccurrenceNow(recurring, now) ??
-        _nextRecurringOccurrence(recurring, now) ??
+        RecurringScheduleEngine.nextOccurrence(recurring, now) ??
         now;
     final result = await RecurringPostponeDialog.show(
       context,
@@ -3156,7 +2880,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) async {
     final now = DateTime.now();
     final occurrence = _dueOccurrenceNow(recurring, now) ??
-        _nextRecurringOccurrence(recurring, now);
+        RecurringScheduleEngine.nextOccurrence(recurring, now);
     if (occurrence == null) return;
 
     await _recordDebtFromTracking(debt, recurring, occurrence);
@@ -3192,7 +2916,4 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
 
-  bool _isJarReserveTx(TransactionEntity t) {
-    return t.transferType == TransferType.allocationToJar.value;
-  }
 }
