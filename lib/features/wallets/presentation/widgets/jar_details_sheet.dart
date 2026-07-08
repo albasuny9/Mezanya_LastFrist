@@ -739,13 +739,10 @@ Future<void> _openWalletAllocationSheet({
     builder: (bCtx) => BlocBuilder<AppCubit, AppStateEntity>(
       bloc: cubit,
       builder: (bCtx, liveState) {
-        final jarMatches = liveState.budgetSetup.linkedWallets
-            .where((j) => j.id == jarId)
-            .toList();
-        final currentJar = jarMatches.isEmpty ? jar : jarMatches.first;
         final accent = accentBase;
-        final entries = jarDistributionEntries(liveState, jarId)
-            .where((entry) => entry.walletId == walletId)
+        // Always use real entries from moneyDistributions — never synthetic
+        final entries = liveState.moneyDistributions
+            .where((e) => e.jarId == jarId && e.walletId == walletId && e.amount > 0)
             .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         final currentTotal = entries.fold<double>(
@@ -839,7 +836,7 @@ Future<void> _openWalletAllocationSheet({
                             .map(
                               (entry) => _DistributionEntryTile(
                                 entry: entry,
-                                jarName: currentJar.name,
+                                walletName: walletName,
                                 currencyCode: liveState.currencyCode,
                                 accent: accent,
                                 onTap: () => _openDistributionEntryActions(
@@ -913,54 +910,59 @@ class _DistributionSummaryTile extends StatelessWidget {
 class _DistributionEntryTile extends StatelessWidget {
   const _DistributionEntryTile({
     required this.entry,
-    required this.jarName,
+    required this.walletName,
     required this.currencyCode,
     required this.accent,
     required this.onTap,
   });
 
   final DistributionEntry entry;
-  final String jarName;
+  final String walletName;
   final String currencyCode;
   final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final title =
-        entry.origin == DistributionOrigin.manual ? 'Manual' : jarName;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: accent.withValues(alpha: 0.12)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: Color(0xFF1A1A1A),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    walletName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                '${entry.amount.toStringAsFixed(2)} ${currencyLabelAr(currencyCode)}',
-                style: TextStyle(
-                  color: accent,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
+                Text(
+                  '${entry.amount.toStringAsFixed(2)} ${currencyLabelAr(currencyCode)}',
+                  style: TextStyle(
+                    color: accent,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_left_rounded,
+                  color: accent.withValues(alpha: 0.4),
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1036,13 +1038,48 @@ Widget _distributionActionTile({
 }) {
   final color =
       isDestructive ? const Color(0xFFDC2626) : const Color(0xFF165B47);
-  return ListTile(
-    leading: Icon(icon, color: color),
-    title: Text(
-      label,
-      style: TextStyle(color: color, fontWeight: FontWeight.w800),
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_left_rounded,
+                color: Color(0xFFCCC8C0),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
-    onTap: onTap,
   );
 }
 
@@ -1186,7 +1223,7 @@ Future<void> _openDistributionManagerSheet({
           jarDistributionEntries(cubit.state, jar.id),
           jar.id,
         );
-        return Padding(
+        return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             20,
             20,
@@ -1307,6 +1344,7 @@ Widget _walletDropdown({
 }) {
   return DropdownButtonFormField<String>(
     value: value,
+    isExpanded: true,
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
@@ -1318,14 +1356,17 @@ Widget _walletDropdown({
         .map(
           (wallet) => DropdownMenuItem(
             value: wallet.id,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
               children: [
-                Text(wallet.name),
+                Expanded(
+                  child: Text(
+                    wallet.name,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 if (jarAllocations != null)
                   Text(
-                    'في الحصالة: ${(jarAllocations[wallet.id] ?? 0).toStringAsFixed(2)}',
+                    'الرصيد المحجوز: ${(jarAllocations[wallet.id] ?? 0).toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 11,
                       color: Color(0xFF8A7F72),

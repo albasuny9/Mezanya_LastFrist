@@ -809,9 +809,13 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
-  /// بعد كل حفظ في مدير مكان الفلوس: يُعيد حساب التوزيع.
-  /// إذا أصبح التوزيع متسقاً (الإجمالي المعروف ≤ رصيد الحصالة)،
-  /// يُحلّ تلقائياً جميع المراجعات النشطة لهذه الحصالة.
+  /// بعد كل حفظ في مدير مكان الفلوس: يُعيد حساب التوزيع لكل نوع مراجعة.
+  ///
+  /// كل نوع مراجعة له شرط تحقق خاص به:
+  /// - labeled-exceeds-balance  → يُحلّ عندما يكون الإجمالي المعروف ≤ رصيد الحصالة
+  /// - source-went-negative     → يُحلّ عندما لا يوجد أي entry بمبلغ سالب
+  /// - spending-wallet-mismatch → يُحلّ عندما يوجد تخصيص واحد على الأقل (totalKnown > 0)
+  ///
   /// لا يُعدَّل jar.balance أو wallet.balance أو أي رصيد مالي.
   Future<void> autoResolveReviewsIfConsistent(String jarId) async {
     final jar = state.budgetSetup.linkedWallets
@@ -819,19 +823,38 @@ class AppCubit extends Cubit<AppStateEntity> {
         .firstOrNull;
     if (jar == null || jar.moneyLocationReviews.isEmpty) return;
 
+    final entries =
+        state.moneyDistributions.where((e) => e.jarId == jarId).toList();
     final totalKnown = DistributionEngine.totalForJar(
       state.moneyDistributions,
       jarId,
     );
-    if (totalKnown > jar.balance + 0.01) return;
+
+    bool isInconsistencyResolved(MoneyLocationReview review) {
+      switch (review.type) {
+        case 'labeled-exceeds-balance':
+          return totalKnown <= jar.balance + 0.01;
+        case 'source-went-negative':
+          return entries.every((e) => e.amount > 0);
+        case 'spending-wallet-mismatch':
+          return totalKnown > 0;
+        default:
+          return false;
+      }
+    }
 
     var updatedJar = jar;
-    for (final review in jar.moneyLocationReviews) {
-      updatedJar = MoneyLocationEngine.resolveReview(
-        jar: updatedJar,
-        reviewId: review.id,
-      );
+    var anyResolved = false;
+    for (final review in List.of(jar.moneyLocationReviews)) {
+      if (isInconsistencyResolved(review)) {
+        updatedJar = MoneyLocationEngine.resolveReview(
+          jar: updatedJar,
+          reviewId: review.id,
+        );
+        anyResolved = true;
+      }
     }
+    if (!anyResolved) return;
 
     final jars = state.budgetSetup.linkedWallets
         .map((j) => j.id == jarId ? updatedJar : j)
