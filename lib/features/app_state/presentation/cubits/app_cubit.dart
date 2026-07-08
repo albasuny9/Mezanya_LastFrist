@@ -87,95 +87,95 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   AppStateEntity _migrateMoneyDistributionsSync(AppStateEntity source) {
-    if (source.moneyDistributions.isNotEmpty) return source;
+    if (source.moneyDistributionMigrationDone) return source;
+    if (source.moneyDistributions.isNotEmpty) {
+      return source.copyWith(moneyDistributionMigrationDone: true);
+    }
 
     final knownWalletIds = source.wallets.map((wallet) => wallet.id).toSet();
     final entries = <DistributionEntry>[];
+    final now = DateTime.now();
+    final jars =
+        List<LinkedWalletEntity>.from(source.budgetSetup.linkedWallets);
 
-    for (final jar in source.budgetSetup.linkedWallets) {
-      var total = 0.0;
+    for (var jarIndex = 0; jarIndex < jars.length; jarIndex++) {
+      final jar = jars[jarIndex];
+      var remainingImportable = jar.balance;
+      final reviews = <MoneyLocationReview>[];
+
       for (final walletSource in jar.walletSources) {
         if (walletSource.amount <= 0) {
-          throw const DistributionValidationException(
-            'لا يمكن ترحيل توزيع فلوس بقيمة سالبة أو صفر.',
+          reviews.add(
+            MoneyLocationReview(
+              id: _id('mlr-mig'),
+              amount: walletSource.amount.abs(),
+              type: MoneyLocationReviewType.sourceWentNegative.value,
+              createdAt: now,
+              notes: 'مصدر قديم غير صالح لم يتم ترحيله.',
+            ),
           );
+          continue;
         }
+
         if (!knownWalletIds.contains(walletSource.walletId)) {
-          throw const DistributionValidationException(
-            'لا يمكن ترحيل توزيع فلوس مرتبط بمحفظة غير موجودة.',
+          reviews.add(
+            MoneyLocationReview(
+              id: _id('mlr-mig'),
+              amount: walletSource.amount,
+              type: MoneyLocationReviewType.labeledExceedsBalance.value,
+              createdAt: now,
+              notes: 'مصدر قديم مرتبط بمحفظة غير موجودة ولم يتم ترحيله.',
+            ),
+          );
+          continue;
+        }
+
+        final importable = remainingImportable <= 0
+            ? 0.0
+            : walletSource.amount <= remainingImportable
+                ? walletSource.amount
+                : remainingImportable;
+
+        if (importable > 0) {
+          entries.add(
+            DistributionEntry(
+              id: _id('dist'),
+              jarId: jar.id,
+              walletId: walletSource.walletId,
+              amount: importable,
+              origin: DistributionOrigin.migration,
+              createdAt: now,
+            ),
+          );
+          remainingImportable -= importable;
+        }
+
+        final excess = walletSource.amount - importable;
+        if (excess > 0.01) {
+          reviews.add(
+            MoneyLocationReview(
+              id: _id('mlr-mig'),
+              amount: excess,
+              type: MoneyLocationReviewType.labeledExceedsBalance.value,
+              createdAt: now,
+              notes: 'جزء من مصدر قديم تجاوز رصيد الحصالة ولم يتم ترحيله.',
+            ),
           );
         }
-        total += walletSource.amount;
-        entries.add(
-          DistributionEntry(
-            id: _id('dist'),
-            jarId: jar.id,
-            walletId: walletSource.walletId,
-            amount: walletSource.amount,
-            origin: DistributionOrigin.migration,
-            createdAt: DateTime.now(),
-          ),
-        );
       }
-      if (total > jar.balance + 0.01) {
-        throw const DistributionValidationException(
-          'لا يمكن ترحيل توزيع فلوس يتجاوز رصيد الحصالة.',
+
+      if (reviews.isNotEmpty) {
+        jars[jarIndex] = jar.copyWith(
+          moneyLocationReviews: [...jar.moneyLocationReviews, ...reviews],
         );
       }
     }
 
-    return source.copyWith(moneyDistributions: entries);
-  }
-
-  AppStateEntity _syncMoneyDistributionFromWalletSources({
-    required AppStateEntity before,
-    required AppStateEntity after,
-  }) {
-    var entries = List<DistributionEntry>.from(after.moneyDistributions);
-    final walletIds = after.wallets.map((wallet) => wallet.id).toSet();
-
-    Map<String, double> sourceMap(LinkedWalletEntity jar) => {
-          for (final item in jar.walletSources) item.walletId: item.amount,
-        };
-
-    for (final jar in after.budgetSetup.linkedWallets) {
-      final beforeMatches =
-          before.budgetSetup.linkedWallets.where((item) => item.id == jar.id);
-      final beforeSources = beforeMatches.isEmpty
-          ? <String, double>{}
-          : sourceMap(beforeMatches.first);
-      final afterSources = sourceMap(jar);
-      final sourceWalletIds = <String>{
-        ...beforeSources.keys,
-        ...afterSources.keys,
-      };
-
-      for (final walletId in sourceWalletIds) {
-        final delta =
-            (afterSources[walletId] ?? 0) - (beforeSources[walletId] ?? 0);
-        if (delta > 0.01) {
-          entries = DistributionEngine.addReservation(
-            entries: entries,
-            jarId: jar.id,
-            walletId: walletId,
-            amount: delta,
-            jarBalance: jar.balance,
-            knownWalletIds: walletIds,
-            origin: DistributionOrigin.automatic,
-          );
-        } else if (delta < -0.01) {
-          entries = DistributionEngine.removeReservation(
-            entries: entries,
-            jarId: jar.id,
-            walletId: walletId,
-            amount: delta.abs(),
-            knownWalletIds: walletIds,
-          );
-        }
-      }
-    }
-
-    return after.copyWith(moneyDistributions: entries);
+    return source.copyWith(
+      moneyDistributions: entries,
+      budgetSetup: source.budgetSetup.copyWith(linkedWallets: jars),
+      moneyDistributionMigrationDone: true,
+    );
   }
 
   /// مزامنة الديون/الاشتراكات القديمة التي تُحفظ كـ RecurringTransaction
@@ -442,14 +442,7 @@ class AppCubit extends Cubit<AppStateEntity> {
               : incomeName ??
                   walletName ??
                   (type == TransactionType.income.value ? 'دخل' : 'مصروف')),
-      apply: () async {
-        final before = state;
-        final after = TransactionProcessor.apply(before, transaction);
-        return _syncMoneyDistributionFromWalletSources(
-          before: before,
-          after: after,
-        );
-      },
+      apply: () async => TransactionProcessor.apply(state, transaction),
       recordInNotificationHistory: recordInNotificationHistory,
     );
   }
@@ -485,12 +478,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     final transaction = target.first;
 
     // TransactionProcessor.reverse يعكس الأرصدة ويحذف الـ sub-transactions تلقائياً
-    final before = state;
-    final reversed = TransactionProcessor.reverse(before, transaction);
-    final next = _syncMoneyDistributionFromWalletSources(
-      before: before,
-      after: reversed,
-    );
+    final next = TransactionProcessor.reverse(state, transaction);
 
     await _applyAndLog(
       action: 'delete',

@@ -29,6 +29,7 @@ class AppStateEntity {
     this.moneyDistributions = const <DistributionEntry>[],
     this.profileImageUrl = '',
     this.moneyLocationMigrationDone = false,
+    this.moneyDistributionMigrationDone = false,
   });
 
   final List<WalletEntity> wallets;
@@ -53,6 +54,7 @@ class AppStateEntity {
   /// علامة تدل على أن ترحيل مراجعات مكان الفلوس قد تم مرة واحدة.
   /// يضمن ألا تُعاد إنشاء المراجعات بعد أن يتجاهلها المستخدم.
   final bool moneyLocationMigrationDone;
+  final bool moneyDistributionMigrationDone;
 
   factory AppStateEntity.initial() {
     return AppStateEntity(
@@ -112,6 +114,7 @@ class AppStateEntity {
     List<DistributionEntry>? moneyDistributions,
     String? profileImageUrl,
     bool? moneyLocationMigrationDone,
+    bool? moneyDistributionMigrationDone,
   }) {
     return AppStateEntity(
       wallets: wallets ?? this.wallets,
@@ -136,6 +139,8 @@ class AppStateEntity {
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       moneyLocationMigrationDone:
           moneyLocationMigrationDone ?? this.moneyLocationMigrationDone,
+      moneyDistributionMigrationDone:
+          moneyDistributionMigrationDone ?? this.moneyDistributionMigrationDone,
     );
   }
 
@@ -170,6 +175,7 @@ class AppStateEntity {
           moneyDistributions.map((entry) => entry.toMap()).toList(),
       'profileImageUrl': profileImageUrl,
       'moneyLocationMigrationDone': moneyLocationMigrationDone,
+      'moneyDistributionMigrationDone': moneyDistributionMigrationDone,
     };
   }
 
@@ -249,6 +255,8 @@ class AppStateEntity {
       profileImageUrl: map['profileImageUrl'] as String? ?? '',
       moneyLocationMigrationDone:
           map['moneyLocationMigrationDone'] as bool? ?? false,
+      moneyDistributionMigrationDone:
+          map['moneyDistributionMigrationDone'] as bool? ?? false,
     );
   }
 }

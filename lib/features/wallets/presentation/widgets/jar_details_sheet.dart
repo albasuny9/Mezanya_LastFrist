@@ -15,12 +15,13 @@ import '../../../transactions/presentation/widgets/shared_transaction_card.dart'
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import 'wallet_shared_widgets.dart';
 
-/// طھظˆط²ظٹط¹ ط§ظ„ط­طµط§ظ„ط© ط¹ظ„ظ‰ ط§ظ„ظ…ط­ط§ظپط¸ â€” ظ…ط¨ظ†ظٹ ط¹ظ„ظ‰ walletSources
+/// مكان الفلوس داخل الحصالة — مبني مؤقتًا على walletSources
 Map<String, double> jarWalletDistribution(AppStateEntity state, String jarId) {
   final liveEntries = jarDistributionEntries(state, jarId);
   if (liveEntries.isNotEmpty) {
     return DistributionEngine.summaryForJar(liveEntries, jarId);
   }
+  if (state.moneyDistributionMigrationDone) return {};
   final jar =
       state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
   if (jar == null) return {};
@@ -35,6 +36,7 @@ List<DistributionEntry> jarDistributionEntries(
       .where((entry) => entry.jarId == jarId && entry.amount > 0)
       .toList();
   if (entries.isNotEmpty) return entries;
+  if (state.moneyDistributionMigrationDone) return const [];
 
   final jar =
       state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
@@ -204,7 +206,7 @@ Future<void> showJarDetailsSheet({
                                     Navigator.of(ctx).pop();
                                     onEditJar(jar);
                                   },
-                                  tooltip: 'طھط¹ط¯ظٹظ„',
+                                  tooltip: 'تعديل',
                                 ),
                               ],
                             ),
@@ -216,14 +218,14 @@ Future<void> showJarDetailsSheet({
                               children: [
                                 Expanded(
                                   child: _jarSheetGlassMetric(
-                                    label: 'ط§ظ„ط±طµظٹط¯ ط§ظ„ظƒظ„ظٹ',
+                                    label: 'الرصيد الكلي',
                                     value: jar.balance.toStringAsFixed(2),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: _jarSheetGlassMetric(
-                                    label: 'ط؛ظٹط± ظ…ط­ط¬ظˆط²',
+                                    label: 'غير معروف المصدر',
                                     value:
                                         jar.unlabeledAmount.toStringAsFixed(2),
                                   ),
@@ -260,8 +262,8 @@ Future<void> showJarDetailsSheet({
                                   const SizedBox(width: 8),
                                   Text(
                                     showWallets
-                                        ? 'ط¥ط®ظپط§ط، ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³'
-                                        : 'ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³',
+                                        ? 'إخفاء مكان الفلوس'
+                                        : 'مكان الفلوس',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,
@@ -304,7 +306,7 @@ Future<void> showJarDetailsSheet({
                                             const SizedBox(width: 10),
                                             const Expanded(
                                               child: Text(
-                                                'طھظˆط²ظٹط¹ ط§ظ„ظپظ„ظˆط³',
+                                                'أمـاكن الفلوس',
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w900,
@@ -338,7 +340,7 @@ Future<void> showJarDetailsSheet({
                                                         size: 13,
                                                         color: Colors.white),
                                                     SizedBox(width: 4),
-                                                    Text('ط¥ط¯ط§ط±ط©',
+                                                    Text('إدارة',
                                                         style: TextStyle(
                                                             color: Colors.white,
                                                             fontWeight:
@@ -365,7 +367,7 @@ Future<void> showJarDetailsSheet({
                                               ),
                                             ),
                                             child: const Text(
-                                              'ظ„ط§ ظٹظˆط¬ط¯ طھط®طµظٹطµ ظ…ظ† ط£ظٹ ظ…ط­ظپط¸ط© ظ„ظ‡ط°ظ‡ ط§ظ„ط­طµط§ظ„ط© ط­طھظ‰ ط§ظ„ط¢ظ†.',
+                                              'لا توجد أماكن فلوس لهذه الحصالة حتى الآن.',
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
                                                 color: Color(0xFF8A7F72),
@@ -381,7 +383,7 @@ Future<void> showJarDetailsSheet({
                                                 .toList();
                                             final walletName =
                                                 matchedWallets.isEmpty
-                                                    ? 'ظ…ط­ظپط¸ط©'
+                                                    ? 'محفظة'
                                                     : matchedWallets.first.name;
                                             final walletIcon = matchedWallets
                                                     .isEmpty
@@ -480,7 +482,7 @@ Future<void> showJarDetailsSheet({
                                           }),
                                           if (unknownDistribution > 0.01)
                                             _DistributionSummaryTile(
-                                              name: 'ط؛ظٹط± ظ…ط¹ط±ظˆظپ',
+                                              name: 'غير معروف',
                                               amount: unknownDistribution,
                                               currencyCode: state.currencyCode,
                                             ),
@@ -493,10 +495,10 @@ Future<void> showJarDetailsSheet({
                         ],
                       ),
                     ),
-                    // â”€â”€ ظ‚ط§ط¦ظ…ط© ظ…ط±ط§ط¬ط¹ط§طھ ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // ── قائمة مراجعات مكان الفلوس ────────────────────────
                     if (jar.moneyLocationReviews.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      _jarSheetSectionHeader('ظٹط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط©'),
+                      _jarSheetSectionHeader('يحتاج مراجعة'),
                       const SizedBox(height: 8),
                       ...jar.moneyLocationReviews.map(
                         (review) => _MoneyLocationReviewCard(
@@ -507,9 +509,9 @@ Future<void> showJarDetailsSheet({
                         ),
                       ),
                     ],
-                    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // ─────────────────────────────────────────────────────
                     const SizedBox(height: 16),
-                    _jarSheetSectionHeader('ط§ظ„ظ…ط¹ط§ظ…ظ„ط§طھ'),
+                    _jarSheetSectionHeader('المعاملات'),
                     const SizedBox(height: 8),
                     StatefulBuilder(
                       builder: (ctx2, setFilter) {
@@ -540,10 +542,10 @@ Future<void> showJarDetailsSheet({
                                     child: Row(
                                       children: [
                                         for (final f in [
-                                          ('all', 'ط§ظ„ظƒظ„'),
-                                          ('income', 'ط¯ط®ظ„'),
-                                          ('expense', 'ط®طµظ…'),
-                                          ('transfer', 'طھط­ظˆظٹظ„'),
+                                          ('all', 'الكل'),
+                                          ('income', 'دخل'),
+                                          ('expense', 'خصم'),
+                                          ('transfer', 'تحويل'),
                                         ])
                                           GestureDetector(
                                             onTap: () => setSheet(() {
@@ -608,8 +610,7 @@ Future<void> showJarDetailsSheet({
                             const SizedBox(height: 10),
                             if (filtered.isEmpty)
                               const WalletInlineNote(
-                                  text:
-                                      'ظ„ط§ طھظˆط¬ط¯ ظ…ط¹ط§ظ…ظ„ط§طھ ظ„ظ‡ط°ظ‡ ط§ظ„ظپط¦ط©.')
+                                  text: 'لا توجد معاملات لعرضها.')
                             else
                               SharedTransactionDayGroups(
                                 transactions: filtered.toList(),
@@ -794,11 +795,14 @@ Future<void> _openWalletAllocationSheet({
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 16)),
-                        Text('ط£ظ…ط§ظƒظ† ط§ظ„ظپظ„ظˆط³',
-                            style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.75),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          'مكان الفلوس',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ]),
                   const Spacer(),
                   Container(
@@ -823,8 +827,7 @@ Future<void> _openWalletAllocationSheet({
               Expanded(
                 child: entries.isEmpty
                     ? Center(
-                        child: Text(
-                            'ظ„ط§ طھظˆط¬ط¯ ط£ظ…ط§ظƒظ† ظپظ„ظˆط³ ظ„ظ‡ط°ظ‡ ط§ظ„ظ…ط­ظپط¸ط©',
+                        child: Text('لا توجد أماكن فلوس داخل هذه المحفظة.',
                             style: TextStyle(
                                 color: accent.withValues(alpha: 0.5),
                                 fontWeight: FontWeight.w600)))
@@ -984,7 +987,7 @@ Future<void> _openDistributionEntryActions({
           children: [
             _distributionActionTile(
               icon: Icons.drive_file_move_rounded,
-              label: 'ظ†ظ‚ظ„',
+              label: 'نقل',
               onTap: () {
                 Navigator.pop(sheetCtx);
                 _openMoveDistributionEntrySheet(
@@ -997,7 +1000,7 @@ Future<void> _openDistributionEntryActions({
             ),
             _distributionActionTile(
               icon: Icons.edit_outlined,
-              label: 'طھط¹ط¯ظٹظ„ ط§ظ„ظ…ط¨ظ„ط؛',
+              label: 'تعديل',
               onTap: () {
                 Navigator.pop(sheetCtx);
                 _openEditDistributionEntryAmountSheet(
@@ -1010,7 +1013,7 @@ Future<void> _openDistributionEntryActions({
             ),
             _distributionActionTile(
               icon: Icons.delete_outline_rounded,
-              label: 'ط­ط°ظپ',
+              label: 'حذف',
               isDestructive: true,
               onTap: () async {
                 await cubit.deleteMoneyDistributionEntry(entry.id);
@@ -1070,7 +1073,7 @@ Future<void> _openMoveDistributionEntrySheet({
             _walletDropdown(
               cubit: cubit,
               value: walletId,
-              label: 'ط§ظ„ظ…ط­ظپط¸ط©',
+              label: 'المحفظة',
               accent: accent,
               onChanged: (value) => setSheet(() => walletId = value),
             ),
@@ -1088,7 +1091,7 @@ Future<void> _openMoveDistributionEntrySheet({
                 }
               },
               style: FilledButton.styleFrom(backgroundColor: accent),
-              child: const Text('طھط£ظƒظٹط¯'),
+              child: const Text('تأكيد'),
             ),
           ],
         ),
@@ -1126,7 +1129,7 @@ Future<void> _openEditDistributionEntryAmountSheet({
             controller: amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: 'ط§ظ„ظ…ط¨ظ„ط؛',
+              labelText: 'المبلغ',
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: accent, width: 2),
@@ -1147,7 +1150,7 @@ Future<void> _openEditDistributionEntryAmountSheet({
               }
             },
             style: FilledButton.styleFrom(backgroundColor: accent),
-            child: const Text('طھط£ظƒظٹط¯'),
+            child: const Text('تأكيد'),
           ),
         ],
       ),
@@ -1189,15 +1192,15 @@ Future<void> _openDistributionManagerSheet({
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'ط¥ط¯ط§ط±ط© طھظˆط²ظٹط¹ ط§ظ„ط£ظ…ظˆط§ظ„',
+              'إدارة مكان الفلوس',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 16),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'add', label: Text('ط¥ط¶ط§ظپط©')),
-                ButtonSegment(value: 'remove', label: Text('ط¥ط²ط§ظ„ط©')),
-                ButtonSegment(value: 'transfer', label: Text('ظ†ظ‚ظ„')),
+                ButtonSegment(value: 'add', label: Text('إضافة')),
+                ButtonSegment(value: 'remove', label: Text('حذف')),
+                ButtonSegment(value: 'transfer', label: Text('نقل')),
               ],
               selected: {mode},
               onSelectionChanged: (value) => setSheet(() => mode = value.first),
@@ -1207,7 +1210,7 @@ Future<void> _openDistributionManagerSheet({
               _walletDropdown(
                 cubit: cubit,
                 value: fromWalletId,
-                label: 'ظ…ظ† ظ…ط­ظپط¸ط©',
+                label: 'من محفظة',
                 accent: accent,
                 onChanged: (value) => setSheet(() => fromWalletId = value),
               ),
@@ -1215,7 +1218,7 @@ Future<void> _openDistributionManagerSheet({
               _walletDropdown(
                 cubit: cubit,
                 value: toWalletId,
-                label: 'ط¥ظ„ظ‰ ظ…ط­ظپط¸ط©',
+                label: 'إلى محفظة',
                 accent: accent,
                 onChanged: (value) => setSheet(() => toWalletId = value),
               ),
@@ -1223,7 +1226,7 @@ Future<void> _openDistributionManagerSheet({
               _walletDropdown(
                 cubit: cubit,
                 value: walletId,
-                label: 'ط§ظ„ظ…ط­ظپط¸ط©',
+                label: 'المحفظة',
                 accent: accent,
                 onChanged: (value) => setSheet(() => walletId = value),
               ),
@@ -1233,7 +1236,7 @@ Future<void> _openDistributionManagerSheet({
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: 'ط§ظ„ظ…ط¨ظ„ط؛',
+                labelText: 'المبلغ',
                 border: const OutlineInputBorder(),
                 focusedBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: accent, width: 2),
@@ -1271,7 +1274,7 @@ Future<void> _openDistributionManagerSheet({
                 }
               },
               style: FilledButton.styleFrom(backgroundColor: accent),
-              child: const Text('طھط£ظƒظٹط¯'),
+              child: const Text('تأكيد'),
             ),
           ],
         ),
@@ -1393,17 +1396,20 @@ Widget _jarSheetSectionHeader(String title) {
   );
 }
 
-// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-// ط¨ط·ط§ظ‚ط© ظ…ط±ط§ط¬ط¹ط© ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³
-// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// ─────────────────────────────────────────────────────────────
+// بطاقة مكان الفلوس
+// ─────────────────────────────────────────────────────────────
 
-/// ط¨ط·ط§ظ‚ط© طھط¹ط±ط¶ ط¹ظ†طµط± ظ…ط±ط§ط¬ط¹ط© ظ…ظƒط§ظ† ظپظ„ظˆط³ ط¯ط§ط®ظ„ طھظپط§طµظٹظ„ ط§ظ„ط­طµط§ظ„ط©.
+/// تعرض ملخص أماكن الفلوس داخل الحصالة.
 ///
-/// طھظڈط¹ط±ط¶ ط¹ظ†ط¯ظ…ط§ ظٹظƒطھط´ظپ [MoneyLocationEngine] طھط¹ط§ط±ط¶ط§ظ‹ ظپظٹ ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³
-/// (ظ…ط«ظ„: طµط±ظپ ظ…ظ† ظ…ط­ظپط¸ط© ط؛ظٹط± ظ…ط¯ط±ط¬ط© ظپظٹ ظ…طµط§ط¯ط± ط§ظ„ط­طµط§ظ„ط©طŒ ط£ظˆ ظ…ط¬ظ…ظˆط¹ طھطµظ†ظٹظپط§طھ
-/// ظٹطھط¬ط§ظˆط² ط±طµظٹط¯ ط§ظ„ط­طµط§ظ„ط©).
+/// توضح المحافظ التي تحتوي على جزء من رصيد الحصالة
+/// مع المبلغ الموجود في كل محفظة.
 ///
-/// طھطھظٹط­ ظ„ظ„ظ…ط³طھط®ط¯ظ… طھط¬ط§ظ‡ظ„ ط§ظ„ظ…ط±ط§ط¬ط¹ط© ط£ظˆ ط­ظ„ظ‘ظ‡ط§ ظٹط¯ظˆظٹط§ظ‹ ط¹ط¨ط± ط¶ط¨ط· ظ…طµط§ط¯ط± ط§ظ„ط­طµط§ظ„ط©.
+/// إذا كان جزء من الرصيد غير محدد مكانه، فسيظهر ضمن
+/// "غير معروف".
+///
+/// هذه البطاقة تعرض بيانات مكان الفلوس فقط، ولا تعرض
+/// المعاملات أو تعدل الأرصدة المالية.
 class _MoneyLocationReviewCard extends StatelessWidget {
   const _MoneyLocationReviewCard({
     required this.review,
@@ -1420,13 +1426,16 @@ class _MoneyLocationReviewCard extends StatelessWidget {
   String get _typeLabel {
     switch (review.type) {
       case 'spending-wallet-mismatch':
-        return 'طµظڈط±ظپ ظ…ظ† ظ…ط­ظپط¸ط© ط؛ظٹط± ظ…ط¯ط±ط¬ط© ظپظٹ ط£ظ…ط§ظƒظ† ط§ظ„ط£ظ…ظˆط§ظ„';
+        return 'تم الإنفاق من محفظة غير مسجلة كمكان للفلوس';
+
       case 'source-went-negative':
-        return 'طھط¹ط§ط±ط¶ ظپظٹ طھطµظ†ظٹظپ ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³';
+        return 'قيمة مكان الفلوس غير صالحة';
+
       case 'labeled-exceeds-balance':
-        return 'ظ…ط¬ظ…ظˆط¹ ط§ظ„طھطµظ†ظٹظپط§طھ ظٹطھط¬ط§ظˆط² ط§ظ„ط±طµظٹط¯';
+        return 'إجمالي أماكن الفلوس أكبر من رصيد الحصالة';
+
       default:
-        return 'ظٹط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط©';
+        return 'يحتاج مراجعة';
     }
   }
 
@@ -1499,7 +1508,7 @@ class _MoneyLocationReviewCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               ),
               child: const Text(
-                'طھط¬ط§ظ‡ظ„',
+                'تأكيد',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
