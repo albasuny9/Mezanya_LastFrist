@@ -809,6 +809,36 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  /// بعد كل حفظ في مدير مكان الفلوس: يُعيد حساب التوزيع.
+  /// إذا أصبح التوزيع متسقاً (الإجمالي المعروف ≤ رصيد الحصالة)،
+  /// يُحلّ تلقائياً جميع المراجعات النشطة لهذه الحصالة.
+  /// لا يُعدَّل jar.balance أو wallet.balance أو أي رصيد مالي.
+  Future<void> autoResolveReviewsIfConsistent(String jarId) async {
+    final jar = state.budgetSetup.linkedWallets
+        .where((j) => j.id == jarId)
+        .firstOrNull;
+    if (jar == null || jar.moneyLocationReviews.isEmpty) return;
+
+    final totalKnown = DistributionEngine.totalForJar(
+      state.moneyDistributions,
+      jarId,
+    );
+    if (totalKnown > jar.balance + 0.01) return;
+
+    var updatedJar = jar;
+    for (final review in jar.moneyLocationReviews) {
+      updatedJar = MoneyLocationEngine.resolveReview(
+        jar: updatedJar,
+        reviewId: review.id,
+      );
+    }
+
+    final jars = state.budgetSetup.linkedWallets
+        .map((j) => j.id == jarId ? updatedJar : j)
+        .toList();
+    await updateBudgetSetup(state.budgetSetup.copyWith(linkedWallets: jars));
+  }
+
   Future<void> addLinkedWallet(LinkedWalletEntity linkedWallet) async {
     await updateBudgetSetup(state.budgetSetup.copyWith(
         linkedWallets: [...state.budgetSetup.linkedWallets, linkedWallet]));

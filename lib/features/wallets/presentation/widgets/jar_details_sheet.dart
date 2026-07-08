@@ -52,6 +52,7 @@ List<DistributionEntry> jarDistributionEntries(
 }
 
 double jarUnknownDistribution(AppStateEntity state, LinkedWalletEntity jar) {
+  if (jar.balance <= 0) return 0;
   final known = DistributionEngine.totalForJar(
     jarDistributionEntries(state, jar.id),
     jar.id,
@@ -1180,105 +1181,118 @@ Future<void> _openDistributionManagerSheet({
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     builder: (sheetCtx) => StatefulBuilder(
-      builder: (sheetCtx, setSheet) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          20,
-          20,
-          MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'إدارة مكان الفلوس',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 16),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'add', label: Text('إضافة')),
-                ButtonSegment(value: 'remove', label: Text('حذف')),
-                ButtonSegment(value: 'transfer', label: Text('نقل')),
-              ],
-              selected: {mode},
-              onSelectionChanged: (value) => setSheet(() => mode = value.first),
-            ),
-            const SizedBox(height: 16),
-            if (mode == 'transfer') ...[
-              _walletDropdown(
-                cubit: cubit,
-                value: fromWalletId,
-                label: 'من محفظة',
-                accent: accent,
-                onChanged: (value) => setSheet(() => fromWalletId = value),
+      builder: (sheetCtx, setSheet) {
+        final jarAllocations = DistributionEngine.summaryForJar(
+          jarDistributionEntries(cubit.state, jar.id),
+          jar.id,
+        );
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'إدارة مكان الفلوس',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
               ),
+              const SizedBox(height: 16),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'add', label: Text('إضافة')),
+                  ButtonSegment(value: 'remove', label: Text('حذف')),
+                  ButtonSegment(value: 'transfer', label: Text('نقل')),
+                ],
+                selected: {mode},
+                onSelectionChanged: (value) =>
+                    setSheet(() => mode = value.first),
+              ),
+              const SizedBox(height: 16),
+              if (mode == 'transfer') ...[
+                _walletDropdown(
+                  cubit: cubit,
+                  value: fromWalletId,
+                  label: 'من محفظة',
+                  accent: accent,
+                  jarAllocations: jarAllocations,
+                  onChanged: (value) => setSheet(() => fromWalletId = value),
+                ),
+                const SizedBox(height: 12),
+                _walletDropdown(
+                  cubit: cubit,
+                  value: toWalletId,
+                  label: 'إلى محفظة',
+                  accent: accent,
+                  jarAllocations: jarAllocations,
+                  onChanged: (value) => setSheet(() => toWalletId = value),
+                ),
+              ] else
+                _walletDropdown(
+                  cubit: cubit,
+                  value: walletId,
+                  label: 'المحفظة',
+                  accent: accent,
+                  jarAllocations: jarAllocations,
+                  onChanged: (value) => setSheet(() => walletId = value),
+                ),
               const SizedBox(height: 12),
-              _walletDropdown(
-                cubit: cubit,
-                value: toWalletId,
-                label: 'إلى محفظة',
-                accent: accent,
-                onChanged: (value) => setSheet(() => toWalletId = value),
-              ),
-            ] else
-              _walletDropdown(
-                cubit: cubit,
-                value: walletId,
-                label: 'المحفظة',
-                accent: accent,
-                onChanged: (value) => setSheet(() => walletId = value),
-              ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: 'المبلغ',
-                border: const OutlineInputBorder(),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: accent, width: 2),
+              TextField(
+                controller: amountCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'المبلغ',
+                  border: const OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: accent, width: 2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () async {
-                final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
-                try {
-                  if (mode == 'add') {
-                    await cubit.addMoneyDistribution(
-                      jarId: jar.id,
-                      walletId: walletId,
-                      amount: amount,
-                    );
-                  } else if (mode == 'remove') {
-                    await cubit.removeMoneyDistribution(
-                      jarId: jar.id,
-                      walletId: walletId,
-                      amount: amount,
-                    );
-                  } else {
-                    await cubit.transferMoneyDistribution(
-                      jarId: jar.id,
-                      fromWalletId: fromWalletId,
-                      toWalletId: toWalletId,
-                      amount: amount,
-                    );
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () async {
+                  final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+                  try {
+                    if (mode == 'add') {
+                      await cubit.addMoneyDistribution(
+                        jarId: jar.id,
+                        walletId: walletId,
+                        amount: amount,
+                      );
+                    } else if (mode == 'remove') {
+                      await cubit.removeMoneyDistribution(
+                        jarId: jar.id,
+                        walletId: walletId,
+                        amount: amount,
+                      );
+                    } else {
+                      await cubit.transferMoneyDistribution(
+                        jarId: jar.id,
+                        fromWalletId: fromWalletId,
+                        toWalletId: toWalletId,
+                        amount: amount,
+                      );
+                    }
+                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    await cubit.autoResolveReviewsIfConsistent(jar.id);
+                  } on DistributionValidationException catch (error) {
+                    if (sheetCtx.mounted) {
+                      _showDistributionError(sheetCtx, error.message);
+                    }
                   }
-                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } on DistributionValidationException catch (error) {
-                  _showDistributionError(sheetCtx, error.message);
-                }
-              },
-              style: FilledButton.styleFrom(backgroundColor: accent),
-              child: const Text('تأكيد'),
-            ),
-          ],
-        ),
-      ),
+                },
+                style: FilledButton.styleFrom(backgroundColor: accent),
+                child: const Text('تأكيد'),
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }
@@ -1289,6 +1303,7 @@ Widget _walletDropdown({
   required String label,
   required Color accent,
   required ValueChanged<String> onChanged,
+  Map<String, double>? jarAllocations,
 }) {
   return DropdownButtonFormField<String>(
     value: value,
@@ -1308,11 +1323,14 @@ Widget _walletDropdown({
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(wallet.name),
-                Text(
-                  'Available: ${wallet.balance.toStringAsFixed(2)}',
-                  style:
-                      const TextStyle(fontSize: 11, color: Color(0xFF8A7F72)),
-                ),
+                if (jarAllocations != null)
+                  Text(
+                    'في الحصالة: ${(jarAllocations[wallet.id] ?? 0).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF8A7F72),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1451,69 +1469,105 @@ class _MoneyLocationReviewCard extends StatelessWidget {
           border:
               Border.all(color: const Color(0xFFD4A017).withValues(alpha: 0.4)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
-              Icons.info_outline_rounded,
-              color: Color(0xFFC58B00),
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _typeLabel,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: Color(0xFF7A5500),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${review.amount.toStringAsFixed(2)} '
-                    '${currencyLabelAr(state.currencyCode)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: Color(0xFF7A5500),
-                    ),
-                  ),
-                  if (review.notes != null && review.notes!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        review.notes!,
+            Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFFC58B00),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _typeLabel,
                         style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFFA07020),
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: Color(0xFF7A5500),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                await cubit.resolveMoneyLocationReview(
-                  jarId: jar.id,
-                  reviewId: review.id,
-                );
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFC58B00),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              ),
-              child: const Text(
-                'تأكيد',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
+                      const SizedBox(height: 2),
+                      Text(
+                        '${review.amount.toStringAsFixed(2)} '
+                        '${currencyLabelAr(state.currencyCode)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: Color(0xFF7A5500),
+                        ),
+                      ),
+                      if (review.notes != null && review.notes!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            review.notes!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFA07020),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () async {
+                    await cubit.resolveMoneyLocationReview(
+                      jarId: jar.id,
+                      reviewId: review.id,
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFC58B00),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text(
+                    'تجاهل',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                FilledButton(
+                  onPressed: () async {
+                    await _openDistributionManagerSheet(
+                      context: context,
+                      cubit: cubit,
+                      jar: jar,
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFC58B00),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'صلّح الآن',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
