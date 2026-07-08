@@ -25,14 +25,27 @@
 /// استخدام [DistributionEntry] كنموذج مستقل للتحليل والتحقق متاح
 /// من خلال [DistributionEntry.fromJarWalletSource].
 enum DistributionOrigin {
-  /// أُنشئ تلقائياً عند معالجة معاملة (income / jarFunding / etc.)
+  /// أُنشئ تلقائياً بعد انتهاء عملية مالية في طبقة التطبيق.
   automatic,
 
-  /// أُنشئ يدوياً من قِبَل المستخدم عبر [relabelJarWalletSource]
+  /// أُنشئ يدوياً من قِبَل المستخدم.
   manual,
+
+  /// أُنشئ من نقل يدوي بين محافظ.
+  transfer,
 
   /// أُنشئ أثناء ترحيل البيانات القديمة
   migration,
+
+  /// أُنشئ أثناء استرداد بيانات غير مكتملة.
+  recovery,
+}
+
+DistributionOrigin distributionOriginFromValue(String? value) {
+  for (final origin in DistributionOrigin.values) {
+    if (origin.name == value) return origin;
+  }
+  return DistributionOrigin.manual;
 }
 
 class DistributionEntry {
@@ -45,7 +58,6 @@ class DistributionEntry {
     required this.createdAt,
     this.linkedTransactionId,
     this.updatedAt,
-    this.notes,
   });
 
   /// معرّف فريد للتخصيص
@@ -72,9 +84,6 @@ class DistributionEntry {
   /// معرّف المعاملة المرتبطة (للتخصيصات التلقائية)
   final String? linkedTransactionId;
 
-  /// ملاحظة اختيارية
-  final String? notes;
-
   /// يُنشئ [DistributionEntry] مؤقتاً من بيانات [JarWalletSource] الحالية
   /// بغرض التحليل والتحقق فقط — لا يُستخدم للتخزين.
   factory DistributionEntry.fromWalletSource({
@@ -91,6 +100,30 @@ class DistributionEntry {
         createdAt: DateTime(2000),
       );
 
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'jarId': jarId,
+        'walletId': walletId,
+        'amount': amount,
+        'origin': origin.name,
+        'linkedTransactionId': linkedTransactionId,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt?.toIso8601String(),
+      };
+
+  factory DistributionEntry.fromMap(Map<String, dynamic> map) =>
+      DistributionEntry(
+        id: map['id'] as String? ?? '',
+        jarId: map['jarId'] as String? ?? '',
+        walletId: map['walletId'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        origin: distributionOriginFromValue(map['origin'] as String?),
+        linkedTransactionId: map['linkedTransactionId'] as String?,
+        createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+            DateTime.now(),
+        updatedAt: DateTime.tryParse(map['updatedAt'] as String? ?? ''),
+      );
+
   DistributionEntry copyWith({
     String? id,
     String? jarId,
@@ -100,7 +133,6 @@ class DistributionEntry {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? linkedTransactionId,
-    String? notes,
   }) =>
       DistributionEntry(
         id: id ?? this.id,
@@ -111,7 +143,6 @@ class DistributionEntry {
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         linkedTransactionId: linkedTransactionId ?? this.linkedTransactionId,
-        notes: notes ?? this.notes,
       );
 
   @override

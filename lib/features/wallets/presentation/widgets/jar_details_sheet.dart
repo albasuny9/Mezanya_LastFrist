@@ -8,19 +8,54 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../budget/domain/entities/money_location_review_entity.dart';
+import '../../../money_distribution/domain/entities/distribution_entry.dart';
+import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import 'wallet_shared_widgets.dart';
 
-enum _JarAdjustmentMode { allocate }
-
-/// توزيع الحصالة على المحافظ — مبني على walletSources
+/// طھظˆط²ظٹط¹ ط§ظ„ط­طµط§ظ„ط© ط¹ظ„ظ‰ ط§ظ„ظ…ط­ط§ظپط¸ â€” ظ…ط¨ظ†ظٹ ط¹ظ„ظ‰ walletSources
 Map<String, double> jarWalletDistribution(AppStateEntity state, String jarId) {
+  final liveEntries = jarDistributionEntries(state, jarId);
+  if (liveEntries.isNotEmpty) {
+    return DistributionEngine.summaryForJar(liveEntries, jarId);
+  }
   final jar =
       state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
   if (jar == null) return {};
   return {for (final s in jar.walletSources) s.walletId: s.amount};
+}
+
+List<DistributionEntry> jarDistributionEntries(
+  AppStateEntity state,
+  String jarId,
+) {
+  final entries = state.moneyDistributions
+      .where((entry) => entry.jarId == jarId && entry.amount > 0)
+      .toList();
+  if (entries.isNotEmpty) return entries;
+
+  final jar =
+      state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
+  if (jar == null) return const [];
+  return [
+    for (final source in jar.walletSources.where((item) => item.amount > 0))
+      DistributionEntry.fromWalletSource(
+        jarId: jarId,
+        walletId: source.walletId,
+        amount: source.amount,
+      ),
+  ];
+}
+
+double jarUnknownDistribution(AppStateEntity state, LinkedWalletEntity jar) {
+  final known = DistributionEngine.totalForJar(
+    jarDistributionEntries(state, jar.id),
+    jar.id,
+  );
+  final unknown = jar.balance - known;
+  return unknown > 0 ? unknown : 0;
 }
 
 bool isJarWalletLocationTransaction(TransactionEntity transaction) {
@@ -36,8 +71,6 @@ Color parseJarSheetColor(String hex) {
   final value = int.tryParse(normalized, radix: 16) ?? 0xFF165B47;
   return Color(0xFF000000 | value);
 }
-
-double _jarUnallocatedAmount(LinkedWalletEntity jar) => jar.unlabeledAmount;
 
 Future<void> showJarDetailsSheet({
   required BuildContext context,
@@ -72,6 +105,7 @@ Future<void> showJarDetailsSheet({
           final currentJar = jarMatches.first;
           final state = liveState;
           final distribution = jarWalletDistribution(state, jarId);
+          final unknownDistribution = jarUnknownDistribution(state, currentJar);
           final relevantTransactions = state.transactions
               .where((t) =>
                   t.toWalletId == jarId ||
@@ -170,7 +204,7 @@ Future<void> showJarDetailsSheet({
                                     Navigator.of(ctx).pop();
                                     onEditJar(jar);
                                   },
-                                  tooltip: 'تعديل',
+                                  tooltip: 'طھط¹ط¯ظٹظ„',
                                 ),
                               ],
                             ),
@@ -182,14 +216,14 @@ Future<void> showJarDetailsSheet({
                               children: [
                                 Expanded(
                                   child: _jarSheetGlassMetric(
-                                    label: 'الرصيد الكلي',
+                                    label: 'ط§ظ„ط±طµظٹط¯ ط§ظ„ظƒظ„ظٹ',
                                     value: jar.balance.toStringAsFixed(2),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: _jarSheetGlassMetric(
-                                    label: 'غير محجوز',
+                                    label: 'ط؛ظٹط± ظ…ط­ط¬ظˆط²',
                                     value:
                                         jar.unlabeledAmount.toStringAsFixed(2),
                                   ),
@@ -226,8 +260,8 @@ Future<void> showJarDetailsSheet({
                                   const SizedBox(width: 8),
                                   Text(
                                     showWallets
-                                        ? 'إخفاء مكان الفلوس'
-                                        : 'مكان الفلوس',
+                                        ? 'ط¥ط®ظپط§ط، ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³'
+                                        : 'ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,
@@ -270,7 +304,7 @@ Future<void> showJarDetailsSheet({
                                             const SizedBox(width: 10),
                                             const Expanded(
                                               child: Text(
-                                                'توزيع الفلوس',
+                                                'طھظˆط²ظٹط¹ ط§ظ„ظپظ„ظˆط³',
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w900,
@@ -280,12 +314,10 @@ Future<void> showJarDetailsSheet({
                                             ),
                                             GestureDetector(
                                               onTap: () =>
-                                                  _openJarAdjustmentDialog(
+                                                  _openDistributionManagerSheet(
                                                 context: context,
                                                 cubit: cubit,
                                                 jar: jar,
-                                                mode:
-                                                    _JarAdjustmentMode.allocate,
                                               ),
                                               child: Container(
                                                 padding:
@@ -306,7 +338,7 @@ Future<void> showJarDetailsSheet({
                                                         size: 13,
                                                         color: Colors.white),
                                                     SizedBox(width: 4),
-                                                    Text('تخصيص',
+                                                    Text('ط¥ط¯ط§ط±ط©',
                                                         style: TextStyle(
                                                             color: Colors.white,
                                                             fontWeight:
@@ -319,7 +351,8 @@ Future<void> showJarDetailsSheet({
                                           ],
                                         ),
                                         const SizedBox(height: 14),
-                                        if (distribution.isEmpty)
+                                        if (distribution.isEmpty &&
+                                            unknownDistribution <= 0.01)
                                           Container(
                                             padding: const EdgeInsets.all(16),
                                             decoration: BoxDecoration(
@@ -332,7 +365,7 @@ Future<void> showJarDetailsSheet({
                                               ),
                                             ),
                                             child: const Text(
-                                              'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
+                                              'ظ„ط§ ظٹظˆط¬ط¯ طھط®طµظٹطµ ظ…ظ† ط£ظٹ ظ…ط­ظپط¸ط© ظ„ظ‡ط°ظ‡ ط§ظ„ط­طµط§ظ„ط© ط­طھظ‰ ط§ظ„ط¢ظ†.',
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
                                                 color: Color(0xFF8A7F72),
@@ -341,14 +374,14 @@ Future<void> showJarDetailsSheet({
                                               ),
                                             ),
                                           )
-                                        else
+                                        else ...[
                                           ...distribution.entries.map((e) {
                                             final matchedWallets = state.wallets
                                                 .where((w) => w.id == e.key)
                                                 .toList();
                                             final walletName =
                                                 matchedWallets.isEmpty
-                                                    ? 'محفظة'
+                                                    ? 'ظ…ط­ظپط¸ط©'
                                                     : matchedWallets.first.name;
                                             final walletIcon = matchedWallets
                                                     .isEmpty
@@ -372,8 +405,6 @@ Future<void> showJarDetailsSheet({
                                                           ? null
                                                           : matchedWallets
                                                               .first.iconColor,
-                                                  relevantTransactions:
-                                                      relevantTransactions,
                                                 ),
                                                 child: Container(
                                                   padding: const EdgeInsets
@@ -447,6 +478,13 @@ Future<void> showJarDetailsSheet({
                                               ),
                                             );
                                           }),
+                                          if (unknownDistribution > 0.01)
+                                            _DistributionSummaryTile(
+                                              name: 'ط؛ظٹط± ظ…ط¹ط±ظˆظپ',
+                                              amount: unknownDistribution,
+                                              currencyCode: state.currencyCode,
+                                            ),
+                                        ],
                                       ],
                                     ),
                                   )
@@ -455,10 +493,10 @@ Future<void> showJarDetailsSheet({
                         ],
                       ),
                     ),
-                    // ── قائمة مراجعات مكان الفلوس ────────────────────────
+                    // â”€â”€ ظ‚ط§ط¦ظ…ط© ظ…ط±ط§ط¬ط¹ط§طھ ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     if (jar.moneyLocationReviews.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      _jarSheetSectionHeader('يحتاج مراجعة'),
+                      _jarSheetSectionHeader('ظٹط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط©'),
                       const SizedBox(height: 8),
                       ...jar.moneyLocationReviews.map(
                         (review) => _MoneyLocationReviewCard(
@@ -469,9 +507,9 @@ Future<void> showJarDetailsSheet({
                         ),
                       ),
                     ],
-                    // ─────────────────────────────────────────────────────
+                    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     const SizedBox(height: 16),
-                    _jarSheetSectionHeader('المعاملات'),
+                    _jarSheetSectionHeader('ط§ظ„ظ…ط¹ط§ظ…ظ„ط§طھ'),
                     const SizedBox(height: 8),
                     StatefulBuilder(
                       builder: (ctx2, setFilter) {
@@ -502,10 +540,10 @@ Future<void> showJarDetailsSheet({
                                     child: Row(
                                       children: [
                                         for (final f in [
-                                          ('all', 'الكل'),
-                                          ('income', 'دخل'),
-                                          ('expense', 'خصم'),
-                                          ('transfer', 'تحويل'),
+                                          ('all', 'ط§ظ„ظƒظ„'),
+                                          ('income', 'ط¯ط®ظ„'),
+                                          ('expense', 'ط®طµظ…'),
+                                          ('transfer', 'طھط­ظˆظٹظ„'),
                                         ])
                                           GestureDetector(
                                             onTap: () => setSheet(() {
@@ -570,7 +608,8 @@ Future<void> showJarDetailsSheet({
                             const SizedBox(height: 10),
                             if (filtered.isEmpty)
                               const WalletInlineNote(
-                                  text: 'لا توجد معاملات لهذه الفئة.')
+                                  text:
+                                      'ظ„ط§ طھظˆط¬ط¯ ظ…ط¹ط§ظ…ظ„ط§طھ ظ„ظ‡ط°ظ‡ ط§ظ„ظپط¦ط©.')
                             else
                               SharedTransactionDayGroups(
                                 transactions: filtered.toList(),
@@ -612,7 +651,6 @@ class JarCompactSummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final distribution = jarWalletDistribution(state, jar.id);
     final accent = parseJarSheetColor(jar.iconColor);
 
     return GestureDetector(
@@ -686,7 +724,6 @@ Future<void> _openWalletAllocationSheet({
   required String walletName,
   required String walletIcon,
   String? walletColor,
-  required List<TransactionEntity> relevantTransactions,
 }) async {
   final jarId = jar.id;
   final accentBase = parseJarSheetColor(walletColor ?? jar.iconColor);
@@ -705,45 +742,14 @@ Future<void> _openWalletAllocationSheet({
             .toList();
         final currentJar = jarMatches.isEmpty ? jar : jarMatches.first;
         final accent = accentBase;
-
-        final liveRelevantTransactions = liveState.transactions
-            .where((t) =>
-                t.toWalletId == jarId ||
-                t.walletId == jarId ||
-                t.fromWalletId == jarId ||
-                (t.type == TransactionType.income.value &&
-                    t.toWalletId == jarId))
-            .where((t) =>
-                t.transferType == TransferType.jarAllocation.value ||
-                t.transferType == TransferType.jarAllocationCancel.value ||
-                t.transferType == TransferType.jarAllocationSpend.value ||
-                t.transferType == TransferType.jarFunding.value ||
-                t.transferType == TransferType.jarFundingPhysical.value ||
-                t.transferType == TransferType.depositWithJarLabel.value ||
-                t.transferType == TransferType.allocationToJar.value ||
-                t.transferType == TransferType.jarToAllocation.value ||
-                t.transferType == TransferType.jarToJar.value ||
-                (t.type == TransactionType.income.value &&
-                    t.budgetScope == BudgetScope.withinBudget.value))
+        final entries = jarDistributionEntries(liveState, jarId)
+            .where((entry) => entry.walletId == walletId)
             .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        final walletTxns = liveRelevantTransactions.where((t) {
-          if (t.walletId != walletId && t.fromWalletId != walletId) {
-            return false;
-          }
-          return t.transferType == TransferType.jarAllocation.value ||
-              t.transferType == TransferType.jarAllocationCancel.value ||
-              t.transferType == TransferType.jarFunding.value ||
-              t.transferType == TransferType.jarFundingPhysical.value ||
-              t.transferType == TransferType.depositWithJarLabel.value ||
-              t.transferType == TransferType.jarToJar.value;
-        }).toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        final currentTotal = currentJar.walletSources
-            .where((s) => s.walletId == walletId)
-            .fold<double>(0, (sum, s) => sum + s.amount);
+        final currentTotal = entries.fold<double>(
+          0,
+          (sum, entry) => sum + entry.amount,
+        );
 
         return DraggableScrollableSheet(
           initialChildSize: 0.6,
@@ -788,7 +794,7 @@ Future<void> _openWalletAllocationSheet({
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 16)),
-                        Text('معاملات الحجز',
+                        Text('ط£ظ…ط§ظƒظ† ط§ظ„ظپظ„ظˆط³',
                             style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.75),
                                 fontSize: 12,
@@ -815,38 +821,32 @@ Future<void> _openWalletAllocationSheet({
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: walletTxns.isEmpty
+                child: entries.isEmpty
                     ? Center(
-                        child: Text('لا توجد معاملات حجز لهذه المحفظة',
+                        child: Text(
+                            'ظ„ط§ طھظˆط¬ط¯ ط£ظ…ط§ظƒظ† ظپظ„ظˆط³ ظ„ظ‡ط°ظ‡ ط§ظ„ظ…ط­ظپط¸ط©',
                             style: TextStyle(
                                 color: accent.withValues(alpha: 0.5),
                                 fontWeight: FontWeight.w600)))
                     : ListView(
                         controller: ctrl,
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                        children: [
-                          SharedTransactionDayGroups(
-                            transactions: walletTxns,
-                            appState: liveState,
-                            viewingContextId: currentJar.id,
-                            onTap: (_) => _openReservationLabelEditor(
-                              context: bCtx,
-                              cubit: cubit,
-                              jar: currentJar,
-                              walletId: walletId,
-                              currentAmount: currentJar.walletSources
-                                  .where((s) => s.walletId == walletId)
-                                  .fold<double>(0, (s, e) => s + e.amount),
-                              accent: accent,
-                            ),
-                            onLongPress: (transaction) =>
-                                openTransactionDetailsSheet(
-                              bCtx,
-                              cubit: cubit,
-                              transaction: transaction,
-                            ),
-                          ),
-                        ],
+                        children: entries
+                            .map(
+                              (entry) => _DistributionEntryTile(
+                                entry: entry,
+                                jarName: currentJar.name,
+                                currencyCode: liveState.currencyCode,
+                                accent: accent,
+                                onTap: () => _openDistributionEntryActions(
+                                  context: bCtx,
+                                  cubit: cubit,
+                                  entry: entry,
+                                  accent: accent,
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
               ),
             ],
@@ -857,95 +857,297 @@ Future<void> _openWalletAllocationSheet({
   );
 }
 
-Future<void> _openReservationLabelEditor({
+class _DistributionSummaryTile extends StatelessWidget {
+  const _DistributionSummaryTile({
+    required this.name,
+    required this.amount,
+    required this.currencyCode,
+  });
+
+  final String name;
+  final double amount;
+  final String currencyCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            Text(
+              '${amount.toStringAsFixed(2)} ${currencyLabelAr(currencyCode)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DistributionEntryTile extends StatelessWidget {
+  const _DistributionEntryTile({
+    required this.entry,
+    required this.jarName,
+    required this.currencyCode,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final DistributionEntry entry;
+  final String jarName;
+  final String currencyCode;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final title =
+        entry.origin == DistributionOrigin.manual ? 'Manual' : jarName;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ),
+              Text(
+                '${entry.amount.toStringAsFixed(2)} ${currencyLabelAr(currencyCode)}',
+                style: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openDistributionEntryActions({
   required BuildContext context,
   required AppCubit cubit,
-  required LinkedWalletEntity jar,
-  required String walletId,
-  required double currentAmount,
+  required DistributionEntry entry,
   required Color accent,
 }) async {
-  final ctrl = TextEditingController(
-      text: currentAmount > 0 ? currentAmount.toStringAsFixed(2) : '');
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFFFFFBF1),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    builder: (sheetCtx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _distributionActionTile(
+              icon: Icons.drive_file_move_rounded,
+              label: 'ظ†ظ‚ظ„',
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _openMoveDistributionEntrySheet(
+                  context: context,
+                  cubit: cubit,
+                  entry: entry,
+                  accent: accent,
+                );
+              },
+            ),
+            _distributionActionTile(
+              icon: Icons.edit_outlined,
+              label: 'طھط¹ط¯ظٹظ„ ط§ظ„ظ…ط¨ظ„ط؛',
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _openEditDistributionEntryAmountSheet(
+                  context: context,
+                  cubit: cubit,
+                  entry: entry,
+                  accent: accent,
+                );
+              },
+            ),
+            _distributionActionTile(
+              icon: Icons.delete_outline_rounded,
+              label: 'ط­ط°ظپ',
+              isDestructive: true,
+              onTap: () async {
+                await cubit.deleteMoneyDistributionEntry(entry.id);
+                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _distributionActionTile({
+  required IconData icon,
+  required String label,
+  required VoidCallback onTap,
+  bool isDestructive = false,
+}) {
+  final color =
+      isDestructive ? const Color(0xFFDC2626) : const Color(0xFF165B47);
+  return ListTile(
+    leading: Icon(icon, color: color),
+    title: Text(
+      label,
+      style: TextStyle(color: color, fontWeight: FontWeight.w800),
+    ),
+    onTap: onTap,
+  );
+}
+
+Future<void> _openMoveDistributionEntrySheet({
+  required BuildContext context,
+  required AppCubit cubit,
+  required DistributionEntry entry,
+  required Color accent,
+}) async {
+  var walletId = entry.walletId;
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: const Color(0xFFFFFBF1),
     shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    builder: (sheetCtx) => StatefulBuilder(
+      builder: (sheetCtx, setSheet) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _walletDropdown(
+              cubit: cubit,
+              value: walletId,
+              label: 'ط§ظ„ظ…ط­ظپط¸ط©',
+              accent: accent,
+              onChanged: (value) => setSheet(() => walletId = value),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  await cubit.moveMoneyDistributionEntry(
+                    entryId: entry.id,
+                    toWalletId: walletId,
+                  );
+                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                } on DistributionValidationException catch (error) {
+                  _showDistributionError(sheetCtx, error.message);
+                }
+              },
+              style: FilledButton.styleFrom(backgroundColor: accent),
+              child: const Text('طھط£ظƒظٹط¯'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _openEditDistributionEntryAmountSheet({
+  required BuildContext context,
+  required AppCubit cubit,
+  required DistributionEntry entry,
+  required Color accent,
+}) async {
+  final amountCtrl =
+      TextEditingController(text: entry.amount.toStringAsFixed(2));
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(0xFFFFFBF1),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
     builder: (sheetCtx) => Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 24,
-        bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 32,
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('تعديل الحجز',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text(
-            'هذا التعديل يغيّر فقط توزيع الفلوس داخل الحصالة\nبدون أي تأثير على المعاملات المرتبطة.',
-            style: TextStyle(
-                fontSize: 12,
-                color: Colors.black.withValues(alpha: 0.5),
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 16),
           TextField(
-            controller: ctrl,
-            autofocus: true,
+            controller: amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: 'المبلغ المحجوز من هذه المحفظة',
-              suffixText: currencyLabelAr(cubit.state.currencyCode),
+              labelText: 'ط§ظ„ظ…ط¨ظ„ط؛',
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: accent, width: 2),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    await cubit.relabelJarWalletSource(
-                      jarId: jar.id,
-                      walletId: walletId,
-                      newAmount: 0,
-                    );
-                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  },
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: const Text('حذف الحجز'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFDC2626),
-                    side: const BorderSide(color: Color(0xFFDC2626)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () async {
-                    final val = double.tryParse(ctrl.text.trim()) ?? 0;
-                    await cubit.relabelJarWalletSource(
-                      jarId: jar.id,
-                      walletId: walletId,
-                      newAmount: val,
-                    );
-                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  },
-                  style: FilledButton.styleFrom(backgroundColor: accent),
-                  child: const Text('حفظ'),
-                ),
-              ),
-            ],
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () async {
+              try {
+                await cubit.editMoneyDistributionEntryAmount(
+                  entryId: entry.id,
+                  amount: double.tryParse(amountCtrl.text.trim()) ?? 0,
+                );
+                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+              } on DistributionValidationException catch (error) {
+                _showDistributionError(sheetCtx, error.message);
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: accent),
+            child: const Text('طھط£ظƒظٹط¯'),
           ),
         ],
       ),
@@ -953,356 +1155,194 @@ Future<void> _openReservationLabelEditor({
   );
 }
 
-Future<void> _openJarAdjustmentDialog({
+Future<void> _openDistributionManagerSheet({
   required BuildContext context,
   required AppCubit cubit,
   required LinkedWalletEntity jar,
-  required _JarAdjustmentMode mode,
-  String? initialWalletId,
 }) async {
-  final state = cubit.state;
-  final availableWallets = state.wallets;
-  if (availableWallets.isEmpty) return;
-
+  final amountCtrl = TextEditingController();
+  final wallets = cubit.state.wallets;
+  if (wallets.isEmpty) return;
+  var mode = 'add';
+  var walletId = wallets.first.id;
+  var fromWalletId = wallets.first.id;
+  var toWalletId = wallets.length > 1 ? wallets[1].id : wallets.first.id;
   final accent = parseJarSheetColor(jar.iconColor);
-  var walletId = availableWallets.any((wallet) => wallet.id == initialWalletId)
-      ? initialWalletId!
-      : availableWallets.first.id;
-  final amountController = TextEditingController();
-  final notesController = TextEditingController();
 
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: const Color(0xFFFFFBF1),
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setDialogState) {
-        final currentJar = cubit.state.budgetSetup.linkedWallets
-            .where((j) => j.id == jar.id)
-            .firstOrNull;
-        final unallocatedAmount = _jarUnallocatedAmount(currentJar ?? jar);
-        const title = 'تحديد مصدر أموال الحصالة';
+    builder: (sheetCtx) => StatefulBuilder(
+      builder: (sheetCtx, setSheet) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'ط¥ط¯ط§ط±ط© طھظˆط²ظٹط¹ ط§ظ„ط£ظ…ظˆط§ظ„',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 16),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'add', label: Text('ط¥ط¶ط§ظپط©')),
+                ButtonSegment(value: 'remove', label: Text('ط¥ط²ط§ظ„ط©')),
+                ButtonSegment(value: 'transfer', label: Text('ظ†ظ‚ظ„')),
+              ],
+              selected: {mode},
+              onSelectionChanged: (value) => setSheet(() => mode = value.first),
+            ),
+            const SizedBox(height: 16),
+            if (mode == 'transfer') ...[
+              _walletDropdown(
+                cubit: cubit,
+                value: fromWalletId,
+                label: 'ظ…ظ† ظ…ط­ظپط¸ط©',
+                accent: accent,
+                onChanged: (value) => setSheet(() => fromWalletId = value),
+              ),
+              const SizedBox(height: 12),
+              _walletDropdown(
+                cubit: cubit,
+                value: toWalletId,
+                label: 'ط¥ظ„ظ‰ ظ…ط­ظپط¸ط©',
+                accent: accent,
+                onChanged: (value) => setSheet(() => toWalletId = value),
+              ),
+            ] else
+              _walletDropdown(
+                cubit: cubit,
+                value: walletId,
+                label: 'ط§ظ„ظ…ط­ظپط¸ط©',
+                accent: accent,
+                onChanged: (value) => setSheet(() => walletId = value),
+              ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'ط§ظ„ظ…ط¨ظ„ط؛',
+                border: const OutlineInputBorder(),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: accent, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () async {
+                final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+                try {
+                  if (mode == 'add') {
+                    await cubit.addMoneyDistribution(
+                      jarId: jar.id,
+                      walletId: walletId,
+                      amount: amount,
+                    );
+                  } else if (mode == 'remove') {
+                    await cubit.removeMoneyDistribution(
+                      jarId: jar.id,
+                      walletId: walletId,
+                      amount: amount,
+                    );
+                  } else {
+                    await cubit.transferMoneyDistribution(
+                      jarId: jar.id,
+                      fromWalletId: fromWalletId,
+                      toWalletId: toWalletId,
+                      amount: amount,
+                    );
+                  }
+                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                } on DistributionValidationException catch (error) {
+                  _showDistributionError(sheetCtx, error.message);
+                }
+              },
+              style: FilledButton.styleFrom(backgroundColor: accent),
+              child: const Text('طھط£ظƒظٹط¯'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+Widget _walletDropdown({
+  required AppCubit cubit,
+  required String value,
+  required String label,
+  required Color accent,
+  required ValueChanged<String> onChanged,
+}) {
+  return DropdownButtonFormField<String>(
+    value: value,
+    decoration: InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      focusedBorder: OutlineInputBorder(
+        borderSide: BorderSide(color: accent, width: 2),
+      ),
+    ),
+    items: cubit.state.wallets
+        .map(
+          (wallet) => DropdownMenuItem(
+            value: wallet.id,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(wallet.name),
+                Text(
+                  'Available: ${wallet.balance.toStringAsFixed(2)}',
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF8A7F72)),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD4C9B8),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            accent.withValues(alpha: 0.95),
-                            accent.withValues(alpha: 0.70),
-                          ],
-                          begin: Alignment.topRight,
-                          end: Alignment.bottomLeft,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: AppIconPickerDialog.iconWidgetForName(
-                          jar.icon,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                              color: accent,
-                            ),
-                          ),
-                          Text(
-                            jar.name,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF8A7F72),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accent.withValues(alpha: 0.12)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'اختر محفظة لربطها بالرصيد:',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: accent.withValues(alpha: 0.70),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFBF1),
-                          borderRadius: BorderRadius.circular(14),
-                          border:
-                              Border.all(color: accent.withValues(alpha: 0.16)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: walletId,
-                            isExpanded: true,
-                            icon: Icon(Icons.keyboard_arrow_down_rounded,
-                                color: accent),
-                            items: availableWallets.map((w) {
-                              return DropdownMenuItem(
-                                value: w.id,
-                                child: Text(
-                                  w.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setDialogState(() => walletId = value);
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline_rounded,
-                                size: 14, color: accent),
-                            const SizedBox(width: 6),
-                            Text(
-                              'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} ${currencyLabelAr(cubit.state.currencyCode)}',
-                              style: TextStyle(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'المبلغ',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: accent.withValues(alpha: 0.70),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: amountController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: '0.00',
-                          filled: true,
-                          fillColor: const Color(0xFFFFFBF1),
-                          suffixText: currencyLabelAr(cubit.state.currencyCode),
-                          suffixStyle: TextStyle(
-                            color: accent,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                                color: accent.withValues(alpha: 0.16)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                                color: accent.withValues(alpha: 0.16)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: accent, width: 1.5),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 14),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'ملاحظات (اختياري)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: accent.withValues(alpha: 0.70),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: notesController,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'أضف ملاحظة...',
-                          filled: true,
-                          fillColor: const Color(0xFFFFFBF1),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                                color: accent.withValues(alpha: 0.16)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                                color: accent.withValues(alpha: 0.16)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: accent, width: 1.5),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side:
-                              BorderSide(color: accent.withValues(alpha: 0.30)),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          foregroundColor: const Color(0xFF8A7F72),
-                        ),
-                        child: const Text(
-                          'إلغاء',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final amount =
-                              double.tryParse(amountController.text.trim()) ??
-                                  0;
-                          if (amount <= 0) return;
+        )
+        .toList(),
+    onChanged: (value) {
+      if (value != null) onChanged(value);
+    },
+  );
+}
 
-                          final liveJar = cubit.state.budgetSetup.linkedWallets
-                              .firstWhere((j) => j.id == jar.id);
+void _showDistributionError(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
 
-                          if (amount > liveJar.unlabeledAmount + 0.01) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'لا يمكن تخصيص مبلغ أكبر من الرصيد غير المحدد في الحصالة.')),
-                            );
-                            return;
-                          }
-
-                          await cubit.addTransaction(
-                            walletId: walletId,
-                            fromWalletId: walletId,
-                            toWalletId: jar.id,
-                            amount: amount,
-                            type: TransactionType.transfer.value,
-                            transferType: TransferType.jarAllocation.value,
-                            notes: notesController.text.trim().isEmpty
-                                ? null
-                                : notesController.text.trim(),
-                          );
-
-                          if (!context.mounted) return;
-                          Navigator.of(ctx).pop();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: const Text(
-                          'تأكيد التخصيص',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+Widget _jarSheetIconAction(
+  IconData icon, {
+  required VoidCallback onTap,
+  required String tooltip,
+}) {
+  return Tooltip(
+    message: tooltip,
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.20),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
     ),
   );
 }
@@ -1312,9 +1352,9 @@ Widget _jarSheetGlassMetric({
   required String value,
 }) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.18),
+      color: Colors.white.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
     ),
@@ -1322,45 +1362,23 @@ Widget _jarSheetGlassMetric({
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
           label,
           style: TextStyle(
-            fontSize: 10,
-            color: Colors.white.withValues(alpha: 0.82),
+            color: Colors.white.withValues(alpha: 0.78),
+            fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
         ),
-      ],
-    ),
-  );
-}
-
-Widget _jarSheetIconAction(
-  IconData icon, {
-  required VoidCallback onTap,
-  required String tooltip,
-}) {
-  return GestureDetector(
-    onTap: onTap,
-    child: Tooltip(
-      message: tooltip,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.20),
-          borderRadius: BorderRadius.circular(11),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: 18),
-      ),
+      ],
     ),
   );
 }
@@ -1375,17 +1393,17 @@ Widget _jarSheetSectionHeader(String title) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// بطاقة مراجعة مكان الفلوس
-// ══════════════════════════════════════════════════════════════════════════════
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// ط¨ط·ط§ظ‚ط© ظ…ط±ط§ط¬ط¹ط© ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 
-/// بطاقة تعرض عنصر مراجعة مكان فلوس داخل تفاصيل الحصالة.
+/// ط¨ط·ط§ظ‚ط© طھط¹ط±ط¶ ط¹ظ†طµط± ظ…ط±ط§ط¬ط¹ط© ظ…ظƒط§ظ† ظپظ„ظˆط³ ط¯ط§ط®ظ„ طھظپط§طµظٹظ„ ط§ظ„ط­طµط§ظ„ط©.
 ///
-/// تُعرض عندما يكتشف [MoneyLocationEngine] تعارضاً في مكان الفلوس
-/// (مثل: صرف من محفظة غير مدرجة في مصادر الحصالة، أو مجموع تصنيفات
-/// يتجاوز رصيد الحصالة).
+/// طھظڈط¹ط±ط¶ ط¹ظ†ط¯ظ…ط§ ظٹظƒطھط´ظپ [MoneyLocationEngine] طھط¹ط§ط±ط¶ط§ظ‹ ظپظٹ ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³
+/// (ظ…ط«ظ„: طµط±ظپ ظ…ظ† ظ…ط­ظپط¸ط© ط؛ظٹط± ظ…ط¯ط±ط¬ط© ظپظٹ ظ…طµط§ط¯ط± ط§ظ„ط­طµط§ظ„ط©طŒ ط£ظˆ ظ…ط¬ظ…ظˆط¹ طھطµظ†ظٹظپط§طھ
+/// ظٹطھط¬ط§ظˆط² ط±طµظٹط¯ ط§ظ„ط­طµط§ظ„ط©).
 ///
-/// تتيح للمستخدم تجاهل المراجعة أو حلّها يدوياً عبر ضبط مصادر الحصالة.
+/// طھطھظٹط­ ظ„ظ„ظ…ط³طھط®ط¯ظ… طھط¬ط§ظ‡ظ„ ط§ظ„ظ…ط±ط§ط¬ط¹ط© ط£ظˆ ط­ظ„ظ‘ظ‡ط§ ظٹط¯ظˆظٹط§ظ‹ ط¹ط¨ط± ط¶ط¨ط· ظ…طµط§ط¯ط± ط§ظ„ط­طµط§ظ„ط©.
 class _MoneyLocationReviewCard extends StatelessWidget {
   const _MoneyLocationReviewCard({
     required this.review,
@@ -1402,13 +1420,13 @@ class _MoneyLocationReviewCard extends StatelessWidget {
   String get _typeLabel {
     switch (review.type) {
       case 'spending-wallet-mismatch':
-        return 'صُرف من محفظة غير مدرجة في أماكن الأموال';
+        return 'طµظڈط±ظپ ظ…ظ† ظ…ط­ظپط¸ط© ط؛ظٹط± ظ…ط¯ط±ط¬ط© ظپظٹ ط£ظ…ط§ظƒظ† ط§ظ„ط£ظ…ظˆط§ظ„';
       case 'source-went-negative':
-        return 'تعارض في تصنيف مكان الفلوس';
+        return 'طھط¹ط§ط±ط¶ ظپظٹ طھطµظ†ظٹظپ ظ…ظƒط§ظ† ط§ظ„ظپظ„ظˆط³';
       case 'labeled-exceeds-balance':
-        return 'مجموع التصنيفات يتجاوز الرصيد';
+        return 'ظ…ط¬ظ…ظˆط¹ ط§ظ„طھطµظ†ظٹظپط§طھ ظٹطھط¬ط§ظˆط² ط§ظ„ط±طµظٹط¯';
       default:
-        return 'يحتاج مراجعة';
+        return 'ظٹط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط©';
     }
   }
 
@@ -1417,12 +1435,12 @@ class _MoneyLocationReviewCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF3CD),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFD4A017).withValues(alpha: 0.4)),
+          border:
+              Border.all(color: const Color(0xFFD4A017).withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
@@ -1478,11 +1496,10 @@ class _MoneyLocationReviewCard extends StatelessWidget {
               },
               style: TextButton.styleFrom(
                 foregroundColor: const Color(0xFFC58B00),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               ),
               child: const Text(
-                'تجاهل',
+                'طھط¬ط§ظ‡ظ„',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 12,

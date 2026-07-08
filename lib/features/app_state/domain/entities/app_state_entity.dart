@@ -3,6 +3,7 @@ import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../logs/domain/entities/log_entry_entity.dart';
+import '../../../money_distribution/domain/entities/distribution_entry.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../goals/domain/entities/goal_entity.dart';
 import '../../../notifications/domain/entities/notification_entity.dart';
@@ -25,6 +26,7 @@ class AppStateEntity {
     required this.autoBackupMode,
     required this.lastAutoBackupAt,
     required this.monthlyBudgetSnapshots,
+    this.moneyDistributions = const <DistributionEntry>[],
     this.profileImageUrl = '',
     this.moneyLocationMigrationDone = false,
   });
@@ -45,6 +47,7 @@ class AppStateEntity {
   final String autoBackupMode;
   final String lastAutoBackupAt;
   final Map<String, Map<String, dynamic>> monthlyBudgetSnapshots;
+  final List<DistributionEntry> moneyDistributions;
   final String profileImageUrl;
 
   /// علامة تدل على أن ترحيل مراجعات مكان الفلوس قد تم مرة واحدة.
@@ -80,6 +83,7 @@ class AppStateEntity {
       recurringTransactions: const <RecurringTransactionEntity>[],
       goals: const <GoalEntity>[],
       notifications: const <NotificationEntity>[],
+      moneyDistributions: const <DistributionEntry>[],
       backupDirectoryPath: '',
       autoBackupMode: 'off',
       lastAutoBackupAt: '',
@@ -105,6 +109,7 @@ class AppStateEntity {
     String? autoBackupMode,
     String? lastAutoBackupAt,
     Map<String, Map<String, dynamic>>? monthlyBudgetSnapshots,
+    List<DistributionEntry>? moneyDistributions,
     String? profileImageUrl,
     bool? moneyLocationMigrationDone,
   }) {
@@ -127,6 +132,7 @@ class AppStateEntity {
       lastAutoBackupAt: lastAutoBackupAt ?? this.lastAutoBackupAt,
       monthlyBudgetSnapshots:
           monthlyBudgetSnapshots ?? this.monthlyBudgetSnapshots,
+      moneyDistributions: moneyDistributions ?? this.moneyDistributions,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       moneyLocationMigrationDone:
           moneyLocationMigrationDone ?? this.moneyLocationMigrationDone,
@@ -160,6 +166,8 @@ class AppStateEntity {
       'autoBackupMode': autoBackupMode,
       'lastAutoBackupAt': lastAutoBackupAt,
       'monthlyBudgetSnapshots': monthlyBudgetSnapshots,
+      'moneyDistributions':
+          moneyDistributions.map((entry) => entry.toMap()).toList(),
       'profileImageUrl': profileImageUrl,
       'moneyLocationMigrationDone': moneyLocationMigrationDone,
     };
@@ -179,6 +187,8 @@ class AppStateEntity {
     final snapshotsRaw =
         map['monthlyBudgetSnapshots'] as Map<String, dynamic>? ??
             <String, dynamic>{};
+    final distributionsRaw =
+        map['moneyDistributions'] as List<dynamic>? ?? <dynamic>[];
 
     return AppStateEntity(
       wallets: walletsRaw
@@ -232,6 +242,10 @@ class AppStateEntity {
           value is Map<String, dynamic> ? value : <String, dynamic>{},
         ),
       ),
+      moneyDistributions: distributionsRaw
+          .whereType<Map<String, dynamic>>()
+          .map(DistributionEntry.fromMap)
+          .toList(),
       profileImageUrl: map['profileImageUrl'] as String? ?? '',
       moneyLocationMigrationDone:
           map['moneyLocationMigrationDone'] as bool? ?? false,
