@@ -1,6 +1,5 @@
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
-import '../../../budget/domain/services/money_location_engine.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../entities/transaction_entity.dart';
 import '../../../../core/constants/transaction_types.dart';
@@ -40,14 +39,12 @@ class TransactionProcessor {
       var jar = linkedWallets[jarIdx];
       final nextBalances = Map<String, double>.from(jar.walletBalances);
       nextBalances[walletId] = (nextBalances[walletId] ?? 0) + delta;
-      // MoneyLocationEngine: المسار الوحيد لتحديث walletSources — ينشئ مراجعة
-      // عند النتيجة السالبة بدلاً من الحذف الصامت
-      jar = MoneyLocationEngine.applyLocationDelta(
-        jar: jar,
-        walletId: walletId,
-        delta: delta,
-        relatedTransactionId: transaction.id,
-      );
+      final existingSourceIdx =
+          jar.walletSources.indexWhere((s) => s.walletId == walletId);
+      final currentSourceAmount = existingSourceIdx == -1
+          ? 0.0
+          : jar.walletSources[existingSourceIdx].amount;
+      jar = jar.withUpdatedSource(walletId, currentSourceAmount + delta);
       linkedWallets[jarIdx] = jar.copyWith(walletBalances: nextBalances);
     }
 
@@ -64,28 +61,14 @@ class TransactionProcessor {
         if (trackWalletSource && physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) + delta;
-          // كشف تعارض الصرف: صُرف من محفظة غير مدرجة في مصادر الحصالة.
-          // لا نشترط أن تكون هناك مصادر أخرى (isNotEmpty مُحذوف عمداً):
-          //   - حصالة فارغة المصادر + صرف → تعارض يُخزَّن كمراجعة ولا يُعدَّل walletSources
-          //   - هذا يضمن أن reverse لن ينشئ مصادر وهمية للحصالات الفارغة المصادر
-          final walletInSources =
-              jar.walletSources.any((s) => s.walletId == physicalWalletId);
-          if (delta < 0 && !walletInSources) {
-            // أنشئ مراجعة بدلاً من تلف walletSources بصمت
-            jar = MoneyLocationEngine.addSpendingMismatchReview(
-              jar: jar,
-              amount: delta.abs(),
-              spendingWalletId: physicalWalletId,
-              transactionId: transaction.id,
-            );
-          } else {
-            jar = MoneyLocationEngine.applyLocationDelta(
-              jar: jar,
-              walletId: physicalWalletId,
-              delta: delta,
-              relatedTransactionId: transaction.id,
-            );
+          final existingSourceIdx = jar.walletSources
+              .indexWhere((s) => s.walletId == physicalWalletId);
+          double currentSourceAmount = 0;
+          if (existingSourceIdx != -1) {
+            currentSourceAmount = jar.walletSources[existingSourceIdx].amount;
           }
+          jar = jar.withUpdatedSource(
+              physicalWalletId, currentSourceAmount + delta);
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance + delta,
@@ -428,31 +411,15 @@ class TransactionProcessor {
         if (trackWalletSource && physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) - delta;
-          // فحص متماثل مع مسار apply:
-          // إذا كانت نفس الشروط ستُفعّل مسار عدم التطابق (مصدر غير مدرج + صرف)،
-          // نفترض أن apply لم تُعدَّل walletSources — reverse يتصرف بالمثل.
-          // هذا يُصحح حالة: المستخدم يحذف المراجعة ثم يحذف المعاملة
-          // (حيث لم يعد هناك مراجعة للتحقق منها، لكن walletSources لم تتغير أصلاً).
-          final walletInSourcesNow =
-              jar.walletSources.any((s) => s.walletId == physicalWalletId);
-          final forwardTookMismatchPath =
-              delta < 0 && !walletInSourcesNow && jar.walletSources.isNotEmpty;
-          if (forwardTookMismatchPath) {
-            // apply لم تُعدَّل walletSources — reverse لا تُعدَّلها أيضاً
-            // احذف أي مراجعة متبقية إن وجدت
-            jar = MoneyLocationEngine.resolveSpendingMismatchForTransaction(
-              jar: jar,
-              transactionId: transaction.id,
-            );
-          } else {
-            // معالجة عكسية عادية عبر المحرك
-            jar = MoneyLocationEngine.applyLocationDelta(
-              jar: jar,
-              walletId: physicalWalletId,
-              delta: -delta,
-              relatedTransactionId: transaction.id,
-            );
-          }
+          final existingSourceIdx = jar.walletSources
+              .indexWhere((s) => s.walletId == physicalWalletId);
+          final currentSourceAmount = existingSourceIdx == -1
+              ? 0.0
+              : jar.walletSources[existingSourceIdx].amount;
+          jar = jar.withUpdatedSource(
+            physicalWalletId,
+            currentSourceAmount - delta,
+          );
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance - delta,
@@ -485,13 +452,12 @@ class TransactionProcessor {
       var jar = linkedWallets[jarIdx];
       final nextBalances = Map<String, double>.from(jar.walletBalances);
       nextBalances[walletId] = (nextBalances[walletId] ?? 0) - delta;
-      // delta موجب = كنا أضفنا → نخصم الآن. المحرك يُنشئ مراجعة لو النتيجة سالبة
-      jar = MoneyLocationEngine.applyLocationDelta(
-        jar: jar,
-        walletId: walletId,
-        delta: -delta,
-        relatedTransactionId: transaction.id,
-      );
+      final existingSourceIdx =
+          jar.walletSources.indexWhere((s) => s.walletId == walletId);
+      final currentSourceAmount = existingSourceIdx == -1
+          ? 0.0
+          : jar.walletSources[existingSourceIdx].amount;
+      jar = jar.withUpdatedSource(walletId, currentSourceAmount - delta);
       linkedWallets[jarIdx] = jar.copyWith(walletBalances: nextBalances);
     }
 

@@ -1,0 +1,436 @@
+Continue from the CURRENT implementation.
+
+DO NOT restart.
+
+DO NOT redesign from scratch.
+
+DO NOT remove MoneyLocationEngine.
+
+DO NOT remove MoneyLocationReview.
+
+Everything already implemented is now the foundation.
+
+Your task is to COMPLETE and POLISH the Money Location Engine.
+
+======================================================================
+
+FIRST
+
+Read ALL documentation inside:
+
+docs/architecture/
+
+especially:
+
+- Money Location Engine
+- Jar Architecture
+- Wallet Architecture
+- Transaction Architecture
+
+Read your own implementation before writing code.
+
+Never duplicate logic.
+
+======================================================================
+
+CURRENT STATUS
+
+Already implemented:
+
+✓ MoneyLocationEngine
+
+✓ MoneyLocationReview
+
+✓ LinkedWalletEntity.moneyLocationReviews
+
+✓ TransactionProcessor integration
+
+✓ AppCubit integration
+
+✓ Migration
+
+✓ Review card
+
+These stay.
+
+Do not replace them.
+
+Improve them.
+
+======================================================================
+
+THE CURRENT PROBLEM
+
+The implementation can DETECT inconsistencies.
+
+It still cannot HELP the user solve them.
+
+The next stage is NOT detection.
+
+The next stage is RESOLUTION.
+
+======================================================================
+
+VERY IMPORTANT
+
+The user must NEVER be forced to:
+
+Money Locations
+
+↓
+
+Wallet
+
+↓
+
+Historical allocation transaction
+
+↓
+
+Open transaction
+
+↓
+
+Edit amount
+
+↓
+
+Repeat several times
+
+This workflow is unacceptable.
+
+======================================================================
+
+Create ONE centralized Money Location Management experience inside every Jar.
+
+Possible title:
+
+تنظيم أماكن الأموال
+
+or
+
+إدارة أماكن الأموال
+
+Every inconsistency must be solvable from there.
+
+Never require searching historical transactions.
+
+======================================================================
+
+CURRENT REVIEW CARD
+
+Current implementation only supports:
+
+Ignore
+
+This is not sufficient.
+
+Ignoring is NOT resolving.
+
+Replace the review workflow with a proper Resolution Workflow.
+
+======================================================================
+
+Each review must expose meaningful actions.
+
+Examples:
+
+• Reduce location amount
+
+• Move money between locations
+
+• Convert difference into Unknown Money
+
+• Split difference across multiple locations
+
+• Ignore intentionally
+
+The available actions should depend on the review type.
+
+======================================================================
+
+UNKNOWN MONEY
+
+Unknown Money is a NORMAL state.
+
+It is not an error.
+
+Many users intentionally do not know where every part of their savings is located.
+
+Never create unnecessary review tasks.
+
+Always prefer Unknown Money when it can legitimately represent the state.
+
+======================================================================
+
+NEGATIVE UNKNOWN
+
+The UI currently allows:
+
+Unknown Money = -2700
+
+This must NEVER be shown.
+
+Negative Unknown Money is an internal inconsistency.
+
+Users should never see it.
+
+Instead:
+
+Create an appropriate review explaining that the Money Locations exceed the Jar balance.
+
+======================================================================
+
+ZERO BALANCE CASE
+
+Current example:
+
+Jar Balance
+
+0
+
+Money Locations
+
+17000
+
+No remaining allocation transactions.
+
+There is nothing for the user to edit.
+
+The application must offer direct recovery actions.
+
+Examples:
+
+• Remove all Money Locations
+
+• Convert all locations into Unknown
+
+• Rebuild locations from transaction history (if possible)
+
+Never force editing deleted transactions.
+
+======================================================================
+
+MONEY LOCATION ADJUSTMENTS
+
+Introduce a dedicated Adjustment concept.
+
+Very important:
+
+Resolving Money Location inconsistencies must NOT require editing historical financial transactions.
+
+Historical transactions are accounting history.
+
+Money Location adjustments are organization history.
+
+These are different concepts.
+
+If the user reorganizes money locations, create Money Location Adjustments.
+
+Do NOT modify historical transactions whenever possible.
+
+The adjustment history should remain independent from financial history.
+
+======================================================================
+
+FINANCIAL SAFETY
+
+MoneyLocationEngine must NEVER modify:
+
+• wallet.balance
+
+• jar.balance
+
+• allocation balances
+
+• budget balances
+
+It may only manage:
+
+• walletSources
+
+• moneyLocationReviews
+
+• MoneyLocationAdjustments (new if needed)
+
+======================================================================
+
+SINGLE MUTATION PATH
+
+walletSources must ONLY change through MoneyLocationEngine.
+
+No direct mutations.
+
+No helper methods.
+
+No AppCubit mutations.
+
+No UI mutations.
+
+======================================================================
+
+USER EXPERIENCE
+
+Never expose internal terminology.
+
+Never show:
+
+walletSources
+
+Reservation
+
+Negative Sources
+
+Internal State
+
+Instead use:
+
+أماكن الأموال
+
+غير محدد
+
+يحتاج تنظيم
+
+تنظيم الآن
+
+مكان غير معروف
+
+فرق يحتاج تنظيم
+
+======================================================================
+
+USER WORKFLOW
+
+The repair process should always be:
+
+Jar
+
+↓
+
+Money Location Issues
+
+↓
+
+Choose Issue
+
+↓
+
+Resolution Bottom Sheet
+
+↓
+
+Preview Result
+
+↓
+
+Apply
+
+Done.
+
+Never force navigation across multiple screens.
+
+======================================================================
+
+SMART RESOLUTION
+
+When possible:
+
+Suggest automatic fixes.
+
+Examples:
+
+"This difference can safely become Unknown Money."
+
+"This location exceeds the Jar balance by 2700."
+
+"This location can be reduced automatically."
+
+Always offer the safest option first.
+
+======================================================================
+
+ARCHITECTURE
+
+MoneyLocationEngine is responsible for consistency.
+
+UI is responsible for user interaction.
+
+TransactionProcessor is responsible for financial balances.
+
+Keep responsibilities separated.
+
+======================================================================
+
+BACKWARD COMPATIBILITY
+
+Maintain compatibility with:
+
+• Existing Firestore documents
+
+• Existing local backups
+
+• Existing SharedPreferences
+
+• Existing serialized entities
+
+Migration must remain safe.
+
+======================================================================
+
+MANUAL VERIFICATION
+
+Do not rely only on flutter analyze.
+
+Verify manually:
+
+✓ Deposit with Wallet
+
+✓ Deposit without Wallet
+
+✓ Spend with Wallet
+
+✓ Spend without Wallet
+
+✓ Spend exceeding known locations
+
+✓ Delete transaction
+
+✓ Edit transaction
+
+✓ Reverse transaction
+
+✓ Manual Money Location adjustment
+
+✓ Zero-balance Jar with existing locations
+
+✓ Money Locations exceeding balance
+
+✓ Migration from old data
+
+✓ Backup
+
+✓ Restore
+
+======================================================================
+
+DELIVERABLES
+
+Run flutter analyze.
+
+Then provide:
+
+• Files modified
+
+• New architecture summary
+
+• Resolution workflow
+
+• Adjustment workflow
+
+• Migration notes
+
+• Edge cases covered
+
+• Remaining limitations
+
+The feature is NOT complete until users can BOTH detect AND resolve Money Location inconsistencies without manually editing historical financial transactions.

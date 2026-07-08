@@ -1,0 +1,353 @@
+Continue from the CURRENT implementation.
+
+DO NOT restart.
+
+DO NOT redesign from scratch.
+
+DO NOT remove the MoneyLocationEngine.
+
+DO NOT remove the MoneyLocationReview system.
+
+Everything already implemented is the new foundation.
+
+Your task is to COMPLETE the feature correctly.
+
+======================================================================
+
+FIRST
+
+Read again:
+
+docs/architecture/
+
+especially the Money Location documentation you already created.
+
+Treat the current implementation as the base.
+
+Do not replace it.
+
+Improve it.
+
+======================================================================
+
+CURRENT STATUS
+
+Already implemented:
+
+✓ MoneyLocationEngine
+
+✓ MoneyLocationReview
+
+✓ LinkedWalletEntity.moneyLocationReviews
+
+✓ TransactionProcessor integration
+
+✓ AppCubit integration
+
+✓ Migration
+
+✓ Review card inside jar_details_sheet
+
+These stay.
+
+======================================================================
+
+YOUR NEXT TASK
+
+The current implementation can DETECT problems.
+
+It still cannot HELP the user solve them.
+
+This is now the priority.
+
+Do NOT spend time improving detection.
+
+Implement RESOLUTION.
+
+======================================================================
+
+CRITICAL REQUIREMENT
+
+The user must NEVER be forced to:
+
+Open Money Locations
+
+↓
+
+Open a Wallet
+
+↓
+
+Find an old allocation transaction
+
+↓
+
+Open it
+
+↓
+
+Edit it manually
+
+↓
+
+Repeat several times
+
+This workflow is unacceptable.
+
+Money Location management must become centralized.
+
+======================================================================
+
+Create ONE central place inside the Jar.
+
+Example title:
+
+تنظيم أماكن الأموال
+
+or
+
+حل مشاكل أماكن الأموال
+
+Every inconsistency must be solvable from there.
+
+Never require hunting through historical transactions.
+
+======================================================================
+
+CURRENT REVIEW CARD
+
+The current review card only provides:
+
+Ignore
+
+This is NOT enough.
+
+Ignoring is not solving.
+
+Replace the current workflow with a real resolution workflow.
+
+======================================================================
+
+Each review should expose meaningful actions.
+
+Examples:
+
+• Reduce location amount
+
+• Move money to another location
+
+• Convert difference to Unknown Money
+
+• Split difference across multiple locations
+
+• Ignore intentionally
+
+The available actions should depend on the review type.
+
+======================================================================
+
+IMPORTANT
+
+Do NOT expose technical concepts.
+
+Never show:
+
+walletSources
+
+Reservation
+
+Internal state
+
+Negative location
+
+Internal labels
+
+Use user language.
+
+Examples:
+
+أماكن الأموال
+
+غير محدد
+
+يحتاج تنظيم
+
+حل الآن
+
+======================================================================
+
+UNKNOWN MONEY
+
+Treat Unknown Money as a NORMAL state.
+
+Unknown Money is not an error.
+
+Do not create review tasks when Unknown Money can legitimately represent the difference.
+
+Review tasks should exist only when user action is truly required.
+
+======================================================================
+
+NEGATIVE UNKNOWN
+
+The UI currently shows:
+
+غير محجوز = -2700
+
+This must never be shown to the user.
+
+Negative Unknown Money is an internal inconsistency.
+
+Convert it into a review state.
+
+Never expose negative values for Unknown Money.
+
+======================================================================
+
+ZERO BALANCE CASE
+
+Current problem:
+
+Jar Balance = 0
+
+Money Locations = 17000
+
+No allocation transactions remain.
+
+There is nothing for the user to edit.
+
+The system must provide direct recovery actions.
+
+Examples:
+
+• Remove all money locations
+
+• Convert everything to Unknown
+
+• Rebuild locations if historical transactions exist
+
+Do NOT force the user to edit missing transactions.
+
+======================================================================
+
+USER EXPERIENCE
+
+The entire repair process should happen from ONE place.
+
+Preferred flow:
+
+Jar
+
+↓
+
+Money Location Issues
+
+↓
+
+Select Issue
+
+↓
+
+Resolution Sheet
+
+↓
+
+Apply
+
+Done.
+
+Never force navigation across multiple screens.
+
+======================================================================
+
+ARCHITECTURE
+
+Keep MoneyLocationEngine as the only mutation path.
+
+Never introduce direct walletSources mutation.
+
+Never modify financial balances.
+
+MoneyLocationEngine manages only:
+
+• walletSources
+
+• reviews
+
+Nothing else.
+
+======================================================================
+
+VERIFICATION
+
+After implementation verify manually:
+
+1.
+
+Deposit with wallet
+
+2.
+
+Deposit without wallet
+
+3.
+
+Spend with wallet
+
+4.
+
+Spend without wallet
+
+5.
+
+Spend exceeding known locations
+
+6.
+
+Delete transaction
+
+7.
+
+Edit transaction
+
+8.
+
+Reverse transaction
+
+9.
+
+Zero-balance jar with existing money locations
+
+10.
+
+Jar whose known locations exceed its balance
+
+11.
+
+Migration from old data
+
+12.
+
+Backup and Restore compatibility
+
+======================================================================
+
+Before finishing,
+
+run flutter analyze.
+
+Then provide:
+
+• Files modified
+
+• UX changes
+
+• Resolution workflow
+
+• Edge cases handled
+
+• Remaining limitations
+
+Do NOT stop at "analysis passes".
+
+The feature is complete only when users can detect AND resolve Money Location problems without manually editing historical transactions.
