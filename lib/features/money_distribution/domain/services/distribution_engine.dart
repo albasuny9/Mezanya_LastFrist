@@ -219,6 +219,7 @@ class DistributionEngine {
     required String jarId,
     required double jarBalance,
   }) {
+    if (jarBalance <= 0) return 0.0;
     final unknown = jarBalance - totalForJar(entries, jarId);
     return unknown > 0 ? unknown : 0;
   }
