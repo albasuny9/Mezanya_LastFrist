@@ -1,12 +1,12 @@
 import 'dart:math';
 
+import '../../../../core/constants/transaction_types.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../money_distribution/domain/entities/distribution_entry.dart';
 import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../entities/transaction_entity.dart';
-import '../../../../core/constants/transaction_types.dart';
 
 /// Pure service — كل logic المالي هنا.
 /// لا I/O. لا side effects. بياخد state ويرجع state جديد.
@@ -46,6 +46,7 @@ class TransactionProcessor {
         jarId,
         walletId,
       );
+
       final nextAmount = currentAmount + delta;
       moneyDistributions = DistributionEngine.upsert(
         entries: moneyDistributions,
@@ -227,6 +228,11 @@ class TransactionProcessor {
 
       if (transaction.transferType == TransferType.depositWithJarLabel.value &&
           transaction.toWalletId != null) {
+        final jarIdx =
+            linkedWallets.indexWhere((j) => j.id == transaction.toWalletId!);
+
+        final jarBalanceBefore =
+            jarIdx != -1 ? linkedWallets[jarIdx].balance : 0.0;
         updateVirtualBalance(
           id: transaction.toWalletId!,
           delta: transaction.amount,
@@ -234,15 +240,18 @@ class TransactionProcessor {
           trackWalletSource: false,
         );
         if (transaction.walletId != null) {
-          updateJarSourceOnly(
-            jarId: transaction.toWalletId!,
-            walletId: transaction.walletId!,
-            delta: transaction.amount,
-          );
-          // ملاحظة: لا نضيف معاملة jarAllocation مرافقة هنا — walletSources
-          // اتحدثت فوق بـ updateJarSourceOnly، والمعاملة الأصلية
-          // (depositWithJarLabel) هي المرجع الوحيد لهذا الحجز.
-          // إضافة sub-transaction كانت تسبب ظهور نفس العملية مرتين.
+          if (transaction.walletId != null) {
+            final effectiveDelta = min(
+              transaction.amount,
+              max(0.0, jarBalanceBefore + transaction.amount),
+            );
+
+            updateJarSourceOnly(
+              jarId: transaction.toWalletId!,
+              walletId: transaction.walletId!,
+              delta: effectiveDelta,
+            );
+          }
         }
       }
 
@@ -284,8 +293,8 @@ class TransactionProcessor {
               // المبلغ الفعلي الذي أصبح متاحاً في المحفظة:
               // إذا كان رصيد المحفظة سالباً قبل الدخل، فجزء من الدخل
               // ذهب لتغطية الدين ولم يصبح متاحاً للحصالة.
-              final wIdx = wallets.indexWhere(
-                  (w) => w.id == transaction.walletId);
+              final wIdx =
+                  wallets.indexWhere((w) => w.id == transaction.walletId);
               final walletAfter =
                   wIdx != -1 ? wallets[wIdx].balance : transferAmount;
               final walletBefore = walletAfter - transaction.amount;
