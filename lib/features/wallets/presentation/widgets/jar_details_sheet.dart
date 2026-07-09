@@ -1002,7 +1002,9 @@ Future<void> _openDistributionEntryActions({
               label: 'حذف',
               isDestructive: true,
               onTap: () async {
+                final jarId = entry.jarId;
                 await cubit.deleteMoneyDistributionEntry(entry.id);
+                await cubit.autoResolveReviewsIfConsistent(jarId);
                 if (sheetCtx.mounted) Navigator.pop(sheetCtx);
               },
             ),
@@ -1106,6 +1108,7 @@ Future<void> _openMoveDistributionEntrySheet({
                     entryId: entry.id,
                     toWalletId: walletId,
                   );
+                  await cubit.autoResolveReviewsIfConsistent(entry.jarId);
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } on DistributionValidationException catch (error) {
                   _showDistributionError(sheetCtx, error.message);
@@ -1165,6 +1168,7 @@ Future<void> _openEditDistributionEntryAmountSheet({
                   entryId: entry.id,
                   amount: double.tryParse(amountCtrl.text.trim()) ?? 0,
                 );
+                await cubit.autoResolveReviewsIfConsistent(entry.jarId);
                 if (sheetCtx.mounted) Navigator.pop(sheetCtx);
               } on DistributionValidationException catch (error) {
                 _showDistributionError(sheetCtx, error.message);

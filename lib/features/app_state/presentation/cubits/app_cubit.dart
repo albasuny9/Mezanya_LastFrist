@@ -94,6 +94,12 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   AppStateEntity _migrateMoneyDistributionsSync(AppStateEntity source) {
+    // الترحيل يعمل مرة واحدة فقط — بعد أن يُعيَّن العلَم لا داعي لإعادته
+    if (source.moneyDistributionMigrationDone &&
+        source.budgetSetup.linkedWallets.every((j) => j.walletSources.isEmpty)) {
+      return source;
+    }
+
     final knownWalletIds = source.wallets.map((wallet) => wallet.id).toSet();
     final entries =
         source.moneyDistributions.where((entry) => entry.amount > 0).toList();

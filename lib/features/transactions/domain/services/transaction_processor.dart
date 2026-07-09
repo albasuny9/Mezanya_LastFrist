@@ -627,8 +627,19 @@ class TransactionProcessor {
 
       for (final sub in subTxns) {
         if (sub.transferType == TransferType.jarFunding.value) {
+          // تحقّق ما إذا كان ثمة jarAllocation مرافق يتكفّل بعكس التوزيع
+          // بحيث لا يُعكس التوزيع مرّتين (مرّة عبر trackWalletSource + مرّة
+          // عبر jarAllocation).
+          // backward-compat: sub-transactions قديمة (parentId == null) نبحث
+          // عنها بنفس معايير التطابق التي تُجمعها كـ sub-txns.
           final hasMatchingSourceChild = sub.parentId == null
-              ? false
+              ? current.transactions.any((t) =>
+                  t.id != sub.id &&
+                  t.transferType == TransferType.jarAllocation.value &&
+                  t.toWalletId == sub.toWalletId &&
+                  t.walletId == sub.walletId &&
+                  t.incomeSourceId == sub.incomeSourceId &&
+                  t.createdAt == sub.createdAt)
               : current.transactions.any((t) =>
                   t.parentId == sub.parentId &&
                   t.transferType == TransferType.jarAllocation.value &&
