@@ -1182,7 +1182,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
           final targetJar = currentState.budgetSetup.linkedWallets
               .where((jar) => jar.id == jarId)
               .firstOrNull;
-          final unallocatedJarAmount = targetJar?.unlabeledAmount ?? 0;
+          final unallocatedJarAmount = targetJar == null
+              ? 0.0
+              : jarUnknownDistribution(currentState, targetJar);
           final reservedFromWallet =
               _walletReservedAmount(currentState, wallet.id);
           final availableFromWallet =
@@ -1923,15 +1925,12 @@ class _WalletsScreenState extends State<WalletsScreen> {
     });
   }
 
-  /// المبالغ المحجوزة من محفظة معينة لكل حصالة — مبني على walletSources (label فقط)
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
     final result = <String, double>{};
-    for (final jar in state.budgetSetup.linkedWallets) {
-      for (final src in jar.walletSources) {
-        if (src.walletId == walletId && src.amount > 0) {
-          result[jar.id] = src.amount;
-        }
+    for (final entry in state.moneyDistributions) {
+      if (entry.walletId == walletId && entry.amount > 0) {
+        result[entry.jarId] = (result[entry.jarId] ?? 0) + entry.amount;
       }
     }
     return result;
@@ -1947,7 +1946,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   double _jarUnallocatedAmount(AppStateEntity state, dynamic entity) {
     if (entity is LinkedWalletEntity) {
-      return entity.unlabeledAmount;
+      return jarUnknownDistribution(state, entity);
     } else if (entity is AllocationEntity) {
       final sum = entity.walletBalances.values.fold<double>(0, (s, v) => s + v);
       return (entity.balance - sum).clamp(0, double.infinity);
@@ -2133,11 +2132,9 @@ class _WalletsListPageState extends State<_WalletsListPage> {
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
     final result = <String, double>{};
-    for (final jar in state.budgetSetup.linkedWallets) {
-      for (final src in jar.walletSources) {
-        if (src.walletId == walletId && src.amount > 0) {
-          result[jar.id] = src.amount;
-        }
+    for (final entry in state.moneyDistributions) {
+      if (entry.walletId == walletId && entry.amount > 0) {
+        result[entry.jarId] = (result[entry.jarId] ?? 0) + entry.amount;
       }
     }
     return result;

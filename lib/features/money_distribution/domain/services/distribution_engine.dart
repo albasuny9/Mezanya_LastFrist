@@ -205,6 +205,27 @@ class DistributionEngine {
     return result;
   }
 
+  static MoneyLocationSnapshot snapshotForJar({
+    required List<DistributionEntry> entries,
+    required String jarId,
+    required double jarBalance,
+  }) {
+    final jarEntries = entriesForJar(entries, jarId)
+        .where((entry) => entry.amount > 0)
+        .toList();
+    final byWallet = summaryForJar(jarEntries, jarId);
+    final known = byWallet.values.fold<double>(0, (sum, amount) => sum + amount);
+    final unknown = jarBalance <= 0 ? 0.0 : (jarBalance - known).clamp(0.0, double.infinity);
+    return MoneyLocationSnapshot(
+      jarId: jarId,
+      entries: jarEntries,
+      byWallet: byWallet,
+      known: known,
+      unknown: unknown,
+      jarBalance: jarBalance,
+    );
+  }
+
   static double totalFromWalletForJar(
     List<DistributionEntry> entries,
     String jarId,
@@ -218,11 +239,12 @@ class DistributionEngine {
     required List<DistributionEntry> entries,
     required String jarId,
     required double jarBalance,
-  }) {
-    if (jarBalance <= 0) return 0.0;
-    final unknown = jarBalance - totalForJar(entries, jarId);
-    return unknown > 0 ? unknown : 0;
-  }
+  }) =>
+      snapshotForJar(
+        entries: entries,
+        jarId: jarId,
+        jarBalance: jarBalance,
+      ).unknown;
 
   static void _validatePositiveAmount(double amount) {
     if (amount <= 0) {
@@ -244,6 +266,14 @@ class DistributionEngine {
     required double jarBalance,
     required double delta,
   }) {
+    if (jarBalance <= 0) {
+      if (delta > 0) {
+        throw const DistributionValidationException(
+          'ط¥ط¬ظ…ط§ظ„ظٹ ط£ظ…ط§ظƒظ† ط§ظ„ظپظ„ظˆط³ ظ„ط§ ظٹظ…ظƒظ† ط£ظ† ظٹطھط¬ط§ظˆط² ط±طµظٹط¯ ط§ظ„ط­طµط§ظ„ط©.',
+        );
+      }
+      return;
+    }
     final nextTotal = totalForJar(entries, jarId) + delta;
     if (nextTotal > jarBalance + 0.01) {
       throw const DistributionValidationException(
@@ -433,6 +463,26 @@ class DistributionEngine {
     String jarId,
   ) =>
       entries.where((e) => e.jarId == jarId).toList();
+}
+
+class MoneyLocationSnapshot {
+  const MoneyLocationSnapshot({
+    required this.jarId,
+    required this.entries,
+    required this.byWallet,
+    required this.known,
+    required this.unknown,
+    required this.jarBalance,
+  });
+
+  final String jarId;
+  final List<DistributionEntry> entries;
+  final Map<String, double> byWallet;
+  final double known;
+  final double unknown;
+  final double jarBalance;
+
+  bool get knownExceedsBalance => known > jarBalance + 0.01;
 }
 
 class DistributionValidationException implements Exception {

@@ -15,17 +15,15 @@ import '../../../transactions/presentation/widgets/shared_transaction_card.dart'
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import 'wallet_shared_widgets.dart';
 
-/// مكان الفلوس داخل الحصالة — مبني مؤقتًا على walletSources
 Map<String, double> jarWalletDistribution(AppStateEntity state, String jarId) {
-  final liveEntries = jarDistributionEntries(state, jarId);
-  if (liveEntries.isNotEmpty) {
-    return DistributionEngine.summaryForJar(liveEntries, jarId);
-  }
-  if (state.moneyDistributionMigrationDone) return {};
   final jar =
       state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
-  if (jar == null) return {};
-  return {for (final s in jar.walletSources) s.walletId: s.amount};
+  if (jar == null) return const {};
+  return DistributionEngine.snapshotForJar(
+    entries: state.moneyDistributions,
+    jarId: jarId,
+    jarBalance: jar.balance,
+  ).byWallet;
 }
 
 List<DistributionEntry> jarDistributionEntries(
@@ -35,30 +33,15 @@ List<DistributionEntry> jarDistributionEntries(
   final entries = state.moneyDistributions
       .where((entry) => entry.jarId == jarId && entry.amount > 0)
       .toList();
-  if (entries.isNotEmpty) return entries;
-  if (state.moneyDistributionMigrationDone) return const [];
-
-  final jar =
-      state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
-  if (jar == null) return const [];
-  return [
-    for (final source in jar.walletSources.where((item) => item.amount > 0))
-      DistributionEntry.fromWalletSource(
-        jarId: jarId,
-        walletId: source.walletId,
-        amount: source.amount,
-      ),
-  ];
+  return entries;
 }
 
 double jarUnknownDistribution(AppStateEntity state, LinkedWalletEntity jar) {
-  if (jar.balance <= 0) return 0;
-  final known = DistributionEngine.totalForJar(
-    jarDistributionEntries(state, jar.id),
-    jar.id,
-  );
-  final unknown = jar.balance - known;
-  return unknown > 0 ? unknown : 0;
+  return DistributionEngine.snapshotForJar(
+    entries: state.moneyDistributions,
+    jarId: jar.id,
+    jarBalance: jar.balance,
+  ).unknown;
 }
 
 bool isJarWalletLocationTransaction(TransactionEntity transaction) {
@@ -228,7 +211,7 @@ Future<void> showJarDetailsSheet({
                                   child: _jarSheetGlassMetric(
                                     label: 'غير معروف المصدر',
                                     value:
-                                        jar.unlabeledAmount.toStringAsFixed(2),
+                                        unknownDistribution.toStringAsFixed(2),
                                   ),
                                 ),
                               ],
@@ -742,7 +725,8 @@ Future<void> _openWalletAllocationSheet({
         final accent = accentBase;
         // Always use real entries from moneyDistributions — never synthetic
         final entries = liveState.moneyDistributions
-            .where((e) => e.jarId == jarId && e.walletId == walletId && e.amount > 0)
+            .where((e) =>
+                e.jarId == jarId && e.walletId == walletId && e.amount > 0)
             .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         final currentTotal = entries.fold<double>(
@@ -933,8 +917,7 @@ class _DistributionEntryTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               children: [
                 Expanded(

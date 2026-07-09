@@ -34,8 +34,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     appState = _ensureDefaultSavingsJarSync(appState);
     appState = _migrateDefaultWalletIconsSync(appState);
     appState = _migrateOrphanedDebtRecurringSync(appState);
-    appState = _migrateMoneyLocationInconsistenciesSync(appState);
-    appState = _migrateMoneyDistributionsSync(appState);
+    appState = _normalizeMoneyLocationState(appState);
     final key = _monthKey();
     if (!appState.monthlyBudgetSnapshots.containsKey(key)) {
       appState = _withMonthlySnapshot(appState, appState.budgetSetup);
@@ -68,7 +67,15 @@ class AppCubit extends Cubit<AppStateEntity> {
 
     for (var i = 0; i < jars.length; i++) {
       final jar = jars[i];
-      final newReviews = MoneyLocationEngine.detectInconsistencies(jar);
+      final snapshot = DistributionEngine.snapshotForJar(
+        entries: source.moneyDistributions,
+        jarId: jar.id,
+        jarBalance: jar.balance,
+      );
+      final newReviews = MoneyLocationEngine.detectInconsistencies(
+        jar: jar,
+        snapshot: snapshot,
+      );
       if (newReviews.isNotEmpty) {
         jars[i] = jar.copyWith(
           moneyLocationReviews: [...jar.moneyLocationReviews, ...newReviews],
@@ -87,13 +94,9 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   AppStateEntity _migrateMoneyDistributionsSync(AppStateEntity source) {
-    if (source.moneyDistributionMigrationDone) return source;
-    if (source.moneyDistributions.isNotEmpty) {
-      return source.copyWith(moneyDistributionMigrationDone: true);
-    }
-
     final knownWalletIds = source.wallets.map((wallet) => wallet.id).toSet();
-    final entries = <DistributionEntry>[];
+    final entries =
+        source.moneyDistributions.where((entry) => entry.amount > 0).toList();
     final now = DateTime.now();
     final jars =
         List<LinkedWalletEntity>.from(source.budgetSetup.linkedWallets);
@@ -127,6 +130,15 @@ class AppCubit extends Cubit<AppStateEntity> {
               notes: 'مصدر قديم مرتبط بمحفظة غير موجودة ولم يتم ترحيله.',
             ),
           );
+          continue;
+        }
+
+        final alreadyImported = entries.any(
+          (entry) =>
+              entry.jarId == jar.id && entry.walletId == walletSource.walletId,
+        );
+        if (alreadyImported) {
+          remainingImportable -= walletSource.amount;
           continue;
         }
 
@@ -171,10 +183,29 @@ class AppCubit extends Cubit<AppStateEntity> {
       }
     }
 
-    return source.copyWith(
-      moneyDistributions: entries,
+    final migrated = source.copyWith(
       budgetSetup: source.budgetSetup.copyWith(linkedWallets: jars),
       moneyDistributionMigrationDone: true,
+    );
+    return _withMoneyDistributions(migrated, entries);
+  }
+
+  AppStateEntity _normalizeMoneyLocationState(AppStateEntity source) {
+    final withDistributions = _migrateMoneyDistributionsSync(source);
+    return _migrateMoneyLocationInconsistenciesSync(withDistributions);
+  }
+
+  AppStateEntity _withMoneyDistributions(
+    AppStateEntity source,
+    List<DistributionEntry> entries,
+  ) {
+    final positiveEntries = entries.where((entry) => entry.amount > 0).toList();
+    final jars = source.budgetSetup.linkedWallets
+        .map((jar) => jar.copyWith(walletSources: const []))
+        .toList();
+    return source.copyWith(
+      moneyDistributions: positiveEntries,
+      budgetSetup: source.budgetSetup.copyWith(linkedWallets: jars),
     );
   }
 
@@ -253,7 +284,9 @@ class AppCubit extends Cubit<AppStateEntity> {
 
   AppStateEntity _restoreFromCore(String coreJson, List<LogEntryEntity> logs) {
     final map = jsonDecode(coreJson) as Map<String, dynamic>;
-    return AppStateEntity.fromMap(map).copyWith(logs: logs);
+    return _normalizeMoneyLocationState(
+      AppStateEntity.fromMap(map).copyWith(logs: logs),
+    );
   }
 
   Future<void> _applyAndLog({
@@ -421,18 +454,27 @@ class AppCubit extends Cubit<AppStateEntity> {
     // هل المبلغ سيتجاوز الرصيد غير الممول (Unknown) في الحصالة، لإنشاء
     // مراجعة Money Location بعد نجاح المعاملة بدل رفضها.
     LinkedWalletEntity? jarNeedingMismatchReview;
-    if (walletId == null &&
-        type == TransactionType.expense.value &&
-        toWalletId != null) {
+    var mismatchReviewWalletId = 'no-wallet';
+    if (type == TransactionType.expense.value && toWalletId != null) {
       final jar = state.budgetSetup.linkedWallets
           .where((j) => j.id == toWalletId)
           .firstOrNull;
       if (jar != null) {
-        final fundedAmount = jar.walletSources
-            .fold<double>(0, (sum, source) => sum + source.amount);
-        final unfundedAmount = jar.balance - fundedAmount;
-        if (amount > unfundedAmount) {
+        final snapshot = DistributionEngine.snapshotForJar(
+          entries: state.moneyDistributions,
+          jarId: jar.id,
+          jarBalance: jar.balance,
+        );
+        final explainableAmount = walletId == null
+            ? snapshot.unknown
+            : DistributionEngine.totalFromWalletForJar(
+                state.moneyDistributions,
+                jar.id,
+                walletId,
+              );
+        if (amount > explainableAmount + 0.01) {
           jarNeedingMismatchReview = jar;
+          mismatchReviewWalletId = walletId ?? 'no-wallet';
         }
       }
     }
@@ -475,7 +517,7 @@ class AppCubit extends Cubit<AppStateEntity> {
         jars[idx] = MoneyLocationEngine.addSpendingMismatchReview(
           jar: jars[idx],
           amount: amount,
-          spendingWalletId: 'no-wallet',
+          spendingWalletId: mismatchReviewWalletId,
           transactionId: transaction.id,
         );
         await updateBudgetSetup(
@@ -617,13 +659,8 @@ class AppCubit extends Cubit<AppStateEntity> {
 
   Future<void> deleteWallet(String id) async {
     final hasDistribution = state.moneyDistributions.any(
-          (entry) => entry.walletId == id && entry.amount > 0,
-        ) ||
-        state.budgetSetup.linkedWallets.any(
-          (jar) => jar.walletSources.any(
-            (source) => source.walletId == id && source.amount > 0,
-          ),
-        );
+      (entry) => entry.walletId == id && entry.amount > 0,
+    );
     if (hasDistribution) {
       throw const DistributionValidationException(
         'لا يمكن حذف محفظة تحتوي على أماكن فلوس محجوزة.',
@@ -696,8 +733,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'money-distribution',
       entityId: jarId,
       details: 'تم تعديل مكان الفلوس',
-      apply: () async => state.copyWith(
-        moneyDistributions: DistributionEngine.addReservation(
+      apply: () async => _withMoneyDistributions(
+        state,
+        DistributionEngine.addReservation(
           entries: state.moneyDistributions,
           jarId: jarId,
           walletId: walletId,
@@ -720,8 +758,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'money-distribution',
       entityId: jarId,
       details: 'تم تعديل مكان الفلوس',
-      apply: () async => state.copyWith(
-        moneyDistributions: DistributionEngine.removeReservation(
+      apply: () async => _withMoneyDistributions(
+        state,
+        DistributionEngine.removeReservation(
           entries: state.moneyDistributions,
           jarId: jarId,
           walletId: walletId,
@@ -748,8 +787,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'money-distribution',
       entityId: jarId,
       details: 'تم نقل مكان الفلوس',
-      apply: () async => state.copyWith(
-        moneyDistributions: DistributionEngine.transferReservation(
+      apply: () async => _withMoneyDistributions(
+        state,
+        DistributionEngine.transferReservation(
           entries: state.moneyDistributions,
           jarId: jarId,
           fromWalletId: fromWalletId,
@@ -771,8 +811,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'money-distribution',
       entityId: entryId,
       details: 'تم نقل مكان الفلوس',
-      apply: () async => state.copyWith(
-        moneyDistributions: DistributionEngine.moveEntry(
+      apply: () async => _withMoneyDistributions(
+        state,
+        DistributionEngine.moveEntry(
           entries: state.moneyDistributions,
           entryId: entryId,
           toWalletId: toWalletId,
@@ -799,8 +840,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'money-distribution',
       entityId: entryId,
       details: 'تم تعديل مكان الفلوس',
-      apply: () async => state.copyWith(
-        moneyDistributions: DistributionEngine.editEntryAmount(
+      apply: () async => _withMoneyDistributions(
+        state,
+        DistributionEngine.editEntryAmount(
           entries: state.moneyDistributions,
           entryId: entryId,
           amount: amount,
@@ -816,8 +858,9 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityType: 'money-distribution',
       entityId: entryId,
       details: 'تم حذف مكان الفلوس',
-      apply: () async => state.copyWith(
-        moneyDistributions: DistributionEngine.deleteEntry(
+      apply: () async => _withMoneyDistributions(
+        state,
+        DistributionEngine.deleteEntry(
           entries: state.moneyDistributions,
           entryId: entryId,
         ),
@@ -856,26 +899,24 @@ class AppCubit extends Cubit<AppStateEntity> {
   ///
   /// لا يُعدَّل jar.balance أو wallet.balance أو أي رصيد مالي.
   Future<void> autoResolveReviewsIfConsistent(String jarId) async {
-    final jar = state.budgetSetup.linkedWallets
-        .where((j) => j.id == jarId)
-        .firstOrNull;
+    final jar =
+        state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
     if (jar == null || jar.moneyLocationReviews.isEmpty) return;
 
-    final entries =
-        state.moneyDistributions.where((e) => e.jarId == jarId).toList();
-    final totalKnown = DistributionEngine.totalForJar(
-      state.moneyDistributions,
-      jarId,
+    final snapshot = DistributionEngine.snapshotForJar(
+      entries: state.moneyDistributions,
+      jarId: jarId,
+      jarBalance: jar.balance,
     );
 
     bool isInconsistencyResolved(MoneyLocationReview review) {
       switch (review.type) {
         case 'labeled-exceeds-balance':
-          return totalKnown <= jar.balance + 0.01;
+          return !snapshot.knownExceedsBalance;
         case 'source-went-negative':
-          return entries.every((e) => e.amount > 0);
+          return snapshot.entries.every((e) => e.amount > 0);
         case 'spending-wallet-mismatch':
-          return totalKnown > 0;
+          return snapshot.known > 0 || snapshot.unknown > 0;
         default:
           return false;
       }
@@ -2043,7 +2084,7 @@ class AppCubit extends Cubit<AppStateEntity> {
 
   Future<void> importStateJson(String jsonString) async {
     final map = jsonDecode(jsonString) as Map<String, dynamic>;
-    final next = AppStateEntity.fromMap(map);
+    final next = _normalizeMoneyLocationState(AppStateEntity.fromMap(map));
     await _applyAndLog(
       action: 'import',
       entityType: 'backup',
@@ -2055,7 +2096,7 @@ class AppCubit extends Cubit<AppStateEntity> {
 
   Future<void> mergeStateJson(String remoteJson) async {
     final remoteMap = jsonDecode(remoteJson) as Map<String, dynamic>;
-    final remote = AppStateEntity.fromMap(remoteMap);
+    final remote = _normalizeMoneyLocationState(AppStateEntity.fromMap(remoteMap));
     final local = state;
 
     final mergedWallets = {
@@ -2088,14 +2129,14 @@ class AppCubit extends Cubit<AppStateEntity> {
         0;
     final budget = localBudgetNewer ? local.budgetSetup : remote.budgetSetup;
 
-    final next = local.copyWith(
+    final next = _normalizeMoneyLocationState(local.copyWith(
       wallets: mergedWallets,
       transactions: mergedTx,
       recurringTransactions: mergedRecurring,
       goals: mergedGoals,
       categories: mergedCategories,
       budgetSetup: budget,
-    );
+    ));
 
     await _applyAndLog(
       action: 'import',

@@ -8,6 +8,7 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
+import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../screens/add_transaction_screen.dart';
 
@@ -1171,7 +1172,12 @@ Future<void> _openJarReserveEditor(
                                 ? transaction.amount
                                 : 0.0;
                         final availableForReservation =
-                            targetJar.unlabeledAmount + currentAmountForSameJar;
+                            DistributionEngine.unknownForJar(
+                                  entries: cubit.state.moneyDistributions,
+                                  jarId: targetJar.id,
+                                  jarBalance: targetJar.balance,
+                                ) +
+                                currentAmountForSameJar;
                         if (amount > availableForReservation + 0.01) {
                           await showDialog<void>(
                             context: sheetContext,

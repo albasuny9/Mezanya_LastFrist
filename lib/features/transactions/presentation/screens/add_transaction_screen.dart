@@ -5,6 +5,7 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
+import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
@@ -140,18 +141,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   double _walletReservedAmount(String walletId) {
-    // الحجز الآن محسوب من walletSources في الحصالات (virtual labels) مش من transactions
-    var reserved = 0.0;
-    for (final jar in widget.cubit.state.budgetSetup.linkedWallets) {
-      final sources = jar.walletSources.isNotEmpty
-          ? jar.walletSources
-          : jar.walletBalances.entries
-              .map((e) => JarWalletSource(walletId: e.key, amount: e.value))
-              .toList();
-      for (final src in sources) {
-        if (src.walletId == walletId) reserved += src.amount;
-      }
-    }
+    final reserved = DistributionEngine.totalFromWallet(
+      widget.cubit.state.moneyDistributions,
+      walletId,
+    );
     return reserved < 0 ? 0 : reserved;
   }
 

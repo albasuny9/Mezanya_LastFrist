@@ -1,5 +1,7 @@
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../money_distribution/domain/entities/distribution_entry.dart';
+import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../entities/transaction_entity.dart';
 import '../../../../core/constants/transaction_types.dart';
@@ -24,10 +26,34 @@ class TransactionProcessor {
         List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
     var allocations =
         List<AllocationEntity>.from(current.budgetSetup.allocations);
+    var moneyDistributions =
+        List<DistributionEntry>.from(current.moneyDistributions);
     var transactions = <TransactionEntity>[
       ...current.transactions,
       transaction,
     ];
+
+    void updateMoneyDistribution({
+      required String jarId,
+      required String walletId,
+      required double delta,
+    }) {
+      if (walletId.isEmpty || delta == 0) return;
+      final currentAmount = DistributionEngine.totalFromWalletForJar(
+        moneyDistributions,
+        jarId,
+        walletId,
+      );
+      final nextAmount = currentAmount + delta;
+      moneyDistributions = DistributionEngine.upsert(
+        entries: moneyDistributions,
+        jarId: jarId,
+        walletId: walletId,
+        amount: nextAmount > 0 ? nextAmount : 0,
+        origin: DistributionOrigin.automatic,
+        linkedTransactionId: transaction.id,
+      );
+    }
 
     void updateJarSourceOnly({
       required String jarId,
@@ -36,15 +62,10 @@ class TransactionProcessor {
     }) {
       final jarIdx = linkedWallets.indexWhere((j) => j.id == jarId);
       if (jarIdx == -1) return;
-      var jar = linkedWallets[jarIdx];
+      updateMoneyDistribution(jarId: jarId, walletId: walletId, delta: delta);
+      final jar = linkedWallets[jarIdx];
       final nextBalances = Map<String, double>.from(jar.walletBalances);
       nextBalances[walletId] = (nextBalances[walletId] ?? 0) + delta;
-      final existingSourceIdx =
-          jar.walletSources.indexWhere((s) => s.walletId == walletId);
-      final currentSourceAmount = existingSourceIdx == -1
-          ? 0.0
-          : jar.walletSources[existingSourceIdx].amount;
-      jar = jar.withUpdatedSource(walletId, currentSourceAmount + delta);
       linkedWallets[jarIdx] = jar.copyWith(walletBalances: nextBalances);
     }
 
@@ -56,19 +77,16 @@ class TransactionProcessor {
     }) {
       final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
       if (jarIdx != -1) {
-        var jar = linkedWallets[jarIdx];
+        final jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
         if (trackWalletSource && physicalWalletId != null) {
+          updateMoneyDistribution(
+            jarId: id,
+            walletId: physicalWalletId,
+            delta: delta,
+          );
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) + delta;
-          final existingSourceIdx = jar.walletSources
-              .indexWhere((s) => s.walletId == physicalWalletId);
-          double currentSourceAmount = 0;
-          if (existingSourceIdx != -1) {
-            currentSourceAmount = jar.walletSources[existingSourceIdx].amount;
-          }
-          jar = jar.withUpdatedSource(
-              physicalWalletId, currentSourceAmount + delta);
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance + delta,
@@ -381,6 +399,7 @@ class TransactionProcessor {
         linkedWallets: linkedWallets,
         allocations: allocations,
       ),
+      moneyDistributions: moneyDistributions,
       transactions: transactions,
     );
   }
@@ -397,6 +416,30 @@ class TransactionProcessor {
         List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
     var allocations =
         List<AllocationEntity>.from(current.budgetSetup.allocations);
+    var moneyDistributions =
+        List<DistributionEntry>.from(current.moneyDistributions);
+
+    void updateMoneyDistribution({
+      required String jarId,
+      required String walletId,
+      required double delta,
+    }) {
+      if (walletId.isEmpty || delta == 0) return;
+      final currentAmount = DistributionEngine.totalFromWalletForJar(
+        moneyDistributions,
+        jarId,
+        walletId,
+      );
+      final nextAmount = currentAmount + delta;
+      moneyDistributions = DistributionEngine.upsert(
+        entries: moneyDistributions,
+        jarId: jarId,
+        walletId: walletId,
+        amount: nextAmount > 0 ? nextAmount : 0,
+        origin: DistributionOrigin.automatic,
+        linkedTransactionId: transaction.id,
+      );
+    }
 
     void reverseVirtualBalance({
       required String id,
@@ -406,20 +449,16 @@ class TransactionProcessor {
     }) {
       final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
       if (jarIdx != -1) {
-        var jar = linkedWallets[jarIdx];
+        final jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
         if (trackWalletSource && physicalWalletId != null) {
+          updateMoneyDistribution(
+            jarId: id,
+            walletId: physicalWalletId,
+            delta: -delta,
+          );
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) - delta;
-          final existingSourceIdx = jar.walletSources
-              .indexWhere((s) => s.walletId == physicalWalletId);
-          final currentSourceAmount = existingSourceIdx == -1
-              ? 0.0
-              : jar.walletSources[existingSourceIdx].amount;
-          jar = jar.withUpdatedSource(
-            physicalWalletId,
-            currentSourceAmount - delta,
-          );
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance - delta,
@@ -449,15 +488,10 @@ class TransactionProcessor {
     }) {
       final jarIdx = linkedWallets.indexWhere((j) => j.id == jarId);
       if (jarIdx == -1) return;
-      var jar = linkedWallets[jarIdx];
+      updateMoneyDistribution(jarId: jarId, walletId: walletId, delta: -delta);
+      final jar = linkedWallets[jarIdx];
       final nextBalances = Map<String, double>.from(jar.walletBalances);
       nextBalances[walletId] = (nextBalances[walletId] ?? 0) - delta;
-      final existingSourceIdx =
-          jar.walletSources.indexWhere((s) => s.walletId == walletId);
-      final currentSourceAmount = existingSourceIdx == -1
-          ? 0.0
-          : jar.walletSources[existingSourceIdx].amount;
-      jar = jar.withUpdatedSource(walletId, currentSourceAmount - delta);
       linkedWallets[jarIdx] = jar.copyWith(walletBalances: nextBalances);
     }
 
@@ -673,6 +707,7 @@ class TransactionProcessor {
         linkedWallets: linkedWallets,
         allocations: allocations,
       ),
+      moneyDistributions: moneyDistributions,
       transactions: current.transactions.where((t) {
         if (t.id == transaction.id) return false;
         // احذف الـ sub-transactions المرتبطة بالأم
