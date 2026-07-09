@@ -1384,7 +1384,20 @@ Widget _walletDropdown({
 }
 
 void _showDistributionError(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  showDialog<void>(
+    context: context,
+    useRootNavigator: true,
+    builder: (dialogCtx) => AlertDialog(
+      title: const Text('خطأ'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogCtx).pop(),
+          child: const Text('حسناً'),
+        ),
+      ],
+    ),
+  );
 }
 
 Widget _jarSheetIconAction(

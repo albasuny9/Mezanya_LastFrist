@@ -671,38 +671,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             return;
                           }
 
-                          if (!widget.recurringMode &&
-                              _type == TransactionType.expense.value &&
-                              _walletId == 'no-wallet' &&
-                              _budgetTargetId.startsWith('jar:')) {
-                            final selectedJarId =
-                                _budgetTargetId.replaceFirst('jar:', '');
-                            final jar = budget.linkedWallets
-                                .firstWhere((j) => j.id == selectedJarId,
-                                    orElse: () => const LinkedWalletEntity(
-                                          id: '',
-                                          name: '',
-                                          monthlyAmount: 0,
-                                          executionDay: 1,
-                                          fundingSource: '',
-                                          funding: [],
-                                          icon: '',
-                                          iconColor: '',
-                                          automationType: '',
-                                          categories: [],
-                                        ));
-                            if (jar.id.isNotEmpty) {
-                              final fundedAmount = jar.walletSources
-                                  .fold<double>(
-                                      0, (sum, source) => sum + source.amount);
-                              final unfundedAmount = jar.balance - fundedAmount;
-                              if (amount > unfundedAmount) {
-                                _showValidationError(
-                                    'المبلغ أكبر من الرصيد غير الممول في الحصالة (${unfundedAmount.toStringAsFixed(2)}). اختر محفظة البنك الممول للخصم منها.');
-                                return;
-                              }
-                            }
-                          }
+                          // ملاحظة: تم حذف تحقق "الرصيد غير الممول" الذي كان
+                          // يرفض الصرف من الحصالة بدون اختيار محفظة عندما
+                          // يتجاوز المبلغ Unknown. الحصالات مسموح أن يصبح
+                          // رصيدها سالبًا؛ المعاملة يجب أن تُنفَّذ دائمًا،
+                          // وأي عدم اتساق في Money Location يُعالَج لاحقًا
+                          // عبر مراجعة (review) تُنشأ تلقائيًا، لا برفض العملية.
 
                           if (!widget.recurringMode &&
                               _type == TransactionType.expense.value &&

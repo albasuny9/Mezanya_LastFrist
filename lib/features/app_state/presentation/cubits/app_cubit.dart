@@ -416,6 +416,27 @@ class AppCubit extends Cubit<AppStateEntity> {
       notes: notes,
       createdAt: createdAt ?? DateTime.now(),
     );
+    // صرف مباشر من حصالة بدون اختيار محفظة: لا يجوز أن يمنع المعاملة
+    // (الحصالات يجوز أن يصير رصيدها سالبًا). نحسب هنا — قبل تطبيق المعاملة —
+    // هل المبلغ سيتجاوز الرصيد غير الممول (Unknown) في الحصالة، لإنشاء
+    // مراجعة Money Location بعد نجاح المعاملة بدل رفضها.
+    LinkedWalletEntity? jarNeedingMismatchReview;
+    if (walletId == null &&
+        type == TransactionType.expense.value &&
+        toWalletId != null) {
+      final jar = state.budgetSetup.linkedWallets
+          .where((j) => j.id == toWalletId)
+          .firstOrNull;
+      if (jar != null) {
+        final fundedAmount = jar.walletSources
+            .fold<double>(0, (sum, source) => sum + source.amount);
+        final unfundedAmount = jar.balance - fundedAmount;
+        if (amount > unfundedAmount) {
+          jarNeedingMismatchReview = jar;
+        }
+      }
+    }
+
     await _applyAndLog(
       action: type == TransactionType.transfer.value ? 'transfer' : 'add',
       entityType: 'transaction',
@@ -445,6 +466,23 @@ class AppCubit extends Cubit<AppStateEntity> {
       apply: () async => TransactionProcessor.apply(state, transaction),
       recordInNotificationHistory: recordInNotificationHistory,
     );
+
+    if (jarNeedingMismatchReview != null) {
+      final jars =
+          List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+      final idx = jars.indexWhere((j) => j.id == jarNeedingMismatchReview!.id);
+      if (idx != -1) {
+        jars[idx] = MoneyLocationEngine.addSpendingMismatchReview(
+          jar: jars[idx],
+          amount: amount,
+          spendingWalletId: 'no-wallet',
+          transactionId: transaction.id,
+        );
+        await updateBudgetSetup(
+          state.budgetSetup.copyWith(linkedWallets: jars),
+        );
+      }
+    }
   }
 
   String _transactionDetails({
