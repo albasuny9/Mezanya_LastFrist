@@ -1,0 +1,155 @@
+Do NOT modify any code.
+
+Do NOT refactor.
+
+Do NOT implement fixes.
+
+Do NOT create temporary workarounds.
+
+Your only task is to perform a root-cause investigation and produce a technical report.
+
+The current Money Location implementation still contains major logical inconsistencies that were NOT fixed.
+
+Investigate ONLY.
+
+=========================================
+Investigate these bugs
+=========================================
+
+1. Unknown amount is incorrect.
+
+Examples:
+
+Jar Balance = 4500
+
+Known Distribution = 500
+
+Expected Unknown = 4000
+
+Actual Unknown = 4500
+
+Find exactly where the Known Distribution is ignored or a different data source is used.
+
+-----------------------------------------
+
+2. Newly created jars also produce incorrect values.
+
+This proves the problem is NOT legacy data.
+
+Find exactly why a completely new jar still produces inconsistent balances.
+
+-----------------------------------------
+
+3. Negative jar balances.
+
+When a jar balance becomes negative:
+
+Unknown must always become 0.
+
+The UI still sometimes displays incorrect values.
+
+Trace every code path responsible for computing Unknown.
+
+-----------------------------------------
+
+4. Money Location calculations.
+
+Determine every place where the following values are read or modified:
+
+- jar.balance
+- wallet.balance
+- walletSources
+- moneyDistributions
+- Unknown
+- Money Location reviews
+
+For every value list:
+
+- read locations
+- write locations
+- runtime owner
+
+-----------------------------------------
+
+5. Legacy code audit.
+
+Determine whether walletSources is STILL participating in runtime calculations after the migration.
+
+If yes:
+
+List every file,
+every function,
+every line responsible.
+
+-----------------------------------------
+
+6. Duplicate calculations.
+
+Determine whether any transaction updates the same jar more than once.
+
+Trace a single transaction from:
+
+Create Transaction
+
+↓
+
+TransactionProcessor
+
+↓
+
+AppCubit
+
+↓
+
+MoneyLocationEngine
+
+↓
+
+DistributionEngine
+
+↓
+
+AppState
+
+Show every mutation in chronological order.
+
+-----------------------------------------
+
+7. Single Source of Truth audit.
+
+Identify the runtime source of truth for:
+
+- Jar Balance
+- Known Distribution
+- Unknown
+- Money Location Review
+
+If multiple runtime sources exist,
+identify every conflicting implementation.
+
+=========================================
+
+Output format
+
+Do NOT propose fixes.
+
+Do NOT modify code.
+
+Produce only a technical report.
+
+For every bug include:
+
+- Root cause
+- Files involved
+- Functions involved
+- Exact execution path
+- Why the current implementation produces the wrong result
+
+If you cannot prove a root cause from code,
+explicitly state:
+
+"Not proven."
+
+Never guess.
+Never speculate.
+Only report findings supported by the repository.
