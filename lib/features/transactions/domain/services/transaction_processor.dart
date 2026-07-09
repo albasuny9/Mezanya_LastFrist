@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../money_distribution/domain/entities/distribution_entry.dart';
@@ -279,10 +281,22 @@ class TransactionProcessor {
               }
             }
             if (!hasPhysicalFunding && transaction.walletId != null) {
+              // المبلغ الفعلي الذي أصبح متاحاً في المحفظة:
+              // إذا كان رصيد المحفظة سالباً قبل الدخل، فجزء من الدخل
+              // ذهب لتغطية الدين ولم يصبح متاحاً للحصالة.
+              final wIdx = wallets.indexWhere(
+                  (w) => w.id == transaction.walletId);
+              final walletAfter =
+                  wIdx != -1 ? wallets[wIdx].balance : transferAmount;
+              final walletBefore = walletAfter - transaction.amount;
+              final effectiveDelta = min(
+                transferAmount,
+                max(0.0, walletAfter) - max(0.0, walletBefore),
+              );
               updateJarSourceOnly(
                 jarId: jar.id,
                 walletId: transaction.walletId!,
-                delta: transferAmount,
+                delta: effectiveDelta,
               );
             }
             transactions.add(
