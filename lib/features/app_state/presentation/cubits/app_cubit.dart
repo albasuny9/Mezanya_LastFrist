@@ -564,7 +564,32 @@ class AppCubit extends Cubit<AppStateEntity> {
     final transaction = target.first;
 
     // TransactionProcessor.reverse يعكس الأرصدة ويحذف الـ sub-transactions تلقائياً
-    final next = TransactionProcessor.reverse(state, transaction);
+    var next = TransactionProcessor.reverse(state, transaction);
+
+    // تنظيف أي Money Location review مرتبط بهذه المعاملة (مثلاً review من نوع
+    // spendingWalletMismatch أُنشئ عبر addSpendingMismatchReview) — بدون هذا
+    // التنظيف يبقى الـ review يتيماً يشير إلى معاملة لم تعد موجودة.
+    final jarsWithOrphanReviews = next.budgetSetup.linkedWallets
+        .where((jar) => jar.moneyLocationReviews
+            .any((r) => r.relatedTransactionId == transactionId))
+        .toList();
+    if (jarsWithOrphanReviews.isNotEmpty) {
+      final jars =
+          List<LinkedWalletEntity>.from(next.budgetSetup.linkedWallets);
+      for (final jar in jarsWithOrphanReviews) {
+        final idx = jars.indexWhere((j) => j.id == jar.id);
+        if (idx == -1) continue;
+        jars[idx] = jars[idx].copyWith(
+          moneyLocationReviews: jars[idx]
+              .moneyLocationReviews
+              .where((r) => r.relatedTransactionId != transactionId)
+              .toList(),
+        );
+      }
+      next = next.copyWith(
+        budgetSetup: next.budgetSetup.copyWith(linkedWallets: jars),
+      );
+    }
 
     await _applyAndLog(
       action: 'delete',
