@@ -19,8 +19,8 @@
 |---|---|---|---|
 | Jar Balance (تعديل) | `TransactionProcessor` فقط (سطر 95، 487) | لا — **مُركزة بالفعل** | يبقى كما هو |
 | Known Distribution | `DistributionEngine.summaryForJar` | لا | يبقى كما هو |
-| Unknown | `DistributionEngine.snapshotForJar` / `unknownForJar` | **نعم — منطق مطابق معاد كتابته يدويًا في `jar_details_sheet.dart` (`jarUnknownDistribution`, سطر 54)** | `DistributionEngine` فقط — يجب حذف `jarUnknownDistribution` واستبدالها باستدعاء مباشر |
-| Wallet Reserved | `_walletReservedAmount` | **نعم — نفس الدالة معرّفة حرفيًا مرتين في نفس الملف** (`wallets_screen.dart` سطر 1957 و2143) | `WalletCalculationService` (غير موجودة بعد) |
+| Unknown | `DistributionEngine.snapshotForJar` / `unknownForJar` | ~~نعم~~ **تم الحل** — `jarUnknownDistribution` بقت تستدعي `DistributionEngine.snapshotForJar` مباشرة (حُلّت عبر تعديل متزامن من أداة أخرى أثناء إعداد هذا الملف) | `DistributionEngine` فقط — ✅ محقق |
+| Wallet Reserved | `_walletReservedAmount` | ~~نعم~~ **تم الحل** — أُضيفت `DistributionEngine.reservationsForWallet`/`reservedForWallet`، وكلا الكلاسين في `wallets_screen.dart` (`_WalletsScreenState`, `_WalletsListPageState`) يستدعيانها الآن بدل إعادة كتابة المنطق | `DistributionEngine` — ✅ محقق (بقيت `WalletCalculationService` مطلوبة لقيم أخرى غير Reserved) |
 | Wallet Available | `wallet.balance - reserved` inline (`wallets_screen.dart` سطر 2154) | غير مؤكد — لم يُفحص بقية المشروع بالكامل | `WalletCalculationService` |
 | Actual Budget Expense | `BudgetMetricsService.computeActualBudgetExpense` | غير مؤكد | يبقى كما هو غالبًا (اسم الملف يطابق الاقتراح فعليًا) |
 | Income Remaining/Progress | `BudgetIncomeMetricsService.incomeRemainingProgress` | غير مؤكد | يبقى كما هو غالبًا |
@@ -112,4 +112,11 @@ reserved = sum(walletReservations[walletId].values)
 مخاطرة منخفضة جدًا واختبار حقيقي إن مبدأ Centralization بيشتغل قبل التوسع
 فيه.
 
-**ما لم يُنفَّذ في هذا الملف:** أي تعديل كود. هذا الملف توثيقي بالكامل.
+**تصحيح على التقييم الأصلي:** الافتراض الأول في هذا الملف كان إن حذف نسخة
+واحدة من `_walletReservedAmount` كافٍ. بعد التحقق، تبيّن إن النسختين في
+**كلاسين مختلفين تمامًا** (`_WalletsScreenState` و`_WalletsListPageState`)
+— حذف نسخة كان سيكسر الكود فورًا. الحل الفعلي: نقل المنطق لـ
+`DistributionEngine` (المالك الصحيح، لأنه يعمل على `moneyDistributions`)
+وتحويل كل نسخة لـ wrapper رفيع يستدعيه. تم تنفيذ هذا (انظر الجدول أعلاه).
+
+**ما لم يُنفَّذ في هذا الملف:** أي تعديل كود إضافي غير ما ذُكر أعلاه.

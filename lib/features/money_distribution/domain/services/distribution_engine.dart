@@ -205,6 +205,32 @@ class DistributionEngine {
     return result;
   }
 
+  /// مبالغ كل حصالة محجوزة من محفظة معيّنة (jarId -> amount)، بنفس أسلوب
+  /// [summaryForJar] لكن من ناحية المحفظة. المصدر الوحيد لهذا الحساب —
+  /// كان معاد تنفيذه محليًا كنسخة يدوية في `wallets_screen.dart` (مرتين، في
+  /// `_WalletsScreenState` و`_WalletsListPageState`) قبل هذا التوحيد.
+  static Map<String, double> reservationsForWallet(
+    List<DistributionEntry> entries,
+    String walletId,
+  ) {
+    final result = <String, double>{};
+    for (final entry in entries
+        .where((e) => e.walletId == walletId && e.amount > 0)) {
+      result[entry.jarId] = (result[entry.jarId] ?? 0) + entry.amount;
+    }
+    return result;
+  }
+
+  /// إجمالي المبلغ المحجوز من محفظة معيّنة عبر كل الحصالات.
+  static double reservedForWallet(
+    List<DistributionEntry> entries,
+    String walletId,
+  ) {
+    return reservationsForWallet(entries, walletId)
+        .values
+        .fold<double>(0, (sum, amount) => sum + amount);
+  }
+
   static MoneyLocationSnapshot snapshotForJar({
     required List<DistributionEntry> entries,
     required String jarId,

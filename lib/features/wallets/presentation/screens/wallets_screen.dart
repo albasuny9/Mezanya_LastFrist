@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
@@ -1927,13 +1928,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
-    final result = <String, double>{};
-    for (final entry in state.moneyDistributions) {
-      if (entry.walletId == walletId && entry.amount > 0) {
-        result[entry.jarId] = (result[entry.jarId] ?? 0) + entry.amount;
-      }
-    }
-    return result;
+    return DistributionEngine.reservationsForWallet(
+        state.moneyDistributions, walletId);
   }
 
   Map<String, double> _allocationDistribution(
@@ -1955,9 +1951,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   double _walletReservedAmount(AppStateEntity state, String walletId) {
-    return _walletReservations(state, walletId)
-        .values
-        .fold<double>(0, (sum, item) => sum + item);
+    return DistributionEngine.reservedForWallet(
+        state.moneyDistributions, walletId);
   }
 
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
@@ -2131,19 +2126,13 @@ class _WalletsListPageState extends State<_WalletsListPage> {
 
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
-    final result = <String, double>{};
-    for (final entry in state.moneyDistributions) {
-      if (entry.walletId == walletId && entry.amount > 0) {
-        result[entry.jarId] = (result[entry.jarId] ?? 0) + entry.amount;
-      }
-    }
-    return result;
+    return DistributionEngine.reservationsForWallet(
+        state.moneyDistributions, walletId);
   }
 
   double _walletReservedAmount(AppStateEntity state, String walletId) {
-    return _walletReservations(state, walletId)
-        .values
-        .fold<double>(0, (sum, item) => sum + item);
+    return DistributionEngine.reservedForWallet(
+        state.moneyDistributions, walletId);
   }
 
   Widget _buildCard(AppStateEntity state, WalletEntity wallet, int index) {
