@@ -120,3 +120,60 @@ reserved = sum(walletReservations[walletId].values)
 وتحويل كل نسخة لـ wrapper رفيع يستدعيه. تم تنفيذ هذا (انظر الجدول أعلاه).
 
 **ما لم يُنفَّذ في هذا الملف:** أي تعديل كود إضافي غير ما ذُكر أعلاه.
+
+---
+
+## اكتشاف جديد أثناء تدقيق ملفات `.fold()` (غير مغطّى في جدول الملكية أعلاه)
+
+### ⚠️ مبلغ القسط المدفوع — مطابقة نصية هشة، ليست تكرارًا لمعادلة موجودة
+
+**الموقع:** `notifications_center_screen.dart` سطر ~200:
+```dart
+final paidAmount = cycleTransactions
+    .where((transaction) => transaction.notes?.contains(debt.name) == true)
+    .fold<double>(0, (sum, transaction) => sum + transaction.amount);
+```
+
+هذه معادلة مالية جديدة كليًا (مش موجودة في جدول الملكية، ومش تكرار لحاجة
+موجودة في `DistributionEngine`/`BudgetMetricsService`). **المخاطرة:**
+الربط بين المعاملة والدَّين يتم عبر **مطابقة نصية على `debt.name` جوه حقل
+`notes`**، مش عبر معرّف (`id`) صريح. هذا يعني:
+- لو اتغيّر اسم الدَّين بعد إنشاء المعاملات، الحساب يفقد المعاملات القديمة
+  بصمت (مفيش خطأ، بس النتيجة غلط).
+- لو في دَينين بنفس الاسم أو اسم فرعي من اسم التاني (مثلاً "قسط سامسونج"
+  و"قسط سامسونج A54")، `.contains()` هيدمج بينهم.
+- لو المستخدم عدّل `notes` يدويًا لأي سبب، الربط ينكسر بصمت.
+
+**الحالة:** لم يُتحقق بعد هل هذا يسبب باگ ظاهر فعليًا للمستخدمين حاليًا —
+يحتاج اختبار يدوي بسيناريو دَينين متشابهين بالاسم. **لا يوجد مالك مقترح
+بعد** — يحتاج قرار: هل يُربط عبر `transaction.relatedDebtId` (حقل جديد لو
+مش موجود) بدل مطابقة النص؟ هذا قرار تصميم، وليس مجرد نقل كود.
+
+---
+
+## حصر كامل لعدد مواضع `.fold()` لكل ملف presentation (تم تنفيذه بالكامل)
+
+| الملف | عدد المواضع | التصنيف الأولي |
+|---|---:|---|
+| `budget_tracking_screen.dart` | **25** | يحتاج فحص فردي — يحتوي على الأقل زوج واحد شبه متطابق (`funded` في سطر 728 و1832، `received` في سطر 560 و1985) |
+| `budget_setup_screen.dart` | **12** | لم يُفحص فرديًا بعد |
+| `transaction_charts_screen.dart` | 8 | الأرجح تجميع بيانات رسم بياني (زي `budget_hero_bar_chart.dart`) — لم يُؤكَّد |
+| `money_overview_widgets.dart` | 4 | لم يُفحص |
+| `all_transactions_screen.dart` | 2 | لم يُفحص |
+| `jar_editor_screen.dart` | 2 | لم يُفحص |
+| `main_shell_screen.dart` | 1 | لم يُفحص |
+| `cycle_analysis_screen.dart` | 1 | الأرجح رسم بياني (`maxVal` للمحور) |
+| `budget_lent_pending_card.dart` | 1 | لم يُفحص |
+| `goals_screen.dart` | 1 | لم يُفحص |
+| `notifications_screen.dart` | 1 | لم يُفحص |
+| `recurring_transactions_screen.dart` | 1 | لم يُفحص |
+| `recurring_transaction_composer_screen.dart` | 1 | لم يُفحص |
+| `add_transaction_screen.dart` | 1 | لم يُفحص |
+| `jar_details_sheet.dart` | 1 | لم يُفحص (على الأرجح مرتبط بمنطق تم توحيده جزئيًا) |
+| **الإجمالي** | **62** | **60% من كل المواضع (37) متركزة في ملفين فقط: budget_tracking_screen و budget_setup_screen** |
+
+**خلاصة صادقة:** التحقق الفردي من الـ 37 موضع في الملفين الأكبر ليس "تدقيقًا
+إضافيًا" — هذا هو التنفيذ الفعلي لمرحلة Centralization في أكبر نقطتي تركّز
+بالمشروع، ويحتاج نفس مستوى التحقق (فحص حدود الـ class، فحص اختلاف الفلاتر
+بين كل نسخة والتانية) اللي اتعمل مع `_walletReservedAmount` — لكن ×18 تقريبًا
+من الحجم. هذا يستحق أن يُعامل كمهمة قائمة بذاتها، وليس ذيل تدقيق سريع.
