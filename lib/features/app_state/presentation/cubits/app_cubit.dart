@@ -23,6 +23,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../domain/repositories/app_repository.dart';
 import '../../../backup/backup_upload_pipeline.dart';
+import '../../../backup/local_backup_service.dart';
 
 class AppCubit extends Cubit<AppStateEntity> {
   AppCubit(this._repository) : super(AppStateEntity.initial());
@@ -342,19 +343,26 @@ class AppCubit extends Cubit<AppStateEntity> {
     _autoSync(next);
   }
 
-  /// رفع تلقائي على السحابة بعد كل عملية حفظ (غير blocking). يمر عبر
-  /// BackupUploadPipeline — نفس مسار التحقق وكشف التعارض المستخدم في
-  /// الرفع اليدوي والصامت؛ بدون resolveConflict، فأي تعارض حقيقي (رفع من
-  /// جهاز آخر) يُؤجَّل بدل تجاوزه أو الكتابة فوقه.
+  /// رفع/حفظ تلقائي بعد كل عملية حفظ (غير blocking). يشغّل مسارين
+  /// مستقلين تمامًا حسب التفعيل: النسخ التلقائي السحابي (BackupUploadPipeline
+  /// بخانتين متبادلتين) والنسخ التلقائي المحلي (LocalBackupService بملفين
+  /// متبادلين) — كل واحد منهما مستقل عن النسخ اليدوي تمامًا ولا يكتب فوقه.
   void _autoSync(AppStateEntity appState) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.email == null) return;
-    BackupUploadPipeline.run(
-      email: user.email!,
-      displayName: user.displayName ?? user.email!,
-      localState: appState,
-      exportJson: () => jsonEncode(appState.toMap()),
-    ).catchError((_) => const BackupUploadResult(BackupUploadStatus.error));
+    if (user != null && user.email != null) {
+      BackupUploadPipeline.run(
+        email: user.email!,
+        displayName: user.displayName ?? user.email!,
+        localState: appState,
+        exportJson: () => jsonEncode(appState.toMap()),
+        kind: BackupKind.auto,
+      ).catchError((_) => const BackupUploadResult(BackupUploadStatus.error));
+    }
+
+    LocalBackupService.autoEnabled().then((enabled) {
+      if (!enabled || appState.isEmpty) return;
+      LocalBackupService.writeAuto(jsonEncode(appState.toMap()));
+    }).catchError((_) {});
     // لو السحابة مش متاحة أو تم تأجيل الرفع، مش بيوقف الـ app.
   }
 

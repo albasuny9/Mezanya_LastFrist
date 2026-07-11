@@ -25,9 +25,14 @@ class BackupUploadResult {
   bool get isSuccess => status == BackupUploadStatus.uploaded;
 }
 
+/// نوع الرفعة: تلقائي (يدور بين خانتين، لا يطلب تأكيدًا) أو يدوي (خانة
+/// واحدة ثابتة، لا تُستبدَل إلا بضغطة المستخدم الصريحة). Backup V2 —
+/// الاثنان مستقلان تمامًا ولا يكتب أحدهما فوق الآخر أبدًا.
+enum BackupKind { manual, auto }
+
 /// دالة اختيارية لعرض حوار التعارض على المستخدم (تُستخدَم في المسار
-/// التفاعلي فقط). لو null، يعني تشغيل غير تفاعلي (تلقائي/صامت) — أي
-/// تعارض حقيقي يُؤجَّل الرفع بدلاً من عرض واجهة أو الكتابة فوق البيانات.
+/// التفاعلي فقط). لو null، يعني تشغيل غير تفاعلي (تلقائي) — أي تعارض
+/// حقيقي يُؤجَّل الرفع بدلاً من عرض واجهة أو الكتابة فوق البيانات.
 typedef ConflictResolver = Future<BackupConflictChoice> Function({
   required int remoteTxCount,
   required int localTxCount,
@@ -35,24 +40,26 @@ typedef ConflictResolver = Future<BackupConflictChoice> Function({
 });
 
 /// خط أنابيب رفع النسخ الاحتياطية الموحَّد — المسار الوحيد المسموح به لأي
-/// كود في المشروع يرفع نسخة احتياطية على Firestore. يغطي 3 مراحل إلزامية
-/// لكل استدعاء بلا استثناء: تحقق (Validation) → كشف تعارض (Conflict
-/// Detection) → رفع.
+/// كود في المشروع يرفع نسخة احتياطية على Firestore، تلقائية كانت أو
+/// يدوية. يغطي مراحل إلزامية لكل استدعاء بلا استثناء: تحقق (Validation)
+/// → كشف تعارض (Conflict Detection) → رفع لخانة الرفع المناسبة.
 ///
 /// ADR-0003: `docs/architecture/adr/0003-backup-versioning-overwrite-protection.md`
 class BackupUploadPipeline {
   BackupUploadPipeline._();
 
-  static const String _lastSyncPrefsKey = 'last_cloud_backup_at';
+  static const String _lastAutoSyncPrefsKey = 'last_auto_cloud_backup_at';
+  static const String _lastManualSyncPrefsKey = 'last_manual_cloud_backup_at';
 
-  /// نقطة الدخول الوحيدة لأي رفع نسخة احتياطية. تُستخدَم من الرفع اليدوي
-  /// (تفاعلي، `resolveConflict` غير null) والرفع التلقائي/الصامت (غير
-  /// تفاعلي، `resolveConflict` = null).
+  /// نقطة الدخول الوحيدة لأي رفع نسخة احتياطية سحابية. `kind` يحدد الخانة
+  /// المستهدفة والمسار (تلقائي يدور بين خانتين، يدوي خانة ثابتة). الرفع
+  /// اليدوي تفاعلي (`resolveConflict` غير null)، التلقائي غير تفاعلي.
   static Future<BackupUploadResult> run({
     required String email,
     required String displayName,
     required AppStateEntity localState,
     required String Function() exportJson,
+    required BackupKind kind,
     Future<void> Function(String remoteJson)? onMerge,
     ConflictResolver? resolveConflict,
   }) async {
@@ -65,13 +72,30 @@ class BackupUploadPipeline {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final lastKnownSyncStr = prefs.getString(_lastSyncPrefsKey);
+    final syncKey =
+        kind == BackupKind.manual ? _lastManualSyncPrefsKey : _lastAutoSyncPrefsKey;
+    final lastKnownSyncStr = prefs.getString(syncKey);
     final lastKnownSync =
         lastKnownSyncStr != null ? DateTime.tryParse(lastKnownSyncStr) : null;
 
+    // تحديد خانة القراءة (لفحص التعارض) وخانة الكتابة (قد تختلفان في
+    // الوضع التلقائي: نقرأ الأحدث بين الخانتين، ونكتب في الأقدم منهما،
+    // بحيث تبقى دائمًا آخر نسختين فقط).
+    BackupSlot writeSlot;
+    BackupSlot? readSlot;
+    if (kind == BackupKind.manual) {
+      writeSlot = BackupSlot.manualCloud;
+      readSlot = BackupSlot.manualCloud;
+    } else {
+      readSlot = await BackupService.latestAutoSlot(email);
+      writeSlot = await BackupService.oldestAutoSlot(email);
+    }
+
     Map<String, dynamic>? meta;
     try {
-      meta = await BackupService.fetchMetadata(email);
+      meta = readSlot != null
+          ? await BackupService.fetchSlotMetadata(email, readSlot)
+          : null;
     } catch (_) {
       meta = null; // تعذّر الوصول للسحابة — يُعامَل كأنه أول رفع (لا تعارض)
     }
@@ -117,15 +141,15 @@ class BackupUploadPipeline {
       }
 
       // المرحلة 3: كشف التعارض — تعارض حقيقي فقط لو النسخة البعيدة اتحدّثت
-      // من مصدر آخر بعد آخر مزامنة معروفة لنا محليًا. مقارنة "فيه نسخة
-      // بعيدة أصلاً" كانت ستوقف الرفع التلقائي نهائيًا من أول استخدام.
+      // من مصدر آخر بعد آخر مزامنة معروفة لنا محليًا لنفس نوع الرفعة
+      // (تلقائي/يدوي كل واحد له تتبّعه الخاص، مستقلان تمامًا).
       final remoteWrittenByOthers = remoteUpdatedAt != null &&
           (lastKnownSync == null || remoteUpdatedAt.isAfter(lastKnownSync));
 
       if (remoteWrittenByOthers) {
         if (resolveConflict == null) {
-          // مسار غير تفاعلي (تلقائي/صامت): لا نعرض واجهة ولا نكتب فوق
-          // بيانات قد تكون أحدث من جهاز آخر — نؤجّل الرفع فقط.
+          // مسار غير تفاعلي (تلقائي): لا نعرض واجهة ولا نكتب فوق بيانات
+          // قد تكون أحدث من جهاز آخر — نؤجّل الرفع فقط.
           return const BackupUploadResult(
             BackupUploadStatus.deferredConflict,
             'تم تأجيل الرفع التلقائي: يوجد تحديث من جهاز/جلسة أخرى يحتاج '
@@ -144,7 +168,9 @@ class BackupUploadPipeline {
         }
 
         if (choice == BackupConflictChoice.merge) {
-          final remoteJson = await BackupService.fetchData(email);
+          final remoteJson = readSlot != null
+              ? await BackupService.fetchSlotData(email, readSlot)
+              : null;
           if (remoteJson != null && onMerge != null) {
             await onMerge(remoteJson);
           }
@@ -153,11 +179,13 @@ class BackupUploadPipeline {
       }
     }
 
-    // المرحلة 4: الرفع الفعلي (مسار واحد فقط، BackupService.upload).
+    // المرحلة 4: الرفع الفعلي إلى الخانة المستهدفة (منطقي واحد فقط،
+    // BackupService.uploadToSlot، تلقائي أو يدوي حسب `writeSlot`).
     try {
-      await BackupService.upload(
+      await BackupService.uploadToSlot(
         email: email,
         displayName: displayName,
+        slot: writeSlot,
         jsonData: exportJson(),
         txCount: localTxCount,
         walletCount: localState.wallets.length,
@@ -168,7 +196,7 @@ class BackupUploadPipeline {
     }
 
     await prefs.setString(
-      _lastSyncPrefsKey,
+      syncKey,
       DateTime.now().toIso8601String(),
     );
 
