@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../features/backup/backup_conflict_dialog.dart';
 import '../../../../features/backup/backup_service.dart';
+import '../../../../features/backup/backup_upload_pipeline.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 
 class BackupSettingsScreen extends StatefulWidget {
@@ -223,89 +224,73 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
     final appState = widget.cubit.state;
 
-    // لا نرفع نسخة فارغة أبداً
-    if (appState.isEmpty) {
-      _msg('لا توجد بيانات للرفع بعد');
-      return;
-    }
-
     try {
       setState(() => loading = true);
 
-      final email = _account!.email;
-      final existingMeta = await BackupService.fetchMetadata(email);
-
-      if (existingMeta != null) {
-        // يوجد نسخة قديمة — نسأل المستخدم
-        if (!mounted) return;
-        final remoteTx =
-            (existingMeta['recordsCount']?['transactions'] as int?) ?? 0;
-        final remoteUpdatedAt = existingMeta['updatedAt'] is Timestamp
-            ? (existingMeta['updatedAt'] as Timestamp).toDate()
-            : null;
-
-        final choice = await BackupConflictDialog.show(
-          context,
-          remoteTxCount: remoteTx,
-          localTxCount: appState.transactions.length,
-          remoteUpdatedAt: remoteUpdatedAt,
-        );
-
-        if (choice == BackupConflictChoice.cancel) return;
-
-        if (choice == BackupConflictChoice.merge) {
-          // نجلب البيانات الكاملة ونعمل merge
-          final remoteJson = await BackupService.fetchData(email);
-          if (remoteJson != null) {
-            await widget.cubit.mergeStateJson(remoteJson);
-          }
-        }
-        // في حالة overwrite أو بعد merge — نرفع الحالة الحالية
-      }
-
-      final currentState = widget.cubit.state;
-      await BackupService.upload(
-        email: email,
+      final result = await BackupUploadPipeline.run(
+        email: _account!.email,
         displayName: _account!.displayName ?? '',
-        jsonData: widget.cubit.exportStateJson(),
-        txCount: currentState.transactions.length,
-        walletCount: currentState.wallets.length,
-        recurringCount: currentState.recurringTransactions.length,
+        localState: appState,
+        exportJson: widget.cubit.exportStateJson,
+        onMerge: widget.cubit.mergeStateJson,
+        resolveConflict: ({
+          required remoteTxCount,
+          required localTxCount,
+          required remoteUpdatedAt,
+        }) {
+          if (!mounted) return Future.value(BackupConflictChoice.cancel);
+          return BackupConflictDialog.show(
+            context,
+            remoteTxCount: remoteTxCount,
+            localTxCount: localTxCount,
+            remoteUpdatedAt: remoteUpdatedAt,
+          );
+        },
       );
 
-      // نحفظ وقت آخر رفع محلياً
-      final now = DateTime.now().toIso8601String();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_cloud_backup_at', now);
-      if (mounted) setState(() => _lastBackupAt = now);
-
-      _msg('تم رفع النسخة بنجاح ✓');
+      switch (result.status) {
+        case BackupUploadStatus.uploaded:
+          final now = DateTime.now().toIso8601String();
+          if (mounted) setState(() => _lastBackupAt = now);
+          _msg('تم رفع النسخة بنجاح ✓');
+          break;
+        case BackupUploadStatus.cancelled:
+          break;
+        case BackupUploadStatus.rejectedEmpty:
+        case BackupUploadStatus.rejectedShrink:
+        case BackupUploadStatus.deferredConflict:
+        case BackupUploadStatus.error:
+          _msg(result.message ?? 'تعذّر رفع النسخة الاحتياطية');
+          break;
+      }
     } catch (e, s) {
       debugPrint('================ BACKUP ERROR ================');
       debugPrint(e.toString());
       debugPrint(s.toString());
 
       _msg(e.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
-  /// رفع صامت عند غلق التطبيق — لا يُظهر dialogs أو loading.
+  /// رفع صامت عند غلق التطبيق — لا يُظهر dialogs أو loading. يمر عبر نفس
+  /// خط الأنابيب الموحَّد (BackupUploadPipeline) بدون resolveConflict، لذا
+  /// أي تعارض حقيقي يُؤجَّل بدل تجاوزه.
   Future<void> _backupFirestoreSilent() async {
     if (_account == null) return;
     final appState = widget.cubit.state;
-    if (appState.isEmpty) return;
     try {
-      await BackupService.upload(
+      final result = await BackupUploadPipeline.run(
         email: _account!.email,
         displayName: _account!.displayName ?? '',
-        jsonData: widget.cubit.exportStateJson(),
-        txCount: appState.transactions.length,
-        walletCount: appState.wallets.length,
-        recurringCount: appState.recurringTransactions.length,
+        localState: appState,
+        exportJson: widget.cubit.exportStateJson,
       );
-      final now = DateTime.now().toIso8601String();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_cloud_backup_at', now);
+      if (result.status == BackupUploadStatus.uploaded) {
+        final now = DateTime.now().toIso8601String();
+        if (mounted) setState(() => _lastBackupAt = now);
+      }
     } catch (_) {
       // صامت — لا نُظهر أي خطأ
     }

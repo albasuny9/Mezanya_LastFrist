@@ -22,7 +22,7 @@ import '../../domain/entities/app_state_entity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../domain/repositories/app_repository.dart';
-import '../../../backup/backup_service.dart';
+import '../../../backup/backup_upload_pipeline.dart';
 
 class AppCubit extends Cubit<AppStateEntity> {
   AppCubit(this._repository) : super(AppStateEntity.initial());
@@ -342,18 +342,20 @@ class AppCubit extends Cubit<AppStateEntity> {
     _autoSync(next);
   }
 
-  /// رفع تلقائي على السحابة بعد كل عملية حفظ (غير blocking)
+  /// رفع تلقائي على السحابة بعد كل عملية حفظ (غير blocking). يمر عبر
+  /// BackupUploadPipeline — نفس مسار التحقق وكشف التعارض المستخدم في
+  /// الرفع اليدوي والصامت؛ بدون resolveConflict، فأي تعارض حقيقي (رفع من
+  /// جهاز آخر) يُؤجَّل بدل تجاوزه أو الكتابة فوقه.
   void _autoSync(AppStateEntity appState) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.email == null) return;
-    BackupService.upload(
+    BackupUploadPipeline.run(
       email: user.email!,
       displayName: user.displayName ?? user.email!,
-      jsonData: jsonEncode(appState.toMap()),
-      txCount: appState.transactions.length,
-      walletCount: appState.wallets.length,
-      recurringCount: appState.recurringTransactions.length,
-    ).catchError((_) {}); // لو السحابة مش متاحة، مش بيوقف الـ app
+      localState: appState,
+      exportJson: () => jsonEncode(appState.toMap()),
+    ).catchError((_) => const BackupUploadResult(BackupUploadStatus.error));
+    // لو السحابة مش متاحة أو تم تأجيل الرفع، مش بيوقف الـ app.
   }
 
   String _notificationTitle(String action, String entityType) {
