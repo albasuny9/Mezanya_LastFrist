@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/backup/backup_conflict_dialog.dart';
 import '../../../../features/backup/backup_service.dart';
 import '../../../../features/backup/backup_upload_pipeline.dart';
+import '../../../../features/backup/local_backup_service.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 
 class BackupSettingsScreen extends StatefulWidget {
@@ -25,15 +23,7 @@ class BackupSettingsScreen extends StatefulWidget {
   State<BackupSettingsScreen> createState() => _BackupSettingsScreenState();
 }
 
-enum BackupFrequency {
-  onExit,
-  daily,
-  weekly,
-  monthly,
-}
-
-class _BackupSettingsScreenState extends State<BackupSettingsScreen>
-    with WidgetsBindingObserver {
+class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   static const Color _green = Color(0xFF2F6F5E);
   static const Color _bg = Color(0xFFFFFBF1);
 
@@ -41,10 +31,23 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   GoogleSignInAccount? _account;
   bool loading = false;
-  String? localPath;
-  String? _lastBackupAt;
-  BackupFrequency localFreq = BackupFrequency.onExit;
-  BackupFrequency cloudFreq = BackupFrequency.weekly;
+
+  // النسخ التلقائي السحابي (A)
+  bool _autoCloudEnabled = false;
+  String? _lastAutoCloudAt;
+  String _autoCloudStatus = 'unknown'; // ok | deferred | failed | unknown
+
+  // النسخ التلقائي المحلي (B)
+  bool _autoLocalEnabled = false;
+  String? _autoLocalFolder;
+  String? _lastAutoLocalAt;
+
+  // النسخ اليدوي السحابي (C)
+  String? _lastManualCloudAt;
+
+  // النسخ اليدوي المحلي (D)
+  String? _manualLocalFolder;
+  String? _lastManualLocalAt;
 
   Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -61,7 +64,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _bootstrap();
   }
 
@@ -86,25 +88,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      if (localFreq == BackupFrequency.onExit && localPath != null) {
-        _saveLocal(silent: true);
-      }
-      if (cloudFreq == BackupFrequency.onExit && _account != null) {
-        _backupFirestoreSilent();
-      }
-    }
-  }
-
   Future<void> _loadGoogle() async {
     _account = _googleSignIn.currentUser;
     _account ??= await _googleSignIn.signInSilently();
@@ -115,29 +98,16 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    localPath = prefs.getString('backup_local_path');
-    _lastBackupAt = prefs.getString('last_cloud_backup_at');
-    final local = prefs.getString('backup_local_freq');
-    final cloud = prefs.getString('backup_cloud_freq');
-    if (local != null) {
-      localFreq = BackupFrequency.values.firstWhere(
-        (e) => e.name == local,
-        orElse: () => BackupFrequency.onExit,
-      );
-    }
-    if (cloud != null) {
-      cloudFreq = BackupFrequency.values.firstWhere(
-        (e) => e.name == cloud,
-        orElse: () => BackupFrequency.weekly,
-      );
-    }
-  }
+    _autoCloudEnabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
+    _lastAutoCloudAt = prefs.getString('last_auto_cloud_backup_at');
+    _autoCloudStatus = prefs.getString('last_auto_cloud_status') ?? 'unknown';
+    _lastManualCloudAt = prefs.getString('last_manual_cloud_backup_at');
 
-  Future<void> _savePrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('backup_local_path', localPath ?? '');
-    await prefs.setString('backup_local_freq', localFreq.name);
-    await prefs.setString('backup_cloud_freq', cloudFreq.name);
+    _autoLocalEnabled = await LocalBackupService.autoEnabled();
+    _autoLocalFolder = await LocalBackupService.autoFolder();
+    _lastAutoLocalAt = await LocalBackupService.lastAutoBackupAt();
+    _manualLocalFolder = await LocalBackupService.manualFolder();
+    _lastManualLocalAt = await LocalBackupService.lastManualBackupAt();
   }
 
   bool _guardAuth() {
@@ -146,7 +116,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
       return false;
     }
     if (FirebaseAuth.instance.currentUser?.email != _account!.email) {
-      _msg('ط£ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ط¬ظˆط¬ظ„ ط£ظˆظ„ظ‹ط§');
+      _msg('أعد تسجيل الدخول بجوجل أولًا');
       return false;
     }
     return true;
@@ -157,19 +127,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  String _freqLabel(BackupFrequency f) {
-    switch (f) {
-      case BackupFrequency.onExit:
-        return 'مع غلق التطبيق';
-      case BackupFrequency.daily:
-        return 'يوميًا 12 صباحًا';
-      case BackupFrequency.weekly:
-        return 'كل جمعة 12 صباحًا';
-      case BackupFrequency.monthly:
-        return '1 من كل شهر';
-    }
-  }
-
   Future<bool> _requestStoragePermission() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
     final status = await Permission.manageExternalStorage.request();
@@ -178,60 +135,141 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     return false;
   }
 
-  Future<void> _pickFolder() async {
-    final ok = await _requestStoragePermission();
-    if (!ok) return;
-    final path = await FilePicker.getDirectoryPath();
-    if (path == null) return;
-    setState(() => localPath = path);
-    await _savePrefs();
-    _msg('تم حفظ مجلد النسخ');
+  Future<bool> _confirm(String title, String message) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('متابعة'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
-  Future<void> _saveLocal({bool silent = false}) async {
-    if (localPath == null) {
-      // لا يوجد مجلد — اطلب الصلاحية واختر مجلداً أولاً
-      final ok = await _requestStoragePermission();
-      if (!ok) return;
-      final picked = await FilePicker.getDirectoryPath();
-      if (picked == null) return;
-      setState(() => localPath = picked);
-      await _savePrefs();
-    }
-    try {
-      final path = '$localPath${Platform.pathSeparator}mezanya_backup.json';
-      final file = File(path);
-      if (!await file.exists()) {
-        await file.create(recursive: true);
-      }
-      await file.writeAsString(widget.cubit.exportStateJson(), flush: true);
-      if (!silent) _msg('تم حفظ النسخة محليًا ✓');
-    } catch (_) {
-      if (!silent) _msg('فشل حفظ النسخة');
-    }
+  // =========================================================================
+  // A) النسخ التلقائي السحابي
+  // =========================================================================
+
+  Future<void> _toggleAutoCloud(bool value) async {
+    if (value && !_guardAuth()) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_cloud_backup_enabled', value);
+    if (mounted) setState(() => _autoCloudEnabled = value);
   }
 
-  Future<void> _restoreLocal() async {
-    final result = await FilePicker.pickFiles();
-    if (result == null || result.files.single.path == null) return;
-    final json = await File(result.files.single.path!).readAsString();
-    await widget.cubit.importStateJson(json);
-    _msg('تم الاسترجاع المحلي');
-  }
-
-  Future<void> _backupFirestore() async {
+  Future<void> _restoreAutoCloudBackup() async {
     if (!_guardAuth()) return;
+    final ok = await _confirm(
+      'استرجاع النسخة التلقائية السحابية',
+      'سيتم استبدال بياناتك الحالية بأحدث نسخة تلقائية محفوظة على السحابة. '
+      'هل تريد المتابعة؟',
+    );
+    if (!ok) return;
 
+    setState(() => loading = true);
+    try {
+      final email = _account!.email;
+      final slot = await BackupService.latestAutoSlot(email);
+      String? json;
+      if (slot != null) {
+        json = await BackupService.fetchSlotData(email, slot);
+      }
+      // توافق عكسي: لو لا توجد نسخة تلقائية V2 بعد، جرّب النسخة القديمة.
+      json ??= await BackupService.fetchLegacyData(email);
+
+      if (json == null) {
+        _msg('لا توجد نسخة تلقائية سحابية محفوظة بعد');
+        return;
+      }
+      await widget.cubit.importStateJson(json);
+      _msg('تم الاسترجاع من النسخة التلقائية السحابية ✓');
+    } catch (e) {
+      _msg('فشل الاسترجاع: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // =========================================================================
+  // B) النسخ التلقائي المحلي
+  // =========================================================================
+
+  Future<void> _toggleAutoLocal(bool value) async {
+    if (value && _autoLocalFolder == null) {
+      final picked = await _pickFolder();
+      if (picked == null) return; // لم يُختر مجلد — لا نفعّل بلا مجلد
+      await LocalBackupService.setAutoFolder(picked);
+      if (mounted) setState(() => _autoLocalFolder = picked);
+    }
+    await LocalBackupService.setAutoEnabled(value);
+    if (mounted) setState(() => _autoLocalEnabled = value);
+  }
+
+  Future<String?> _pickFolder() async {
+    final ok = await _requestStoragePermission();
+    if (!ok) return null;
+    return FilePicker.getDirectoryPath();
+  }
+
+  Future<void> _changeAutoLocalFolder() async {
+    final picked = await _pickFolder();
+    if (picked == null) return;
+    await LocalBackupService.setAutoFolder(picked);
+    if (mounted) setState(() => _autoLocalFolder = picked);
+    _msg('تم تغيير مجلد النسخ التلقائي المحلي');
+  }
+
+  Future<void> _restoreAutoLocalBackup() async {
+    final ok = await _confirm(
+      'استرجاع النسخة التلقائية المحلية',
+      'سيتم استبدال بياناتك الحالية بأحدث نسخة تلقائية محفوظة على هذا '
+      'الجهاز. هل تريد المتابعة؟',
+    );
+    if (!ok) return;
+
+    setState(() => loading = true);
+    try {
+      final file = await LocalBackupService.latestAutoFile();
+      if (file == null) {
+        _msg('لا توجد نسخة تلقائية محلية محفوظة بعد');
+        return;
+      }
+      final json = await file.readAsString();
+      await widget.cubit.importStateJson(json);
+      _msg('تم الاسترجاع من النسخة التلقائية المحلية ✓');
+    } catch (e) {
+      _msg('فشل الاسترجاع: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // =========================================================================
+  // C) النسخ اليدوي السحابي
+  // =========================================================================
+
+  Future<void> _createManualCloudBackup() async {
+    if (!_guardAuth()) return;
     final appState = widget.cubit.state;
 
+    setState(() => loading = true);
     try {
-      setState(() => loading = true);
-
       final result = await BackupUploadPipeline.run(
         email: _account!.email,
         displayName: _account!.displayName ?? '',
         localState: appState,
         exportJson: widget.cubit.exportStateJson,
+        kind: BackupKind.manual,
         onMerge: widget.cubit.mergeStateJson,
         resolveConflict: ({
           required remoteTxCount,
@@ -251,67 +289,135 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
       switch (result.status) {
         case BackupUploadStatus.uploaded:
           final now = DateTime.now().toIso8601String();
-          if (mounted) setState(() => _lastBackupAt = now);
-          _msg('تم رفع النسخة بنجاح ✓');
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('last_manual_cloud_backup_at', now);
+          if (mounted) setState(() => _lastManualCloudAt = now);
+          _msg('تم إنشاء النسخة اليدوية السحابية ✓');
           break;
         case BackupUploadStatus.cancelled:
           break;
-        case BackupUploadStatus.rejectedEmpty:
-        case BackupUploadStatus.rejectedShrink:
-        case BackupUploadStatus.deferredConflict:
-        case BackupUploadStatus.error:
-          _msg(result.message ?? 'تعذّر رفع النسخة الاحتياطية');
-          break;
+        default:
+          _msg(result.message ?? 'تعذّر إنشاء النسخة اليدوية');
       }
-    } catch (e, s) {
-      debugPrint('================ BACKUP ERROR ================');
-      debugPrint(e.toString());
-      debugPrint(s.toString());
-
-      _msg(e.toString());
+    } catch (e) {
+      _msg('فشل الرفع: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  /// رفع صامت عند غلق التطبيق — لا يُظهر dialogs أو loading. يمر عبر نفس
-  /// خط الأنابيب الموحَّد (BackupUploadPipeline) بدون resolveConflict، لذا
-  /// أي تعارض حقيقي يُؤجَّل بدل تجاوزه.
-  Future<void> _backupFirestoreSilent() async {
-    if (_account == null) return;
-    final appState = widget.cubit.state;
-    try {
-      final result = await BackupUploadPipeline.run(
-        email: _account!.email,
-        displayName: _account!.displayName ?? '',
-        localState: appState,
-        exportJson: widget.cubit.exportStateJson,
-      );
-      if (result.status == BackupUploadStatus.uploaded) {
-        final now = DateTime.now().toIso8601String();
-        if (mounted) setState(() => _lastBackupAt = now);
-      }
-    } catch (_) {
-      // صامت — لا نُظهر أي خطأ
-    }
-  }
-
-  Future<void> _restoreFirestore() async {
+  Future<void> _restoreManualCloudBackup() async {
     if (!_guardAuth()) return;
+    final ok = await _confirm(
+      'استرجاع النسخة اليدوية السحابية',
+      'سيتم استبدال بياناتك الحالية بالنسخة اليدوية المحفوظة على السحابة. '
+      'هل تريد المتابعة؟',
+    );
+    if (!ok) return;
+
+    setState(() => loading = true);
     try {
-      setState(() => loading = true);
-      final json = await BackupService.fetchData(_account!.email);
+      final email = _account!.email;
+      var json = await BackupService.fetchSlotData(
+        email,
+        BackupSlot.manualCloud,
+      );
+      // توافق عكسي: لو لا توجد نسخة يدوية V2 بعد، جرّب النسخة القديمة.
+      json ??= await BackupService.fetchLegacyData(email);
+
       if (json == null) {
-        _msg('لا توجد نسخة محفوظة');
+        _msg('لا توجد نسخة يدوية سحابية محفوظة بعد');
         return;
       }
       await widget.cubit.importStateJson(json);
-      _msg('تم الاسترجاع بنجاح ✓');
-    } catch (_) {
-      _msg('فشل الاسترجاع');
+      _msg('تم الاسترجاع من النسخة اليدوية السحابية ✓');
+    } catch (e) {
+      _msg('فشل الاسترجاع: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  // =========================================================================
+  // D) النسخ اليدوي المحلي
+  // =========================================================================
+
+  Future<void> _changeManualLocalFolder() async {
+    final picked = await _pickFolder();
+    if (picked == null) return;
+    await LocalBackupService.setManualFolder(picked);
+    if (mounted) setState(() => _manualLocalFolder = picked);
+    _msg('تم تغيير مجلد النسخ اليدوي المحلي');
+  }
+
+  Future<void> _createManualLocalBackup() async {
+    var folder = _manualLocalFolder;
+    if (folder == null) {
+      folder = await _pickFolder();
+      if (folder == null) return;
+      await LocalBackupService.setManualFolder(folder);
+      if (mounted) setState(() => _manualLocalFolder = folder);
+    }
+    final ok = await LocalBackupService.writeManual(
+      widget.cubit.exportStateJson(),
+      folder,
+    );
+    if (ok) {
+      final now = await LocalBackupService.lastManualBackupAt();
+      if (mounted) setState(() => _lastManualLocalAt = now);
+      _msg('تم إنشاء النسخة اليدوية المحلية ✓');
+    } else {
+      _msg('فشل إنشاء النسخة اليدوية المحلية');
+    }
+  }
+
+  Future<void> _restoreManualLocalBackup() async {
+    final ok = await _confirm(
+      'استرجاع النسخة اليدوية المحلية',
+      'سيتم استبدال بياناتك الحالية بالنسخة اليدوية المحفوظة على هذا '
+      'الجهاز. هل تريد المتابعة؟',
+    );
+    if (!ok) return;
+
+    setState(() => loading = true);
+    try {
+      final file = await LocalBackupService.manualFile();
+      if (file == null) {
+        _msg('لا توجد نسخة يدوية محلية محفوظة بعد');
+        return;
+      }
+      final json = await file.readAsString();
+      await widget.cubit.importStateJson(json);
+      _msg('تم الاسترجاع من النسخة اليدوية المحلية ✓');
+    } catch (e) {
+      _msg('فشل الاسترجاع: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // =========================================================================
+  // Google sign-in (يخدم كل الأقسام السحابية)
+  // =========================================================================
+
+  Future<void> _signIn() async {
+    setState(() => loading = true);
+    try {
+      final account = await _googleSignIn.signIn();
+      if (account != null) {
+        _account = account;
+        await _signInFirebaseWithGoogle(account);
+      }
+    } catch (e) {
+      _msg('فشل تسجيل الدخول: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    await _googleSignIn.signOut();
+    if (mounted) setState(() => _account = null);
   }
 
   @override
@@ -319,251 +425,224 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
-        elevation: 0,
         backgroundColor: _bg,
-        foregroundColor: const Color(0xFF1C3A32),
+        elevation: 0,
         title: const Text(
-          'النسخة الاحتياطية',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => Navigator.pop(context),
+          'النسخ الاحتياطي',
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
-      body: Stack(
-        children: [
-          ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-            children: [
-              // ── النسخ المحلي (أولاً) ────────────────────────────────
-              _sectionHeader('النسخ المحلي', Icons.phone_android_rounded),
-              _BackupCard(
+      body: loading
+          ? const Center(child: CircularProgressIndicator(color: _green))
+          : RefreshIndicator(
+              color: _green,
+              onRefresh: _bootstrap,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  // مكان الحفظ
-                  _pathTile(
-                    icon: Icons.folder_rounded,
-                    label: 'مكان الحفظ',
-                    value: localPath ?? 'لم يتم الاختيار بعد',
-                    onTap: _pickFolder,
+                  _GoogleAccountRow(
+                    account: _account,
+                    onSignIn: _signIn,
+                    onSignOut: _signOut,
+                  ),
+                  const SizedBox(height: 20),
+                  const _SectionHeader('النسخ التلقائي'),
+                  const SizedBox(height: 10),
+                  _BackupSection(
+                    title: 'النسخ التلقائي السحابي',
+                    icon: Icons.cloud_sync_rounded,
+                    trailing: Switch(
+                      value: _autoCloudEnabled,
+                      activeColor: _green,
+                      onChanged: (v) => _toggleAutoCloud(v),
+                    ),
+                    rows: [
+                      _InfoRow('الحالة', _autoCloudStatusLabel()),
+                      _InfoRow(
+                        'آخر نسخة ناجحة',
+                        _formatBackupTime(_lastAutoCloudAt),
+                      ),
+                      _InfoRow(
+                        'الاحتفاظ',
+                        'آخر نسختين تلقائيتين فقط',
+                      ),
+                    ],
+                    actions: [
+                      _SecondaryButton(
+                        label: 'استرجاع النسخة التلقائية',
+                        icon: Icons.restore_rounded,
+                        onTap: _restoreAutoCloudBackup,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 14),
-                  // تكرار النسخ
-                  _FrequencySelector(
-                    label: 'تكرار النسخ المحلي',
-                    value: localFreq,
-                    options: BackupFrequency.values,
-                    labelOf: _freqLabel,
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => localFreq = v);
-                      _savePrefs();
-                    },
-                  ),
-                  if (localFreq == BackupFrequency.onExit) ...[
-                    const SizedBox(height: 10),
-                    _InfoBanner(
-                      text:
-                          'سيتم تحديث النسخة تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  _PrimaryButton(
-                    label: 'إنشاء نسخة الآن',
+                  _BackupSection(
+                    title: 'النسخ التلقائي المحلي',
                     icon: Icons.save_rounded,
-                    onTap: () => _saveLocal(),
-                  ),
-                  const SizedBox(height: 8),
-                  _SecondaryButton(
-                    label: 'استرجاع نسخة محلية',
-                    icon: Icons.restore_rounded,
-                    onTap: _restoreLocal,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 18),
-
-              // ── النسخ السحابي ─────────────────────────────────────
-              _sectionHeader('النسخ السحابي', Icons.cloud_rounded),
-              _CloudBackupCard(
-                account: _account,
-                lastBackupLabel: _formatBackupTime(_lastBackupAt),
-                txCount: widget.cubit.state.transactions.length,
-                isLoading: loading,
-                cloudFreq: cloudFreq,
-                freqLabel: _freqLabel,
-                onFreqChanged: (v) {
-                  if (v == null) return;
-                  setState(() => cloudFreq = v);
-                  _savePrefs();
-                },
-                onUpload: _backupFirestore,
-                onRestore: _restoreFirestore,
-              ),
-            ],
-          ),
-          if (loading)
-            Container(
-              color: Colors.black.withValues(alpha: 0.12),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 20,
-                        color: Colors.black.withValues(alpha: 0.1),
+                    trailing: Switch(
+                      value: _autoLocalEnabled,
+                      activeColor: _green,
+                      onChanged: (v) => _toggleAutoLocal(v),
+                    ),
+                    rows: [
+                      _InfoRow(
+                        'آخر نسخة ناجحة',
+                        _formatBackupTime(_lastAutoLocalAt),
+                      ),
+                      _InfoRow(
+                        'المجلد الحالي',
+                        _autoLocalFolder ?? 'غير محدَّد',
+                      ),
+                      _InfoRow('الاحتفاظ', 'آخر نسختين تلقائيتين فقط'),
+                    ],
+                    actions: [
+                      _SecondaryButton(
+                        label: 'تغيير المجلد التلقائي',
+                        icon: Icons.folder_open_rounded,
+                        onTap: _changeAutoLocalFolder,
+                      ),
+                      const SizedBox(height: 10),
+                      _SecondaryButton(
+                        label: 'استرجاع النسخة التلقائية',
+                        icon: Icons.restore_rounded,
+                        onTap: _restoreAutoLocalBackup,
                       ),
                     ],
                   ),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: _green),
-                      SizedBox(height: 14),
-                      Text(
-                        'جارٍ التحميل...',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: _green,
-                        ),
+                  const SizedBox(height: 24),
+                  const _SectionHeader('النسخ اليدوي'),
+                  const SizedBox(height: 10),
+                  _BackupSection(
+                    title: 'النسخ اليدوي السحابي',
+                    icon: Icons.cloud_upload_rounded,
+                    rows: [
+                      _InfoRow(
+                        'آخر نسخة يدوية',
+                        _formatBackupTime(_lastManualCloudAt),
+                      ),
+                    ],
+                    actions: [
+                      _PrimaryButton(
+                        label: 'إنشاء نسخة يدوية',
+                        icon: Icons.cloud_upload_rounded,
+                        onTap: _createManualCloudBackup,
+                      ),
+                      const SizedBox(height: 10),
+                      _SecondaryButton(
+                        label: 'استرجاع النسخة اليدوية',
+                        icon: Icons.restore_rounded,
+                        onTap: _restoreManualCloudBackup,
                       ),
                     ],
                   ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionHeader(String label, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: _green.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 17, color: _green),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF1C3A32),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pathTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: _green.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _green.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: _green.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: _green, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: Color(0xFF1C3A32),
-                    ),
+                  const SizedBox(height: 14),
+                  _BackupSection(
+                    title: 'النسخ اليدوي المحلي',
+                    icon: Icons.sim_card_download_rounded,
+                    rows: [
+                      _InfoRow(
+                        'آخر نسخة يدوية',
+                        _formatBackupTime(_lastManualLocalAt),
+                      ),
+                      _InfoRow(
+                        'المجلد الحالي',
+                        _manualLocalFolder ?? 'غير محدَّد',
+                      ),
+                    ],
+                    actions: [
+                      _SecondaryButton(
+                        label: 'تغيير مجلد التصدير',
+                        icon: Icons.folder_open_rounded,
+                        onTap: _changeManualLocalFolder,
+                      ),
+                      const SizedBox(height: 10),
+                      _PrimaryButton(
+                        label: 'إنشاء نسخة يدوية',
+                        icon: Icons.save_alt_rounded,
+                        onTap: _createManualLocalBackup,
+                      ),
+                      const SizedBox(height: 10),
+                      _SecondaryButton(
+                        label: 'استرجاع النسخة اليدوية',
+                        icon: Icons.restore_rounded,
+                        onTap: _restoreManualLocalBackup,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _green.withValues(alpha: 0.7),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-            Icon(Icons.chevron_left_rounded,
-                color: _green.withValues(alpha: 0.5)),
-          ],
-        ),
-      ),
     );
+  }
+
+  String _autoCloudStatusLabel() {
+    if (!_autoCloudEnabled) return 'متوقف';
+    switch (_autoCloudStatus) {
+      case 'ok':
+        return 'يعمل';
+      case 'deferred':
+        return 'بانتظار مراجعة تعارض';
+      case 'failed':
+        return 'فشل آخر محاولة';
+      default:
+        return 'لم يبدأ بعد';
+    }
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reusable Widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _InfoBanner extends StatelessWidget {
-  const _InfoBanner({required this.text});
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.text);
   final String text;
 
-  static const _green = Color(0xFF2F6F5E);
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 16,
+        color: Color(0xFF2F6F5E),
+      ),
+    );
+  }
+}
+
+class _GoogleAccountRow extends StatelessWidget {
+  const _GoogleAccountRow({
+    required this.account,
+    required this.onSignIn,
+    required this.onSignOut,
+  });
+
+  final GoogleSignInAccount? account;
+  final VoidCallback onSignIn;
+  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _green.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _green.withValues(alpha: 0.18)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2F6F5E).withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded,
-              size: 16, color: _green.withValues(alpha: 0.8)),
-          const SizedBox(width: 8),
+          const Icon(Icons.account_circle_rounded,
+              size: 28, color: Color(0xFF2F6F5E)),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _green.withValues(alpha: 0.85),
-              ),
+              account?.email ?? 'لم يتم تسجيل الدخول بحساب Google',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
+          TextButton(
+            onPressed: account == null ? onSignIn : onSignOut,
+            child: Text(account == null ? 'تسجيل الدخول' : 'خروج'),
           ),
         ],
       ),
@@ -571,323 +650,93 @@ class _InfoBanner extends StatelessWidget {
   }
 }
 
-class _CloudBackupCard extends StatelessWidget {
-  const _CloudBackupCard({
-    required this.account,
-    required this.lastBackupLabel,
-    required this.txCount,
-    required this.isLoading,
-    required this.cloudFreq,
-    required this.freqLabel,
-    required this.onFreqChanged,
-    required this.onUpload,
-    required this.onRestore,
-  });
-
-  final dynamic account; // GoogleSignInAccount?
-  final String lastBackupLabel;
-  final int txCount;
-  final bool isLoading;
-  final BackupFrequency cloudFreq;
-  final String Function(BackupFrequency) freqLabel;
-  final ValueChanged<BackupFrequency?> onFreqChanged;
-  final VoidCallback onUpload;
-  final VoidCallback onRestore;
-
-  static const _green = Color(0xFF2F6F5E);
-  static const _orange = Color(0xFFC65D2E);
-
-  @override
-  Widget build(BuildContext context) {
-    final isLoggedIn = account != null;
-    final hasBackup = lastBackupLabel != 'لم يتم النسخ بعد';
-    final statusColor =
-        isLoggedIn ? (hasBackup ? _green : _orange) : const Color(0xFF888888);
-
-    return _BackupCard(
-      children: [
-        // ── بادج الحساب + حالة النسخ في كارت واحد ──
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: statusColor.withValues(alpha: 0.22)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  // أيقونة G
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 4,
-                          color: Colors.black.withValues(alpha: 0.07),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: isLoggedIn
-                          ? const Text('G',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                fontFamily: 'Arial',
-                                color: Color(0xFF4285F4),
-                              ))
-                          : Icon(Icons.cloud_off_rounded,
-                              size: 20, color: Colors.grey.shade400),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isLoggedIn ? 'متصل بجوجل' : 'غير مرتبط بحساب جوجل',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            color: statusColor,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          isLoggedIn
-                              ? (account!.email as String? ?? '')
-                              : 'سجل دخول من إعدادات الحساب',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor.withValues(alpha: 0.7),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  // مؤشر الاتصال
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.circle, size: 7, color: statusColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          isLoggedIn ? 'متصل' : 'غير متصل',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: statusColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (isLoggedIn) ...[
-                const SizedBox(height: 10),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(
-                      hasBackup
-                          ? Icons.cloud_done_rounded
-                          : Icons.cloud_off_rounded,
-                      size: 16,
-                      color: statusColor.withValues(alpha: 0.7),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        hasBackup
-                            ? 'آخر نسخة: $lastBackupLabel · $txCount معاملة'
-                            : 'لم يتم رفع أي نسخة بعد',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ),
-                    // زر رفع سريع
-                    isLoading
-                        ? SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              color: _green,
-                            ),
-                          )
-                        : GestureDetector(
-                            onTap: onUpload,
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: _green,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.cloud_upload_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // ── تكرار النسخ ──
-        _FrequencySelector(
-          label: 'تكرار النسخ السحابي',
-          value: cloudFreq,
-          options: BackupFrequency.values,
-          labelOf: freqLabel,
-          onChanged: onFreqChanged,
-        ),
-        if (cloudFreq == BackupFrequency.onExit) ...[
-          const SizedBox(height: 10),
-          _InfoBanner(
-            text:
-                'سيتم رفع النسخة السحابية تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
-          ),
-        ],
-        const SizedBox(height: 16),
-        _PrimaryButton(
-          label: 'رفع نسخة الآن',
-          icon: Icons.cloud_upload_rounded,
-          onTap: isLoggedIn ? onUpload : () {},
-        ),
-        const SizedBox(height: 8),
-        _SecondaryButton(
-          label: 'استرجاع من السحابة',
-          icon: Icons.cloud_download_rounded,
-          onTap: isLoggedIn ? onRestore : () {},
-        ),
-      ],
-    );
-  }
+class _InfoRow {
+  final String label;
+  final String value;
+  const _InfoRow(this.label, this.value);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reusable Widgets
-// ─────────────────────────────────────────────────────────────────────────────
+class _BackupSection extends StatelessWidget {
+  const _BackupSection({
+    required this.title,
+    required this.icon,
+    required this.rows,
+    required this.actions,
+    this.trailing,
+  });
 
-class _BackupCard extends StatelessWidget {
-  const _BackupCard({required this.children});
+  final String title;
+  final IconData icon;
+  final List<_InfoRow> rows;
+  final List<Widget> actions;
+  final Widget? trailing;
 
-  final List<Widget> children;
+  static const _green = Color(0xFF2F6F5E);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: const Color(0xFF2F6F5E).withValues(alpha: 0.1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-            color: const Color(0xFF2F6F5E).withValues(alpha: 0.06),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _green.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
-      ),
-    );
-  }
-}
-
-class _FrequencySelector<T> extends StatelessWidget {
-  const _FrequencySelector({
-    required this.label,
-    required this.value,
-    required this.options,
-    required this.labelOf,
-    required this.onChanged,
-  });
-
-  final String label;
-  final T value;
-  final List<T> options;
-  final String Function(T) labelOf;
-  final ValueChanged<T?> onChanged;
-
-  static const _green = Color(0xFF2F6F5E);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: _green.withValues(alpha: 0.8),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          decoration: BoxDecoration(
-            color: _green.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _green.withValues(alpha: 0.18)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<T>(
-              value: value,
-              isExpanded: true,
-              icon: Icon(Icons.expand_more_rounded,
-                  color: _green.withValues(alpha: 0.7)),
-              style: const TextStyle(
-                fontFamily: 'Cairo',
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1C3A32),
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: _green),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
               ),
-              items: options
-                  .map((e) => DropdownMenuItem<T>(
-                        value: e,
-                        child: Text(labelOf(e)),
-                      ))
-                  .toList(),
-              onChanged: onChanged,
+              if (trailing != null) trailing!,
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...rows.map(
+            (r) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    r.label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.black.withValues(alpha: 0.55),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(
+                      r.value,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...actions,
+          ],
+        ],
+      ),
     );
   }
 }

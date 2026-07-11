@@ -246,8 +246,26 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         return;
       }
 
-      // جلب الـ metadata بكول خفيف
-      final meta = await BackupService.fetchMetadata(email);
+      // ترتيب البحث الإلزامي عن أي نسخة متاحة: يدوي سحابي أولاً، ثم
+      // تلقائي سحابي، ثم النسخة القديمة (Legacy) كملاذ أخير. أول نسخة
+      // توجد هي التي تُعرَض للمستخدم.
+      BackupSlot? foundSlot;
+      Map<String, dynamic>? meta = await BackupService.fetchSlotMetadata(
+        email,
+        BackupSlot.manualCloud,
+      );
+      if (meta != null) {
+        foundSlot = BackupSlot.manualCloud;
+      } else {
+        final latestAuto = await BackupService.latestAutoSlot(email);
+        if (latestAuto != null) {
+          meta = await BackupService.fetchSlotMetadata(email, latestAuto);
+          foundSlot = latestAuto;
+        }
+      }
+      final isLegacy = meta == null;
+      meta ??= await BackupService.fetchLegacyMetadata(email);
+
       if (meta == null) {
         await prefs.setBool(promptKey, true);
         return;
@@ -271,7 +289,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       await prefs.setBool(promptKey, true);
 
       if (restore) {
-        final json = await BackupService.fetchData(email);
+        // لا نُهاجر النسخة القديمة تلقائيًا — نقرأها فقط للاسترجاع، وتبقى
+        // كما هي على مسارها القديم (Legacy) بلا أي كتابة.
+        final json = isLegacy
+            ? await BackupService.fetchLegacyData(email)
+            : await BackupService.fetchSlotData(email, foundSlot!);
         if (json != null) {
           await widget.cubit.importStateJson(json);
           if (mounted) {

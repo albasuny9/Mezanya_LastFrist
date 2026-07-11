@@ -20,6 +20,7 @@ import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/repositories/app_repository.dart';
 import '../../../backup/backup_upload_pipeline.dart';
@@ -356,7 +357,22 @@ class AppCubit extends Cubit<AppStateEntity> {
         localState: appState,
         exportJson: () => jsonEncode(appState.toMap()),
         kind: BackupKind.auto,
-      ).catchError((_) => const BackupUploadResult(BackupUploadStatus.error));
+      ).then((result) async {
+        final prefs = await SharedPreferences.getInstance();
+        final statusStr = switch (result.status) {
+          BackupUploadStatus.uploaded => 'ok',
+          BackupUploadStatus.deferredConflict => 'deferred',
+          BackupUploadStatus.error => 'failed',
+          BackupUploadStatus.rejectedEmpty ||
+          BackupUploadStatus.rejectedShrink ||
+          BackupUploadStatus.cancelled =>
+            'failed',
+        };
+        await prefs.setString('last_auto_cloud_status', statusStr);
+      }).catchError((_) async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_auto_cloud_status', 'failed');
+      });
     }
 
     LocalBackupService.autoEnabled().then((enabled) {

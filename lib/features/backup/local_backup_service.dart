@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// خدمة النسخ الاحتياطي المحلي — Backup V2. مجلدان مستقلان تمامًا:
-/// التلقائي (يدور بين ملفين، يحتفظ بآخر نسختين) واليدوي (ملف واحد ثابت لا
-/// يُستبدَل إلا بضغطة المستخدم الصريحة على "إنشاء نسخة يدوية").
+/// التلقائي (يدور بين ملفين، يحتفظ بآخر نسختين، كتابة آمنة عبر ملف مؤقت)
+/// واليدوي (أسماء ملفات بالطابع الزمني، لا يُحذف أو يُستبدَل أي منها
+/// تلقائيًا أبدًا — يتراكم حتى يحذفها المستخدم يدويًا من نظام الملفات).
 ///
-/// ADR-0003 وتوجيه محمد الصريح ببدء Backup V2 (فصل تلقائي/يدوي بالكامل،
-/// تخزين منفصل لكل مجلد، عدم الكتابة فوق بعضهما إطلاقًا).
+/// ADR-0003 وتوجيه محمد الصريح ببدء Backup V2.
 class LocalBackupService {
   LocalBackupService._();
 
@@ -21,7 +21,7 @@ class LocalBackupService {
     'mezanya_auto_backup_0.json',
     'mezanya_auto_backup_1.json',
   ];
-  static const _manualFileName = 'mezanya_manual_backup.json';
+  static const _manualFilePrefix = 'mezanya_manual_backup_';
 
   static Future<String?> autoFolder() async =>
       (await SharedPreferences.getInstance()).getString(_autoFolderKey);
@@ -53,9 +53,13 @@ class LocalBackupService {
   static Future<String?> lastManualBackupAt() async =>
       (await SharedPreferences.getInstance()).getString(_lastManualAtKey);
 
-  /// كتابة نسخة تلقائية محلية. يدور بين ملفين ثابتي الاسم في مجلد الـ
-  /// auto فقط — لا علاقة له بمجلد النسخ اليدوي إطلاقًا. يكتب فوق أقدم
-  /// الملفين (أو الملف غير الموجود)، فيبقى دائمًا آخر نسختين فقط.
+  /// كتابة نسخة تلقائية محلية — آمنة عبر ملف مؤقت (`.tmp`) ثم إعادة تسمية
+  /// (rename) بدل الكتابة المباشرة فوق الملف الهدف. لو انقطعت الكتابة في
+  /// منتصفها لأي سبب، الملف الهدف القديم يبقى كما هو سليمًا تمامًا —
+  /// الاستبدال يحدث فقط بعد اكتمال الكتابة الجديدة بنجاح.
+  ///
+  /// يدور بين ملفين ثابتي الاسم في مجلد الـ auto فقط، فيحتفظ دائمًا بآخر
+  /// نسختين ناجحتين فقط ولا يتراكم بلا حدود.
   static Future<bool> writeAuto(String json) async {
     final folder = await autoFolder();
     if (folder == null) return false;
@@ -77,8 +81,13 @@ class LocalBackupService {
     }
 
     try {
-      await target.create(recursive: true);
-      await target.writeAsString(json, flush: true);
+      final tmp = File('${target.path}.tmp');
+      await tmp.create(recursive: true);
+      await tmp.writeAsString(json, flush: true);
+      // الكتابة نجحت بالكامل — الآن فقط نستبدل الهدف. rename على نفس
+      // الـ filesystem عملية شبه-ذرية، فلا يوجد وقت يظهر فيه الملف الهدف
+      // بمحتوى ناقص.
+      await tmp.rename(target.path);
     } catch (_) {
       return false;
     }
@@ -88,12 +97,20 @@ class LocalBackupService {
     return true;
   }
 
-  /// كتابة نسخة يدوية محلية — ملف ثابت واحد في مجلد الـ manual فقط، لا
-  /// علاقة له بمجلد النسخ التلقائي إطلاقًا. لا يُستدعى إلا من ضغطة
-  /// المستخدم الصريحة على "إنشاء نسخة يدوية".
+  /// كتابة نسخة يدوية محلية — **ملف جديد بالطابع الزمني في اسمه في كل
+  /// مرة**، في مجلد الـ manual فقط. لا يُحذف ولا يُستبدَل أي ملف يدوي
+  /// سابق تلقائيًا أبدًا — يتراكم حتى يحذفه المستخدم بنفسه من نظام
+  /// الملفات. لا يُستدعى إلا من ضغطة المستخدم الصريحة على "إنشاء نسخة
+  /// يدوية".
   static Future<bool> writeManual(String json, String folder) async {
     try {
-      final file = File('$folder${Platform.pathSeparator}$_manualFileName');
+      final stamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('.', '-');
+      final file = File(
+        '$folder${Platform.pathSeparator}$_manualFilePrefix$stamp.json',
+      );
       await file.create(recursive: true);
       await file.writeAsString(json, flush: true);
     } catch (_) {
@@ -124,11 +141,28 @@ class LocalBackupService {
     return t1.isAfter(t0) ? files[1] : files[0];
   }
 
-  /// ملف النسخة اليدوية الحالي — null لو لا يوجد أو المجلد غير مضبوط.
-  static Future<File?> manualFile() async {
+  /// كل ملفات النسخ اليدوية المحلية الموجودة في مجلد الـ manual، مرتّبة
+  /// من الأحدث للأقدم (بحسب الطابع الزمني في اسم الملف). قائمة فارغة لو
+  /// لا يوجد مجلد أو لا توجد نسخ بعد.
+  static Future<List<File>> manualFiles() async {
     final folder = await manualFolder();
-    if (folder == null) return null;
-    final file = File('$folder${Platform.pathSeparator}$_manualFileName');
-    return await file.exists() ? file : null;
+    if (folder == null) return const [];
+    final dir = Directory(folder);
+    if (!await dir.exists()) return const [];
+
+    final files = await dir
+        .list()
+        .where((e) => e is File && e.path.contains(_manualFilePrefix))
+        .cast<File>()
+        .toList();
+    files.sort((a, b) => b.path.compareTo(a.path)); // اسم الملف = طابع زمني
+    return files;
+  }
+
+  /// أحدث نسخة يدوية محلية (للاسترجاع الافتراضي بضغطة واحدة) — null لو لا
+  /// توجد أي نسخة بعد.
+  static Future<File?> manualFile() async {
+    final files = await manualFiles();
+    return files.isEmpty ? null : files.first;
   }
 }

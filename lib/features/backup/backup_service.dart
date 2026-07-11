@@ -112,6 +112,12 @@ class BackupService {
         : BackupSlot.autoCloud0;
   }
 
+  /// يرفع نسخة كاملة إلى خانة محدَّدة، بترتيب آمن: يكتب كل الأجزاء
+  /// الجديدة أولاً (إضافي بحت، لا يمسّ القديم)، ثم يُحدِّث المؤشرات
+  /// (meta/info و data/backup) لتشير للنسخة الجديدة الكاملة، **وبعد ذلك
+  /// فقط** يحذف الأجزاء القديمة الزائدة. لو فشلت العملية أو انقطع
+  /// الاتصال في أي لحظة قبل اكتمال التحديث، تظل المؤشرات تشير للنسخة
+  /// القديمة الكاملة الصالحة — لا يمكن أبدًا أن تُقرأ خانة بنسخة ناقصة.
   static Future<void> uploadToSlot({
     required String email,
     required String displayName,
@@ -129,8 +135,9 @@ class BackupService {
     var batch = FirebaseFirestore.instance.batch();
     var operationCount = 0;
 
-    Future<void> commitIfNeeded() async {
-      if (operationCount < 450) return;
+    Future<void> commitIfNeeded({bool force = false}) async {
+      if (!force && operationCount < 450) return;
+      if (operationCount == 0) return;
       await batch.commit();
       batch = FirebaseFirestore.instance.batch();
       operationCount = 0;
@@ -146,6 +153,19 @@ class BackupService {
       operationCount++;
     }
 
+    // 1) اكتب كل الأجزاء الجديدة أولاً — إضافي بحت، لا يحذف أو يستبدل أي
+    //    شيء قديم بعد. لو فشلت العملية هنا، الخانة القديمة لسه سليمة تمامًا.
+    for (var i = 0; i < chunks.length; i++) {
+      set(chunksRef.doc(_chunkId(i)), {
+        'index': i,
+        'value': chunks[i],
+      });
+      await commitIfNeeded();
+    }
+    await commitIfNeeded(force: true);
+
+    // 2) الآن بعد التأكد من كتابة كل الأجزاء الجديدة كاملةً، حدِّث
+    //    المؤشرات لتشير للنسخة الجديدة — هذه هي لحظة "نجاح الرفع" الفعلية.
     set(ref.collection('meta').doc('info'), {
       'email': email,
       'name': displayName,
@@ -162,16 +182,16 @@ class BackupService {
       },
       'appVersion': '1.0.0',
     });
-    await commitIfNeeded();
-
     set(dataRef, {
       'storageFormat': 'chunked-v2',
       'chunkCount': chunks.length,
       'byteSize': utf8.encode(jsonData).length,
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    await commitIfNeeded();
+    await commitIfNeeded(force: true);
 
+    // 3) الرفع نجح والمؤشرات تشير للنسخة الجديدة الكاملة — الآن فقط يُسمح
+    //    بحذف الأجزاء القديمة الزائدة عن الحاجة (تخص نسخة أقدم/أكبر حجمًا).
     final newChunkIds = {
       for (var i = 0; i < chunks.length; i++) _chunkId(i),
     };
@@ -182,18 +202,7 @@ class BackupService {
       delete(oldChunk.reference);
       await commitIfNeeded();
     }
-
-    for (var i = 0; i < chunks.length; i++) {
-      set(chunksRef.doc(_chunkId(i)), {
-        'index': i,
-        'value': chunks[i],
-      });
-      await commitIfNeeded();
-    }
-
-    if (operationCount > 0) {
-      await batch.commit();
-    }
+    await commitIfNeeded(force: true);
   }
 
   // ===========================================================================
