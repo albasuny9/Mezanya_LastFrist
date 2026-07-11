@@ -44,10 +44,12 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
 
   // النسخ اليدوي السحابي (C)
   String? _lastManualCloudAt;
+  int? _lastManualCloudBytes;
 
   // النسخ اليدوي المحلي (D)
   String? _manualLocalFolder;
   String? _lastManualLocalAt;
+  int _manualLocalCount = 0;
 
   Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -71,6 +73,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     setState(() => loading = true);
     await _loadSettings();
     await _loadGoogle();
+    await _loadManualCloudDetails();
     if (mounted) setState(() => loading = false);
   }
 
@@ -86,6 +89,32 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (diff.inDays == 1) return 'أمس';
     if (diff.inDays < 7) return 'منذ ${diff.inDays} أيام';
     return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  String _formatBytes(int? bytes) {
+    if (bytes == null) return '—';
+    if (bytes < 1024) return '$bytes بايت';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)} ك.ب';
+    final mb = kb / 1024;
+    return '${mb.toStringAsFixed(2)} م.ب';
+  }
+
+  /// حجم آخر نسخة يدوية سحابية — يُجلَب من الخانة مباشرة (وليس من
+  /// SharedPreferences) لأنه بيانات فعلية عن النسخة المخزَّنة، لا حالة
+  /// محلية بسيطة.
+  Future<void> _loadManualCloudDetails() async {
+    if (_account == null) return;
+    try {
+      final meta = await BackupService.fetchSlotMetadata(
+        _account!.email,
+        BackupSlot.manualCloud,
+      );
+      final bytes = meta?['byteSize'] as int?;
+      if (mounted) setState(() => _lastManualCloudBytes = bytes);
+    } catch (_) {
+      // تجاهل — التفاصيل ثانوية ولا يجب أن توقف تحميل الشاشة
+    }
   }
 
   Future<void> _loadGoogle() async {
@@ -108,6 +137,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     _lastAutoLocalAt = await LocalBackupService.lastAutoBackupAt();
     _manualLocalFolder = await LocalBackupService.manualFolder();
     _lastManualLocalAt = await LocalBackupService.lastManualBackupAt();
+    _manualLocalCount = (await LocalBackupService.manualFiles()).length;
   }
 
   bool _guardAuth() {
@@ -292,6 +322,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_manual_cloud_backup_at', now);
           if (mounted) setState(() => _lastManualCloudAt = now);
+          await _loadManualCloudDetails();
           _msg('تم إنشاء النسخة اليدوية السحابية ✓');
           break;
         case BackupUploadStatus.cancelled:
@@ -364,7 +395,13 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     );
     if (ok) {
       final now = await LocalBackupService.lastManualBackupAt();
-      if (mounted) setState(() => _lastManualLocalAt = now);
+      final count = (await LocalBackupService.manualFiles()).length;
+      if (mounted) {
+        setState(() {
+          _lastManualLocalAt = now;
+          _manualLocalCount = count;
+        });
+      }
       _msg('تم إنشاء النسخة اليدوية المحلية ✓');
     } else {
       _msg('فشل إنشاء النسخة اليدوية المحلية');
@@ -520,6 +557,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                         'آخر نسخة يدوية',
                         _formatBackupTime(_lastManualCloudAt),
                       ),
+                      _InfoRow('الحجم', _formatBytes(_lastManualCloudBytes)),
                     ],
                     actions: [
                       _PrimaryButton(
@@ -547,6 +585,10 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                       _InfoRow(
                         'المجلد الحالي',
                         _manualLocalFolder ?? 'غير محدَّد',
+                      ),
+                      _InfoRow(
+                        'عدد النسخ المحفوظة',
+                        _manualLocalCount == 0 ? '0' : '$_manualLocalCount (لا يُحذف أي منها تلقائيًا)',
                       ),
                     ],
                     actions: [
