@@ -1193,28 +1193,6 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   }
 }
 
-// class _ColorWheel extends StatelessWidget {
-//   const _ColorWheel({
-//     required this.color,
-//     required this.onChanged,
-//   });
-
-//   final Color color;
-//   final ValueChanged<Color> onChanged;
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return SizedBox(
-//       width: 190,
-//       height: 190,
-//       child: _ColorWheelGesture(
-//         color: color,
-//         onChanged: onChanged,
-//       ),
-//     );
-//   }
-// }
-
 class _ColorWheelGesture extends StatefulWidget {
   const _ColorWheelGesture({
     required this.color,

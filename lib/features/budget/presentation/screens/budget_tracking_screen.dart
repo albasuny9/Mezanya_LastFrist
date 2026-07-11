@@ -440,41 +440,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         kBudgetDangerRed;
   }
 
-  // Widget _trackingSheetGrabHandle(ThemeData theme) {
-  //   return Center(
-  //     child: Container(
-  //       width: 40,
-  //       height: 4,
-  //       margin: const EdgeInsets.only(bottom: 14),
-  //       decoration: BoxDecoration(
-  //         color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-  //         borderRadius: BorderRadius.circular(kBudgetRadiusPill),
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _trackingSheetTransactionsHeader(ThemeData theme) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       Divider(
-  //         height: 32,
-  //         thickness: 1,
-  //         color: theme.colorScheme.outlineVariant,
-  //       ),
-  //       Text(
-  //         'معاملات الشهر',
-  //         style: theme.textTheme.titleSmall?.copyWith(
-  //           fontWeight: FontWeight.w900,
-  //         ),
-  //       ),
-  //       const SizedBox(height: 10),
-  //     ],
-  //   );
-  // }
-
-
   Widget _trackingMonthTransactionTile(
     BuildContext sheetContext,
     ThemeData theme,
@@ -498,51 +463,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       },
     );
   }
-  // Widget _trackingSheetTxList(
-  //   BuildContext sheetContext,
-  //   ThemeData theme,
-  //   List<TransactionEntity> transactions,
-  //   String emptyMessage,
-  // ) {
-  //   return Column(
-  //     children: [
-  //       ...transactions.map(
-  //         (item) => _trackingMonthTransactionTile(sheetContext, theme, item),
-  //       ),
-  //       if (transactions.isEmpty)
-  //         Padding(
-  //           padding: const EdgeInsets.symmetric(vertical: 12),
-  //           child: Text(
-  //             emptyMessage,
-  //             style: TextStyle(
-  //               color: theme.colorScheme.onSurfaceVariant,
-  //               fontWeight: FontWeight.w600,
-  //             ),
-  //           ),
-  //         ),
-  //     ],
-  //   );
-  // }
-
-
-
-  // bool _hasPendingDebt(
-  //   AppStateEntity state,
-  //   BudgetSetupEntity budget,
-  //   List<TransactionEntity> monthTx,
-  // ) {
-  //   for (final debt in budget.debts) {
-  //     final recurring = _linkedRecurringDebt(state, debt);
-  //     final tx = monthTx.where((t) => t.notes?.contains(debt.name) == true);
-  //     final paid = tx.fold<double>(0, (s, t) => s + t.amount);
-  //     final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
-  //     final pendingMeta = BudgetRecurringPlanService.expensePendingMeta(recurring);
-  //     if (pendingMeta?['pending'] == true && remaining > 0) {
-  //       return true;
-  //     }
-  //   }
-  //   return false;
-  // }
 
   bool _isCurrentMonthView() => _isCurrentCycle(widget.cubit.state.budgetSetup);
 
