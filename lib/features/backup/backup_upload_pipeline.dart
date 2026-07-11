@@ -43,18 +43,6 @@ typedef ConflictResolver = Future<BackupConflictChoice> Function({
 class BackupUploadPipeline {
   BackupUploadPipeline._();
 
-  /// أقصى نسبة انخفاض مسموح بها في عدد المعاملات المحلية مقارنة بالنسخة
-  /// البعيدة قبل اعتبار الرفع خطيرًا ورفضه تلقائيًا.
-  ///
-  /// ⚠️ قيمة مبدئية محافظة (50%) — **تحتاج تأكيد محمد صراحة**، ليست قرارًا
-  /// نهائيًا. لا يوجد معيار "صحيح" موضوعي لهذه النسبة؛ اختيرت كبداية آمنة.
-  static const double maxAllowedShrinkRatio = 0.5;
-
-  /// الحد الأدنى لعدد معاملات النسخة البعيدة قبل تفعيل حارس الانخفاض
-  /// الخطير — لتجنّب رفض رفعات مستخدمين جدد لهم نسخة بعيدة صغيرة أصلاً
-  /// (مثال: نسخة بعيدة بمعاملة واحدة ومحلية بدون معاملات لسبب مشروع).
-  static const int minRemoteTxToGuard = 5;
-
   static const String _lastSyncPrefsKey = 'last_cloud_backup_at';
 
   /// نقطة الدخول الوحيدة لأي رفع نسخة احتياطية. تُستخدَم من الرفع اليدوي
@@ -93,18 +81,38 @@ class BackupUploadPipeline {
     if (meta != null) {
       final remoteTxCount =
           (meta['recordsCount']?['transactions'] as int?) ?? 0;
+      final remoteWalletCount = (meta['recordsCount']?['wallets'] as int?) ?? 0;
+      final remoteRecurringCount =
+          (meta['recordsCount']?['recurringTransactions'] as int?) ?? 0;
       final remoteUpdatedAt = meta['updatedAt'] is Timestamp
           ? (meta['updatedAt'] as Timestamp).toDate()
           : null;
 
-      // المرحلة 2: رفض الرفعات الخطيرة (انخفاض حاد في حجم البيانات).
-      if (remoteTxCount >= minRemoteTxToGuard &&
-          localTxCount < remoteTxCount * maxAllowedShrinkRatio) {
+      // المرحلة 2: رفض الرفعات الخطيرة — قواعد حتمية فقط، بدون أي نسبة
+      // مئوية أو عتبة تقديرية. كل قاعدة تمنع محو فئة بيانات كانت موجودة
+      // بالكامل على السحابة بينما هي فارغة تمامًا محليًا.
+      if (remoteTxCount > 0 && localTxCount == 0) {
         return BackupUploadResult(
           BackupUploadStatus.rejectedShrink,
-          'تم رفض الرفع: البيانات المحلية ($localTxCount معاملة) أقل بكثير '
-          'من النسخة السحابية ($remoteTxCount معاملة). قد يشير هذا لفقدان '
-          'بيانات محلي — راجع النسخة يدويًا قبل المتابعة.',
+          'تم رفض الرفع: النسخة المحلية بدون أي معاملات بينما النسخة '
+          'السحابية تحتوي $remoteTxCount معاملة. راجع النسخة يدويًا قبل '
+          'المتابعة.',
+        );
+      }
+      if (remoteWalletCount > 0 && localState.wallets.isEmpty) {
+        return BackupUploadResult(
+          BackupUploadStatus.rejectedShrink,
+          'تم رفض الرفع: النسخة المحلية بدون أي محافظ بينما النسخة '
+          'السحابية تحتوي $remoteWalletCount محفظة. راجع النسخة يدويًا '
+          'قبل المتابعة.',
+        );
+      }
+      if (remoteRecurringCount > 0 && localState.recurringTransactions.isEmpty) {
+        return BackupUploadResult(
+          BackupUploadStatus.rejectedShrink,
+          'تم رفض الرفع: النسخة المحلية بدون أي معاملات متكررة بينما '
+          'النسخة السحابية تحتوي $remoteRecurringCount. راجع النسخة '
+          'يدويًا قبل المتابعة.',
         );
       }
 
