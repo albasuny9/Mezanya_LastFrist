@@ -44,6 +44,12 @@ Then restart the "Start application" workflow.
 ## Firebase
 Firebase is configured in `lib/firebase_options.dart`. It is used optionally — the app works fully offline with local SharedPreferences storage. Firebase features (auth, cloud backup, profile photo upload) are opt-in from the Settings screen.
 
+## User preferences
+- Agent role is restricted to **senior code analyst / auditor** for this project: audit only, produce reports and implementation plans, do not modify code unless explicitly asked.
+- Never modify financial logic, backup logic, transaction processing, or app architecture.
+- Audit focus areas: duplicated code, dead code, unused imports, large widgets/long methods, architectural violations, repeated UI components, repeated strings, magic numbers, files that should be split, localization opportunities, performance issues.
+- Every recommendation in a report must include: Why, Risk level, Files affected, Estimated implementation effort.
+
 ## Notes
 - The web build uses local CanvasKit (not CDN) for offline rendering
 - Service worker is disabled to avoid stale cache issues in Replit preview
