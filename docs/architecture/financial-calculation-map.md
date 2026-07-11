@@ -176,13 +176,69 @@ referenceId:   String?
 يبقى كما هو بدون أي تعديل.** الخطر الموثّق أعلاه (تشابه الأسماء / تغيير
 الاسم لاحقًا) يبقى معروفًا وغير محلول عمدًا لحين ذلك.
 
+### تصحيح على الاكتشاف الأصلي
+
+الادّعاء الأول ("معادلة جديدة كليًا، بلا مالك") **غير دقيق**. التحقق أثناء
+تدقيق `budget_tracking_screen.dart` كشف إن
+`BudgetRecurringPlanService.transactionCountsTowardDebt` (نفس الملف: خدمة
+domain موجودة فعلاً) هي بالضبط نفس منطق `notes.contains(debt.name)`،
+ومُستخدَمة كمصدر مركزي في أماكن متعددة من `budget_tracking_screen.dart`.
+**المالك موجود بالفعل.** المخالفة الحقيقية في `notifications_center_screen.dart`
+مش "معادلة يتيمة" — هي **نسخة مكررة يدويًا بدل استدعاء الخدمة الموجودة**.
+هذا يُصنَّف الآن كـ Duplicate عادي في الجدول تحت، لا اكتشاف منفصل. خطر
+المطابقة النصية نفسه يبقى قائمًا وقرار `referenceType/referenceId` أعلاه
+يظل هو الحل المؤجَّل له.
+
+---
+
+## تدقيق هيكلي كامل — `budget_tracking_screen.dart`
+
+> تنفيذًا لتوجيه محمد: تصنيف فقط، بدون أي نقل أو تعديل كود. المواضع مجمّعة
+> بحسب الحساب الفعلي، مش رقم السطر الخام — كتير من الـ 25 موضع هما نفس
+> الحساب مكرر حرفيًا في أكثر من دالة.
+
+| # | الحساب | السطور | التصنيف | المالك المستقبلي المقترح |
+|---|---|---|---|---|
+| 1 | `totalIncomeActual` = مجموع دخل الدورة الفعلي | 159 | **Business calculation** (تُستخدم لحساب `remainingIncome`) | `BudgetIncomeMetricsService` أو `BudgetCalculationService` |
+| 2 | `plannedIncome` = مجموع مصادر الدخل الثابتة | 185 | **Business calculation**، Single-use (لكارت الملخص) | `BudgetCalculationService` |
+| 3 | `plannedAllocations` = مجموع `funding.plannedAmount` عبر كل المخصصات | 186–189 | **Business calculation**، Single-use | `BudgetCalculationService` |
+| 4 | `plannedJars` = مجموع `monthlyAmount` للحصالات | 192 | **Business calculation**، Single-use | `BudgetCalculationService` أو `JarCalculationService` |
+| 5 | `plannedDebts` = مجموع `amountDueInCycle` للديون | 193 | **Presentation only** فعليًا — الحساب الحقيقي (`amountDueInCycle`) مُفوَّض بالفعل لـ `BudgetRecurringPlanService`؛ الـ `.fold` هنا مجرد تجميع نتائج | لا حاجة لنقل — تجميع بسيط فوق دالة مركزية بالفعل |
+| 6 | `received` لمصدر دخل واحد (+ `pool`/`spent`/`afterSpend`/`remProgress`) | 560 (داخل `_incomeInlineCards`) | **Duplicate** — نفس الكتلة **بالكامل** مكررة حرفيًا في # 12 (سطر 1985) | `BudgetIncomeMetricsService` (تُستخدم بالفعل جزئيًا لباقي الكتلة — `received` نفسها غير موحّدة) |
+| 7 | `planned`/`funded`/`spent`/`remaining`/`ratio` لمخصص واحد | 727–743 (`_allocationSummaryTile`) | **Duplicate** — نفس الكتلة **حرفيًا** مكررة في #9 (سطر 1828–1847، `_openAllocationSheet`) | `BudgetCalculationService` |
+| 8 | `budgetAllocated` لحصالة واحدة | 831 (`_jarSummaryTile`) | **Business calculation**، Single-use (لم يُعثر على تكرار) | `JarCalculationService` |
+| 9 | `planned`/`funded`/`spent`/`remaining`/`ratio` لمخصص واحد (نسخة الشيت) | 1828–1847 (`_openAllocationSheet`) | **Duplicate** لـ #7 — راجع أعلاه | `BudgetCalculationService` |
+| 10 | `paid` (كل الوقت) + `paidRatio` لدَين واحد | 931 (loop الديون/الأقساط) | **Business calculation** — يعتمد على `BudgetRecurringPlanService.allDebtPayments` (مركزية بالفعل)؛ الـ `.fold` تجميع فوقها | `BudgetRecurringPlanService` (توسعة) |
+| 11 | `monthPaid` (داخل الدورة الحالية) لدَين واحد | 939 | **Duplicate** — نفس الصيغة بالضبط مكررة في #16 (2219) و#18 (2699): فلترة بـ `transactionCountsTowardDebt` + نطاق الدورة، ثم `.fold` | `BudgetRecurringPlanService.paidInCycle(...)` (دالة جديدة تجمع النمط المكرر 3 مرات) |
+| 12 | `received` لمصدر دخل واحد (نسخة الشيت) (+ `pool`/`spent`/`afterSpend`/`remProgress`) | 1978–1985 (`_openIncomeSourceSheet` تقريبًا) | **Duplicate** لـ #6 — راجع أعلاه | `BudgetIncomeMetricsService` |
+| 13 | `cycleTotalOut` — إجمالي "السَّلف" (lending) الصادرة في الدورة | 1013–1021 | **⚠️ اكتشاف جديد غير مغطى سابقًا**: يستخدم نفس نمط المطابقة النصية الهش (`notes.contains('سلفة لـ $name')`) لكن لـ **ميزة السلف، مش الديون** — لا توجد خدمة مركزية لها أصلاً (بعكس الديون) | لا يوجد — يحتاج قرار منفصل، ونفس اعتبار `referenceType/referenceId` المؤجَّل ينطبق هنا بنفس القوة |
+| 14 | `out`/`inc` لكل شخص "مسلَّف له" في الدورة | 1049, 1052 | **Duplicate** لنفس نمط #13 (نفس المطابقة النصية الهشة)، لشخص محدد بدل الإجمالي | نفس ملاحظة #13 |
+| 15 | `cyclePaid` لدَين/اشتراك واحد | 1587 | **Presentation only** فعليًا — يستدعي `transactionCountsTowardDebt` المركزية مباشرة، الـ `.fold` تجميع بسيط | لا حاجة لنقل فوري (نفس نمط #10) |
+| 16 | `paid` + `paidRatio` لدَين/اشتراك واحد (نسخة أخرى) | 2200 | **Business calculation**، يبدو Single-use لكن يحتاج تأكيد إضافي مقابل #10 (لم يُقارَن حرفيًا بعد) | `BudgetRecurringPlanService` |
+| 17 | `monthPaid` لدَين واحد (نسخة ثالثة) | 2219 | **Duplicate** لـ #11 — راجع أعلاه | `BudgetRecurringPlanService.paidInCycle(...)` |
+| 18 | `paid` عند معالجة occurrence لدَين قسط (تلقائي) | 2699 | **Duplicate** لنفس نمط #11/#17 | `BudgetRecurringPlanService.paidInCycle(...)` |
+
+### ملخص التصنيف
+
+- **Duplicate مؤكد (نفس الصيغة حرفيًا في أكثر من مكان):** #6+#12، #7+#9,
+  #11+#17+#18، #13+#14 → **4 عائلات تكرار حقيقية** عبر 10 من أصل 18 كتلة.
+- **Business calculation بلا تكرار مكتشف (Single-use):** #1–4، #8، #10، #16.
+- **Presentation only (الحساب الحقيقي مُفوَّض بالفعل لخدمة مركزية، والباقي
+  مجرد تجميع):** #5، #15.
+- **اكتشاف جديد فعلي (خارج نطاق قرار الديون المؤجَّل، ميزة مختلفة تمامًا):**
+  #13/#14 — مطابقة نصية لميزة "السَّلف" بلا أي خدمة مركزية حاليًا.
+
+**ما لم يُنفَّذ:** أي نقل أو إعادة كتابة كود. هذا تصنيف فقط، حسب توجيه
+محمد: الـ Centralization الفعلي هيحصل في مرحلة منفصلة بعد استقرار الـ
+Financial Core وبنية الـ Backup بالكامل.
+
 ---
 
 ## حصر كامل لعدد مواضع `.fold()` لكل ملف presentation (تم تنفيذه بالكامل)
 
 | الملف | عدد المواضع | التصنيف الأولي |
 |---|---:|---|
-| `budget_tracking_screen.dart` | **25** | يحتاج فحص فردي — يحتوي على الأقل زوج واحد شبه متطابق (`funded` في سطر 728 و1832، `received` في سطر 560 و1985) |
+| `budget_tracking_screen.dart` | **25** | ✅ تم التدقيق الهيكلي الكامل (انظر القسم أسفل) |
 | `budget_setup_screen.dart` | **12** | لم يُفحص فرديًا بعد |
 | `transaction_charts_screen.dart` | 8 | الأرجح تجميع بيانات رسم بياني (زي `budget_hero_bar_chart.dart`) — لم يُؤكَّد |
 | `money_overview_widgets.dart` | 4 | لم يُفحص |
