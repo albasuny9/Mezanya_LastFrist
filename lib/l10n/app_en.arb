@@ -1,0 +1,7 @@
+{
+  "@@locale": "en",
+  "appTitle": "Mezanya",
+  "@appTitle": {
+    "description": "The application name as shown in the OS and task switcher."
+  }
+}

@@ -4,6 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/domain/entities/app_state_entity.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
+import 'l10n/generated/app_localizations.dart';
 
 class MezanyaApp extends StatelessWidget {
   const MezanyaApp({
@@ -18,11 +19,13 @@ class MezanyaApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mezanya',
+      // البنية التحتية فقط: AppLocalizations متاحة الآن لأي استخدام مستقبلي،
+      // لكن اللغة الافتراضية والمدعومة فعليًا في الواجهة لم تتغيّرا —
+      // لا سلوك جديد للمستخدم حاليًا.
       locale: const Locale('ar'),
-      supportedLocales: const [
-        Locale('ar'),
-      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
