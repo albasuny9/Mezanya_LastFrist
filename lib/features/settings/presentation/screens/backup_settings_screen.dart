@@ -47,7 +47,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   bool _autoCloudCardLoading = true;
   bool _autoCloudEnabled = false;
   String? _lastAutoCloudAt;
-  String _autoCloudStatus = 'unknown';
 
   // B — auto local
   bool _autoLocalCardLoading = true;
@@ -58,7 +57,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   // C — manual cloud
   bool _manualCloudCardLoading = true;
   String? _lastManualCloudAt;
-  int? _lastManualCloudBytes;
 
   // D — manual local
   bool _manualLocalCardLoading = true;
@@ -99,7 +97,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     _autoCloudEnabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
     _lastAutoCloudAt = prefs.getString('last_auto_cloud_backup_at');
-    _autoCloudStatus = prefs.getString('last_auto_cloud_status') ?? 'unknown';
     if (mounted) setState(() => _autoCloudCardLoading = false);
   }
 
@@ -115,16 +112,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (mounted) setState(() => _manualCloudCardLoading = true);
     final prefs = await SharedPreferences.getInstance();
     _lastManualCloudAt = prefs.getString('last_manual_cloud_backup_at');
-    await _ensureAccount();
-    if (_account != null) {
-      try {
-        final meta = await BackupService.fetchSlotMetadata(
-          _account!.email,
-          BackupSlot.manualCloud,
-        );
-        _lastManualCloudBytes = meta?['byteSize'] as int?;
-      } catch (_) {}
-    }
     if (mounted) setState(() => _manualCloudCardLoading = false);
   }
 
@@ -461,8 +448,9 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
             Text(l.backupReplaceBody),
             const SizedBox(height: 12),
             Text(
-              l.backupReplaceDate(_formatBackupTime(
+              l.backupReplaceDate(_smartTime(
                 existing.modifiedAt.toIso8601String(),
+                l,
               )),
             ),
             Text(l.backupReplaceTxCount(existing.transactionCount)),
