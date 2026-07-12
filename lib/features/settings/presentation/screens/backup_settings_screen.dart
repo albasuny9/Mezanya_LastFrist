@@ -64,7 +64,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   bool _manualLocalCardLoading = true;
   String? _manualLocalFolder;
   String? _lastManualLocalAt;
-  int _manualLocalCount = 0;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Init / data loading
@@ -133,7 +132,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (mounted) setState(() => _manualLocalCardLoading = true);
     _manualLocalFolder = await LocalBackupService.manualFolder();
     _lastManualLocalAt = await LocalBackupService.lastManualBackupAt();
-    _manualLocalCount = (await LocalBackupService.manualFiles()).length;
     if (mounted) setState(() => _manualLocalCardLoading = false);
   }
 
@@ -419,6 +417,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   }
 
   Future<void> _createManualLocalBackup() async {
+    final l = AppLocalizations.of(context);
     var folder = _manualLocalFolder;
     if (folder == null) {
       folder = await _pickFolder();
@@ -426,17 +425,63 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
       await LocalBackupService.setManualFolder(folder);
       if (mounted) setState(() => _manualLocalFolder = folder);
     }
+
+    // مقارنة قبل الاستبدال: لو فيه نسخة يدوية موجودة بالفعل، نعرض
+    // للمستخدم تفاصيلها (تاريخ الإنشاء، عدد المعاملات، عدد المحافظ) قبل
+    // ما نكتب فوقها — Replace أو Cancel فقط، بدون أي خيار دمج.
+    final existing = await LocalBackupService.readManualSummary();
+    if (existing != null) {
+      final proceed = await _confirmReplace(existing, l);
+      if (!proceed) return;
+    }
+
     final ok = await LocalBackupService.writeManual(
       widget.cubit.exportStateJson(), folder);
-    final l = AppLocalizations.of(context);
     if (ok) {
       final now = await LocalBackupService.lastManualBackupAt();
-      final count = (await LocalBackupService.manualFiles()).length;
-      if (mounted) setState(() { _lastManualLocalAt = now; _manualLocalCount = count; });
+      if (mounted) setState(() => _lastManualLocalAt = now);
       _msg(l.backupMsgSaved);
     } else {
       _msg(l.backupMsgUploadFailed);
     }
+  }
+
+  Future<bool> _confirmReplace(
+    LocalBackupSummary existing,
+    AppLocalizations l,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(l.backupReplaceTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l.backupReplaceBody),
+            const SizedBox(height: 12),
+            Text(
+              l.backupReplaceDate(_formatBackupTime(
+                existing.modifiedAt.toIso8601String(),
+              )),
+            ),
+            Text(l.backupReplaceTxCount(existing.transactionCount)),
+            Text(l.backupReplaceWalletCount(existing.walletCount)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(l.backupConfirmCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(l.backupReplaceConfirm),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _restoreManualLocalBackup() async {

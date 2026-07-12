@@ -34,5 +34,20 @@
   "backupMsgSignInFailed": "Sign-in failed",
   "backupMsgUploadFailed": "Backup failed",
   "backupLastBackup": "Last backup",
-  "backupError": "Error"
+  "backupError": "Error",
+  "backupReplaceTitle": "Replace Manual Backup",
+  "backupReplaceBody": "A manual backup already exists. It will be fully replaced with the current app data.",
+  "backupReplaceDate": "Current backup date: {date}",
+  "@backupReplaceDate": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "backupReplaceTxCount": "Transactions: {count}",
+  "@backupReplaceTxCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "backupReplaceWalletCount": "Wallets: {count}",
+  "@backupReplaceWalletCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "backupReplaceConfirm": "Replace Backup"
 }

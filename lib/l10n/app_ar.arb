@@ -34,5 +34,20 @@
   "backupMsgSignInFailed": "فشل تسجيل الدخول",
   "backupMsgUploadFailed": "تعذّر إنشاء النسخة",
   "backupLastBackup": "آخر نسخة",
-  "backupError": "خطأ"
+  "backupError": "خطأ",
+  "backupReplaceTitle": "استبدال النسخة اليدوية",
+  "backupReplaceBody": "توجد نسخة يدوية محفوظة بالفعل. سيتم استبدالها بالكامل ببيانات التطبيق الحالية.",
+  "backupReplaceDate": "تاريخ النسخة الحالية: {date}",
+  "@backupReplaceDate": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "backupReplaceTxCount": "عدد المعاملات: {count}",
+  "@backupReplaceTxCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "backupReplaceWalletCount": "عدد المحافظ: {count}",
+  "@backupReplaceWalletCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "backupReplaceConfirm": "استبدال النسخة"
 }
