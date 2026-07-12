@@ -9,7 +9,18 @@ import '../../../../features/backup/backup_conflict_dialog.dart';
 import '../../../../features/backup/backup_service.dart';
 import '../../../../features/backup/backup_upload_pipeline.dart';
 import '../../../../features/backup/local_backup_service.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+const _kGreen = Color(0xFF2F6F5E);
+const _kBg = Color(0xFFFFFBF1);
+
+enum _MenuAction { restore, changeFolder }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 class BackupSettingsScreen extends StatefulWidget {
   final AppCubit cubit;
@@ -24,57 +35,44 @@ class BackupSettingsScreen extends StatefulWidget {
 }
 
 class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
-  static const Color _green = Color(0xFF2F6F5E);
-  static const Color _bg = Color(0xFFFFFBF1);
-
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
   GoogleSignInAccount? _account;
-  bool loading = false; // busy-state لأزرار الإجراءات فقط (رفع/استرجاع)، لا يحجب الصفحة عند فتحها
+  bool loading = false;
 
   bool _accountLoading = true;
   Future<void>? _accountFuture;
 
-  // النسخ التلقائي السحابي (A)
+  // A — auto cloud
   bool _autoCloudCardLoading = true;
   bool _autoCloudEnabled = false;
   String? _lastAutoCloudAt;
-  String _autoCloudStatus = 'unknown'; // ok | deferred | failed | unknown
+  String _autoCloudStatus = 'unknown';
 
-  // النسخ التلقائي المحلي (B)
+  // B — auto local
   bool _autoLocalCardLoading = true;
   bool _autoLocalEnabled = false;
   String? _autoLocalFolder;
   String? _lastAutoLocalAt;
 
-  // النسخ اليدوي السحابي (C)
+  // C — manual cloud
   bool _manualCloudCardLoading = true;
   String? _lastManualCloudAt;
   int? _lastManualCloudBytes;
 
-  // النسخ اليدوي المحلي (D)
+  // D — manual local
   bool _manualLocalCardLoading = true;
   String? _manualLocalFolder;
   String? _lastManualLocalAt;
   int _manualLocalCount = 0;
 
-  Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser?.email == account.email) return;
-
-    final auth = await account.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: auth.accessToken,
-      idToken: auth.idToken,
-    );
-    await FirebaseAuth.instance.signInWithCredential(credential);
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Init / data loading
+  // ═══════════════════════════════════════════════════════════════════════════
 
   @override
   void initState() {
     super.initState();
-    // الصفحة تظهر فورًا (build الأول لا ينتظر أي حاجة هنا) — كل كارت
-    // يحمّل بياناته بشكل مستقل ومتوازي، بدون await على مستوى initState.
     _ensureAccount();
     _loadAutoCloudCard();
     _loadAutoLocalCard();
@@ -82,23 +80,16 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     _loadManualLocalCard();
   }
 
-  /// تحميل حساب Google — memoized بحيث أي كارت محتاجه (مثل C اللي بيجيب
-  /// حجم النسخة) يستخدم نفس النتيجة بدل تكرار تسجيل الدخول الصامت.
-  Future<void> _ensureAccount() {
-    return _accountFuture ??= _loadAccount();
-  }
+  Future<void> _ensureAccount() =>
+      _accountFuture ??= _loadAccount();
 
   Future<void> _loadAccount() async {
     _account = _googleSignIn.currentUser;
     _account ??= await _googleSignIn.signInSilently();
-    if (_account != null) {
-      await _signInFirebaseWithGoogle(_account!);
-    }
+    if (_account != null) await _signInFirebaseWithGoogle(_account!);
     if (mounted) setState(() => _accountLoading = false);
   }
 
-  /// إعادة تحميل الحساب فعليًا (يُستخدَم في السحب للتحديث فقط) — يتجاوز
-  /// الـ memoization بعكس [_ensureAccount].
   Future<void> _refreshAccount() {
     _accountFuture = _loadAccount();
     return _accountFuture!;
@@ -125,9 +116,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (mounted) setState(() => _manualCloudCardLoading = true);
     final prefs = await SharedPreferences.getInstance();
     _lastManualCloudAt = prefs.getString('last_manual_cloud_backup_at');
-
-    // حجم آخر نسخة يدوية سحابية يحتاج الحساب — ننتظره هنا فقط (داخل
-    // تحميل هذا الكارت تحديدًا) بدل ما نعطّل باقي الكروت لحد ما يجهز.
     await _ensureAccount();
     if (_account != null) {
       try {
@@ -136,9 +124,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
           BackupSlot.manualCloud,
         );
         _lastManualCloudBytes = meta?['byteSize'] as int?;
-      } catch (_) {
-        // تجاهل — التفاصيل ثانوية ولا يجب أن توقف تحميل الكارت
-      }
+      } catch (_) {}
     }
     if (mounted) setState(() => _manualCloudCardLoading = false);
   }
@@ -151,49 +137,81 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (mounted) setState(() => _manualLocalCardLoading = false);
   }
 
-  /// يُستخدَم فقط من السحب للتحديث (RefreshIndicator) — يعيد تحميل كل
-  /// كارت بالتوازي (لا الصفحة كلها بحاجز واحد). الاستخدام العادي بعد أي
-  /// إجراء يستهدف الكارت المتأثر فقط عبر الدوال أعلاه مباشرة.
-  Future<void> _refreshAll() {
-    return Future.wait([
-      _refreshAccount(),
-      _loadAutoCloudCard(),
-      _loadAutoLocalCard(),
-      _loadManualCloudCard(),
-      _loadManualLocalCard(),
-    ]);
+  Future<void> _refreshAll() => Future.wait([
+        _refreshAccount(),
+        _loadAutoCloudCard(),
+        _loadAutoLocalCard(),
+        _loadManualCloudCard(),
+        _loadManualLocalCard(),
+      ]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Smart time formatting
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  static const _weekdays = [
+    'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء',
+    'الخميس', 'الجمعة', 'السبت',
+  ];
+
+  static const _months = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  static String _hhmm(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m ${dt.hour >= 12 ? "م" : "ص"}';
   }
 
-  String _formatBackupTime(String? iso) {
-    if (iso == null) return 'لم يتم النسخ بعد';
+  String _smartTime(String? iso, AppLocalizations l) {
+    if (iso == null) return l.backupNever;
     final dt = DateTime.tryParse(iso);
-    if (dt == null) return 'لم يتم النسخ بعد';
+    if (dt == null) return l.backupNever;
     final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'الآن';
-    if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
-    if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
-    if (diff.inDays == 1) return 'أمس';
-    if (diff.inDays < 7) return 'منذ ${diff.inDays} أيام';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final dtStart = DateTime(dt.year, dt.month, dt.day);
+    final dayDiff = todayStart.difference(dtStart).inDays;
+    final t = _hhmm(dt);
+    if (dayDiff == 0) return '${l.backupTimeToday} • $t';
+    if (dayDiff == 1) return '${l.backupTimeYesterday} • $t';
+    if (dayDiff < 7) return '${_weekdays[dt.weekday % 7]} • $t';
+    return '${dt.day} ${_months[dt.month - 1]} ${dt.year}';
   }
 
-  String _formatBytes(int? bytes) {
-    if (bytes == null) return '—';
-    if (bytes < 1024) return '$bytes بايت';
-    final kb = bytes / 1024;
-    if (kb < 1024) return '${kb.toStringAsFixed(1)} ك.ب';
-    final mb = kb / 1024;
-    return '${mb.toStringAsFixed(2)} م.ب';
+  static String _shortPath(String? path) {
+    if (path == null || path.isEmpty) return '—';
+    final parts = path
+        .split(RegExp(r'[/\\]'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.length <= 2) return parts.join(' / ');
+    return '${parts[parts.length - 2]} / ${parts.last}';
   }
 
-  bool _guardAuth() {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Auth helpers
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.email == account.email) return;
+    final auth = await account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: auth.idToken,
+    );
+    await FirebaseAuth.instance.signInWithCredential(credential);
+  }
+
+  bool _guardAuth(AppLocalizations l) {
     if (_account == null) {
-      _msg('سجل دخول بجوجل أولًا');
+      _msg(l.backupMsgSignInFirst);
       return false;
     }
     if (FirebaseAuth.instance.currentUser?.email != _account!.email) {
-      _msg('أعد تسجيل الدخول بجوجل أولًا');
+      _msg(l.backupMsgReAuth);
       return false;
     }
     return true;
@@ -201,7 +219,8 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
 
   void _msg(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text)));
   }
 
   Future<bool> _requestStoragePermission() async {
@@ -212,20 +231,27 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     return false;
   }
 
-  Future<bool> _confirm(String title, String message) async {
+  Future<String?> _pickFolder() async {
+    final ok = await _requestStoragePermission();
+    if (!ok) return null;
+    return FilePicker.getDirectoryPath();
+  }
+
+  Future<bool> _confirm(String title, String body, AppLocalizations l) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: Text(message),
+        content: Text(body),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('إلغاء'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l.backupConfirmCancel),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('متابعة'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: _kGreen),
+            child: Text(l.backupConfirmProceed),
           ),
         ],
       ),
@@ -233,58 +259,48 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     return result ?? false;
   }
 
-  // =========================================================================
-  // A) النسخ التلقائي السحابي
-  // =========================================================================
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A) Auto cloud
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _toggleAutoCloud(bool value) async {
-    if (value && !_guardAuth()) return;
+    final l = AppLocalizations.of(context);
+    if (value && !_guardAuth(l)) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_cloud_backup_enabled', value);
     if (mounted) setState(() => _autoCloudEnabled = value);
   }
 
   Future<void> _restoreAutoCloudBackup() async {
-    if (!_guardAuth()) return;
-    final ok = await _confirm(
-      'استرجاع النسخة التلقائية السحابية',
-      'سيتم استبدال بياناتك الحالية بأحدث نسخة تلقائية محفوظة على السحابة. '
-      'هل تريد المتابعة؟',
-    );
+    final l = AppLocalizations.of(context);
+    if (!_guardAuth(l)) return;
+    final ok = await _confirm(l.backupConfirmTitle, l.backupConfirmBody, l);
     if (!ok) return;
-
     setState(() => loading = true);
     try {
       final email = _account!.email;
       final slot = await BackupService.latestAutoSlot(email);
       String? json;
-      if (slot != null) {
-        json = await BackupService.fetchSlotData(email, slot);
-      }
-      // توافق عكسي: لو لا توجد نسخة تلقائية V2 بعد، جرّب النسخة القديمة.
+      if (slot != null) json = await BackupService.fetchSlotData(email, slot);
       json ??= await BackupService.fetchLegacyData(email);
-
-      if (json == null) {
-        _msg('لا توجد نسخة تلقائية سحابية محفوظة بعد');
-        return;
-      }
+      if (json == null) { _msg(l.backupNoBackupFound); return; }
       await widget.cubit.importStateJson(json);
-      _msg('تم الاسترجاع من النسخة التلقائية السحابية ✓');
+      _msg(l.backupMsgRestored);
     } catch (e) {
-      _msg('فشل الاسترجاع: $e');
+      _msg('${l.backupError}: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  // =========================================================================
-  // B) النسخ التلقائي المحلي
-  // =========================================================================
+  // ═══════════════════════════════════════════════════════════════════════════
+  // B) Auto local
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _toggleAutoLocal(bool value) async {
     if (value && _autoLocalFolder == null) {
       final picked = await _pickFolder();
-      if (picked == null) return; // لم يُختر مجلد — لا نفعّل بلا مجلد
+      if (picked == null) return;
       await LocalBackupService.setAutoFolder(picked);
       if (mounted) setState(() => _autoLocalFolder = picked);
     }
@@ -292,59 +308,45 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (mounted) setState(() => _autoLocalEnabled = value);
   }
 
-  Future<String?> _pickFolder() async {
-    final ok = await _requestStoragePermission();
-    if (!ok) return null;
-    return FilePicker.getDirectoryPath();
-  }
-
   Future<void> _changeAutoLocalFolder() async {
     final picked = await _pickFolder();
     if (picked == null) return;
     await LocalBackupService.setAutoFolder(picked);
     if (mounted) setState(() => _autoLocalFolder = picked);
-    _msg('تم تغيير مجلد النسخ التلقائي المحلي');
+    final l = AppLocalizations.of(context);
+    _msg(l.backupMsgFolderChanged);
   }
 
   Future<void> _restoreAutoLocalBackup() async {
-    final ok = await _confirm(
-      'استرجاع النسخة التلقائية المحلية',
-      'سيتم استبدال بياناتك الحالية بأحدث نسخة تلقائية محفوظة على هذا '
-      'الجهاز. هل تريد المتابعة؟',
-    );
+    final l = AppLocalizations.of(context);
+    final ok = await _confirm(l.backupConfirmTitle, l.backupConfirmBody, l);
     if (!ok) return;
-
     setState(() => loading = true);
     try {
       final file = await LocalBackupService.latestAutoFile();
-      if (file == null) {
-        _msg('لا توجد نسخة تلقائية محلية محفوظة بعد');
-        return;
-      }
-      final json = await file.readAsString();
-      await widget.cubit.importStateJson(json);
-      _msg('تم الاسترجاع من النسخة التلقائية المحلية ✓');
+      if (file == null) { _msg(l.backupNoBackupFound); return; }
+      await widget.cubit.importStateJson(await file.readAsString());
+      _msg(l.backupMsgRestored);
     } catch (e) {
-      _msg('فشل الاسترجاع: $e');
+      _msg('${l.backupError}: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  // =========================================================================
-  // C) النسخ اليدوي السحابي
-  // =========================================================================
+  // ═══════════════════════════════════════════════════════════════════════════
+  // C) Manual cloud
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _createManualCloudBackup() async {
-    if (!_guardAuth()) return;
-    final appState = widget.cubit.state;
-
+    final l = AppLocalizations.of(context);
+    if (!_guardAuth(l)) return;
     setState(() => loading = true);
     try {
       final result = await BackupUploadPipeline.run(
         email: _account!.email,
         displayName: _account!.displayName ?? '',
-        localState: appState,
+        localState: widget.cubit.state,
         exportJson: widget.cubit.exportStateJson,
         kind: BackupKind.manual,
         onMerge: widget.cubit.mergeStateJson,
@@ -362,7 +364,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
           );
         },
       );
-
       switch (result.status) {
         case BackupUploadStatus.uploaded:
           final now = DateTime.now().toIso8601String();
@@ -370,62 +371,51 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
           await prefs.setString('last_manual_cloud_backup_at', now);
           if (mounted) setState(() => _lastManualCloudAt = now);
           await _loadManualCloudCard();
-          _msg('تم إنشاء النسخة اليدوية السحابية ✓');
+          _msg(l.backupMsgSaved);
           break;
         case BackupUploadStatus.cancelled:
           break;
         default:
-          _msg(result.message ?? 'تعذّر إنشاء النسخة اليدوية');
+          _msg(result.message ?? l.backupMsgUploadFailed);
       }
     } catch (e) {
-      _msg('فشل الرفع: $e');
+      _msg('${l.backupError}: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
   Future<void> _restoreManualCloudBackup() async {
-    if (!_guardAuth()) return;
-    final ok = await _confirm(
-      'استرجاع النسخة اليدوية السحابية',
-      'سيتم استبدال بياناتك الحالية بالنسخة اليدوية المحفوظة على السحابة. '
-      'هل تريد المتابعة؟',
-    );
+    final l = AppLocalizations.of(context);
+    if (!_guardAuth(l)) return;
+    final ok = await _confirm(l.backupConfirmTitle, l.backupConfirmBody, l);
     if (!ok) return;
-
     setState(() => loading = true);
     try {
       final email = _account!.email;
-      var json = await BackupService.fetchSlotData(
-        email,
-        BackupSlot.manualCloud,
-      );
-      // توافق عكسي: لو لا توجد نسخة يدوية V2 بعد، جرّب النسخة القديمة.
+      var json = await BackupService.fetchSlotData(email, BackupSlot.manualCloud);
       json ??= await BackupService.fetchLegacyData(email);
-
-      if (json == null) {
-        _msg('لا توجد نسخة يدوية سحابية محفوظة بعد');
-        return;
-      }
+      if (json == null) { _msg(l.backupNoBackupFound); return; }
       await widget.cubit.importStateJson(json);
-      _msg('تم الاسترجاع من النسخة اليدوية السحابية ✓');
+      _msg(l.backupMsgRestored);
     } catch (e) {
-      _msg('فشل الاسترجاع: $e');
+      _msg('${l.backupError}: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  // =========================================================================
-  // D) النسخ اليدوي المحلي
-  // =========================================================================
+  // ═══════════════════════════════════════════════════════════════════════════
+  // D) Manual local
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _changeManualLocalFolder() async {
     final picked = await _pickFolder();
     if (picked == null) return;
     await LocalBackupService.setManualFolder(picked);
     if (mounted) setState(() => _manualLocalFolder = picked);
-    _msg('تم تغيير مجلد النسخ اليدوي المحلي');
+    final l = AppLocalizations.of(context);
+    _msg(l.backupMsgFolderChanged);
   }
 
   Future<void> _createManualLocalBackup() async {
@@ -437,63 +427,51 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
       if (mounted) setState(() => _manualLocalFolder = folder);
     }
     final ok = await LocalBackupService.writeManual(
-      widget.cubit.exportStateJson(),
-      folder,
-    );
+      widget.cubit.exportStateJson(), folder);
+    final l = AppLocalizations.of(context);
     if (ok) {
       final now = await LocalBackupService.lastManualBackupAt();
       final count = (await LocalBackupService.manualFiles()).length;
-      if (mounted) {
-        setState(() {
-          _lastManualLocalAt = now;
-          _manualLocalCount = count;
-        });
-      }
-      _msg('تم إنشاء النسخة اليدوية المحلية ✓');
+      if (mounted) setState(() { _lastManualLocalAt = now; _manualLocalCount = count; });
+      _msg(l.backupMsgSaved);
     } else {
-      _msg('فشل إنشاء النسخة اليدوية المحلية');
+      _msg(l.backupMsgUploadFailed);
     }
   }
 
   Future<void> _restoreManualLocalBackup() async {
-    final ok = await _confirm(
-      'استرجاع النسخة اليدوية المحلية',
-      'سيتم استبدال بياناتك الحالية بالنسخة اليدوية المحفوظة على هذا '
-      'الجهاز. هل تريد المتابعة؟',
-    );
+    final l = AppLocalizations.of(context);
+    final ok = await _confirm(l.backupConfirmTitle, l.backupConfirmBody, l);
     if (!ok) return;
-
     setState(() => loading = true);
     try {
       final file = await LocalBackupService.manualFile();
-      if (file == null) {
-        _msg('لا توجد نسخة يدوية محلية محفوظة بعد');
-        return;
-      }
-      final json = await file.readAsString();
-      await widget.cubit.importStateJson(json);
-      _msg('تم الاسترجاع من النسخة اليدوية المحلية ✓');
+      if (file == null) { _msg(l.backupNoBackupFound); return; }
+      await widget.cubit.importStateJson(await file.readAsString());
+      _msg(l.backupMsgRestored);
     } catch (e) {
-      _msg('فشل الاسترجاع: $e');
+      _msg('${l.backupError}: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  // =========================================================================
-  // Google sign-in (يخدم كل الأقسام السحابية)
-  // =========================================================================
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Google sign-in
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _signIn() async {
+    final l = AppLocalizations.of(context);
     setState(() => loading = true);
     try {
       final account = await _googleSignIn.signIn();
       if (account != null) {
         _account = account;
         await _signInFirebaseWithGoogle(account);
+        if (mounted) setState(() {});
       }
     } catch (e) {
-      _msg('فشل تسجيل الدخول: $e');
+      _msg('${l.backupMsgSignInFailed}: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -504,204 +482,282 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (mounted) setState(() => _account = null);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Build
+  // ═══════════════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: _kBg,
         elevation: 0,
-        title: const Text(
-          'النسخ الاحتياطي',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        scrolledUnderElevation: 0,
+        title: Text(
+          l.backupTitle,
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: RefreshIndicator(
-        color: _green,
+        color: _kGreen,
         onRefresh: _refreshAll,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
           children: [
-            _GoogleAccountRow(
-              account: _account,
-              loading: _accountLoading,
-              onSignIn: _signIn,
-              onSignOut: _signOut,
+            // ── Local section ─────────────────────────────────────────────
+            _SectionContainer(
+              icon: Icons.folder_outlined,
+              title: l.backupLocalSection,
+              children: [
+                _BackupCard(
+                  title: l.backupAutomatic,
+                  loading: _autoLocalCardLoading,
+                  control: Switch(
+                    value: _autoLocalEnabled,
+                    activeColor: _kGreen,
+                    onChanged: _toggleAutoLocal,
+                  ),
+                  menuActions: [_MenuAction.restore, _MenuAction.changeFolder],
+                  onMenuAction: (a) {
+                    if (a == _MenuAction.restore) _restoreAutoLocalBackup();
+                    if (a == _MenuAction.changeFolder) _changeAutoLocalFolder();
+                  },
+                  folderPath: _shortPath(_autoLocalFolder),
+                  timeStr: _smartTime(_lastAutoLocalAt, l),
+                ),
+                const _CardDivider(),
+                _BackupCard(
+                  title: l.backupManual,
+                  loading: _manualLocalCardLoading,
+                  control: _CompactButton(
+                    label: l.backupNow,
+                    onTap: _createManualLocalBackup,
+                  ),
+                  menuActions: [_MenuAction.restore, _MenuAction.changeFolder],
+                  onMenuAction: (a) {
+                    if (a == _MenuAction.restore) _restoreManualLocalBackup();
+                    if (a == _MenuAction.changeFolder) _changeManualLocalFolder();
+                  },
+                  folderPath: _shortPath(_manualLocalFolder),
+                  timeStr: _smartTime(_lastManualLocalAt, l),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            const _SectionHeader('النسخ التلقائي'),
-            const SizedBox(height: 10),
-            _BackupSection(
-              title: 'النسخ التلقائي السحابي',
-              icon: Icons.cloud_sync_rounded,
-              loading: _autoCloudCardLoading,
-              trailing: Switch(
-                      value: _autoCloudEnabled,
-                      activeColor: _green,
-                      onChanged: (v) => _toggleAutoCloud(v),
-                    ),
-                    rows: [
-                      _InfoRow('الحالة', _autoCloudStatusLabel()),
-                      _InfoRow(
-                        'آخر نسخة ناجحة',
-                        _formatBackupTime(_lastAutoCloudAt),
-                      ),
-                      _InfoRow(
-                        'الاحتفاظ',
-                        'آخر نسختين تلقائيتين فقط',
-                      ),
-                    ],
-                    actions: [
-                      _SecondaryButton(
-                        label: 'استرجاع النسخة التلقائية',
-                        icon: Icons.restore_rounded,
-                        onTap: _restoreAutoCloudBackup,
-                      ),
-                    ],
+
+            const SizedBox(height: 16),
+
+            // ── Cloud section ─────────────────────────────────────────────
+            _SectionContainer(
+              icon: Icons.cloud_outlined,
+              title: l.backupCloudSection,
+              children: [
+                _AccountRow(
+                  account: _account,
+                  loading: _accountLoading,
+                  onSignIn: _signIn,
+                  onSignOut: _signOut,
+                ),
+                const _CardDivider(),
+                _BackupCard(
+                  title: l.backupAutomatic,
+                  loading: _autoCloudCardLoading,
+                  control: Switch(
+                    value: _autoCloudEnabled,
+                    activeColor: _kGreen,
+                    onChanged: _toggleAutoCloud,
                   ),
-                  const SizedBox(height: 14),
-                  _BackupSection(
-                    title: 'النسخ التلقائي المحلي',
-                    icon: Icons.save_rounded,
-                    loading: _autoLocalCardLoading,
-                    trailing: Switch(
-                      value: _autoLocalEnabled,
-                      activeColor: _green,
-                      onChanged: (v) => _toggleAutoLocal(v),
-                    ),
-                    rows: [
-                      _InfoRow(
-                        'آخر نسخة ناجحة',
-                        _formatBackupTime(_lastAutoLocalAt),
-                      ),
-                      _InfoRow(
-                        'المجلد الحالي',
-                        _autoLocalFolder ?? 'غير محدَّد',
-                      ),
-                      _InfoRow('الاحتفاظ', 'آخر نسختين تلقائيتين فقط'),
-                    ],
-                    actions: [
-                      _SecondaryButton(
-                        label: 'تغيير المجلد التلقائي',
-                        icon: Icons.folder_open_rounded,
-                        onTap: _changeAutoLocalFolder,
-                      ),
-                      const SizedBox(height: 10),
-                      _SecondaryButton(
-                        label: 'استرجاع النسخة التلقائية',
-                        icon: Icons.restore_rounded,
-                        onTap: _restoreAutoLocalBackup,
-                      ),
-                    ],
+                  menuActions: [_MenuAction.restore],
+                  onMenuAction: (a) {
+                    if (a == _MenuAction.restore) _restoreAutoCloudBackup();
+                  },
+                  timeStr: '${l.backupLastBackup}: ${_smartTime(_lastAutoCloudAt, l)}',
+                ),
+                const _CardDivider(),
+                _BackupCard(
+                  title: l.backupManual,
+                  loading: _manualCloudCardLoading,
+                  control: _CompactButton(
+                    label: l.backupNow,
+                    onTap: _createManualCloudBackup,
                   ),
-                  const SizedBox(height: 24),
-                  const _SectionHeader('النسخ اليدوي'),
-                  const SizedBox(height: 10),
-                  _BackupSection(
-                    title: 'النسخ اليدوي السحابي',
-                    icon: Icons.cloud_upload_rounded,
-                    loading: _manualCloudCardLoading,
-                    rows: [
-                      _InfoRow(
-                        'آخر نسخة يدوية',
-                        _formatBackupTime(_lastManualCloudAt),
-                      ),
-                      _InfoRow('الحجم', _formatBytes(_lastManualCloudBytes)),
-                    ],
-                    actions: [
-                      _PrimaryButton(
-                        label: 'إنشاء نسخة يدوية',
-                        icon: Icons.cloud_upload_rounded,
-                        onTap: _createManualCloudBackup,
-                      ),
-                      const SizedBox(height: 10),
-                      _SecondaryButton(
-                        label: 'استرجاع النسخة اليدوية',
-                        icon: Icons.restore_rounded,
-                        onTap: _restoreManualCloudBackup,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _BackupSection(
-                    title: 'النسخ اليدوي المحلي',
-                    icon: Icons.sim_card_download_rounded,
-                    loading: _manualLocalCardLoading,
-                    rows: [
-                      _InfoRow(
-                        'آخر نسخة يدوية',
-                        _formatBackupTime(_lastManualLocalAt),
-                      ),
-                      _InfoRow(
-                        'المجلد الحالي',
-                        _manualLocalFolder ?? 'غير محدَّد',
-                      ),
-                      _InfoRow(
-                        'عدد النسخ المحفوظة',
-                        _manualLocalCount == 0 ? '0' : '$_manualLocalCount (لا يُحذف أي منها تلقائيًا)',
-                      ),
-                    ],
-                    actions: [
-                      _SecondaryButton(
-                        label: 'تغيير مجلد التصدير',
-                        icon: Icons.folder_open_rounded,
-                        onTap: _changeManualLocalFolder,
-                      ),
-                      const SizedBox(height: 10),
-                      _PrimaryButton(
-                        label: 'إنشاء نسخة يدوية',
-                        icon: Icons.save_alt_rounded,
-                        onTap: _createManualLocalBackup,
-                      ),
-                      const SizedBox(height: 10),
-                      _SecondaryButton(
-                        label: 'استرجاع النسخة اليدوية',
-                        icon: Icons.restore_rounded,
-                        onTap: _restoreManualLocalBackup,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                  menuActions: [_MenuAction.restore],
+                  onMenuAction: (a) {
+                    if (a == _MenuAction.restore) _restoreManualCloudBackup();
+                  },
+                  timeStr: '${l.backupLastBackup}: ${_smartTime(_lastManualCloudAt, l)}',
+                ),
+              ],
             ),
-    );
-  }
-
-  String _autoCloudStatusLabel() {
-    if (!_autoCloudEnabled) return 'متوقف';
-    switch (_autoCloudStatus) {
-      case 'ok':
-        return 'يعمل';
-      case 'deferred':
-        return 'بانتظار مراجعة تعارض';
-      case 'failed':
-        return 'فشل آخر محاولة';
-      default:
-        return 'لم يبدأ بعد';
-    }
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 16,
-        color: Color(0xFF2F6F5E),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _GoogleAccountRow extends StatelessWidget {
-  const _GoogleAccountRow({
+// ─────────────────────────────────────────────────────────────────────────────
+// _SectionContainer
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionContainer extends StatelessWidget {
+  const _SectionContainer({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _kGreen.withValues(alpha: 0.15),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _kGreen.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: _kGreen.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: _kGreen, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      color: Color(0xFF1A2B25),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const _CardDivider(),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _BackupCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BackupCard extends StatelessWidget {
+  const _BackupCard({
+    required this.title,
+    required this.loading,
+    required this.control,
+    required this.menuActions,
+    required this.onMenuAction,
+    required this.timeStr,
+    this.folderPath,
+  });
+
+  final String title;
+  final bool loading;
+  final Widget control;
+  final List<_MenuAction> menuActions;
+  final void Function(_MenuAction) onMenuAction;
+  final String timeStr;
+  final String? folderPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Title row ──────────────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: Color(0xFF1A2B25),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (loading)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: _kGreen,
+                  ),
+                )
+              else
+                control,
+              _CardMenu(
+                actions: menuActions,
+                onSelected: onMenuAction,
+                l: l,
+              ),
+            ],
+          ),
+          // ── Metadata row ───────────────────────────────────────────────
+          if (!loading) ...[
+            const SizedBox(height: 7),
+            if (folderPath != null)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _MetaChip(Icons.access_time_rounded, timeStr),
+                  _MetaChip(Icons.folder_outlined, folderPath!),
+                ],
+              )
+            else
+              _MetaChip(Icons.access_time_rounded, timeStr),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _AccountRow
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({
     required this.account,
     required this.loading,
     required this.onSignIn,
@@ -715,229 +771,241 @@ class _GoogleAccountRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF2F6F5E).withValues(alpha: 0.15)),
-      ),
+    final l = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       child: Row(
         children: [
-          const Icon(Icons.account_circle_rounded,
-              size: 28, color: Color(0xFF2F6F5E)),
-          const SizedBox(width: 10),
           Expanded(
             child: loading
-                ? const Text(
-                    'جاري التحقق من الحساب...',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ? Text(
+                    l.backupCheckingAccount,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF8A8279),
+                      fontWeight: FontWeight.w600,
+                    ),
                   )
                 : Text(
-                    account?.email ?? 'لم يتم تسجيل الدخول بحساب Google',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    account?.email ?? l.backupNotSignedIn,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: account != null
+                          ? const Color(0xFF1A2B25)
+                          : const Color(0xFF8A8279),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
           ),
+          const SizedBox(width: 8),
           if (loading)
             const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2F6F5E)),
-            )
-          else
-            TextButton(
-              onPressed: account == null ? onSignIn : onSignOut,
-              child: Text(account == null ? 'تسجيل الدخول' : 'خروج'),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-}
-
-class _BackupSection extends StatelessWidget {
-  const _BackupSection({
-    required this.title,
-    required this.icon,
-    required this.rows,
-    required this.actions,
-    this.trailing,
-    this.loading = false,
-  });
-
-  final String title;
-  final IconData icon;
-  final List<_InfoRow> rows;
-  final List<Widget> actions;
-  final Widget? trailing;
-  final bool loading;
-
-  static const _green = Color(0xFF2F6F5E);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _green.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: _green),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14.5,
-                  ),
-                ),
-              ),
-              if (loading)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: _green),
-                )
-              else if (trailing != null)
-                trailing!,
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (loading)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                'جاري التحميل...',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: Colors.black.withValues(alpha: 0.45),
-                  fontWeight: FontWeight.w600,
-                ),
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: _kGreen,
               ),
             )
-          else ...[
-          ...rows.map(
-            (r) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
+          else if (account != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: _kGreen.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    r.label,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: Colors.black.withValues(alpha: 0.55),
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: _kGreen,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                  Flexible(
-                    child: Text(
-                      r.value,
-                      textAlign: TextAlign.left,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  const SizedBox(width: 4),
+                  Text(
+                    l.backupConnected,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _kGreen,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            ...actions,
-          ],
-          ],
+            TextButton(
+              onPressed: onSignOut,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF8A8279),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                l.backupSignOut,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ] else
+            FilledButton(
+              onPressed: onSignIn,
+              style: FilledButton.styleFrom(
+                backgroundColor: _kGreen,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                l.backupSignInGoogle,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
+// ─────────────────────────────────────────────────────────────────────────────
+// _CompactButton
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CompactButton extends StatelessWidget {
+  const _CompactButton({required this.label, required this.onTap});
 
   final String label;
-  final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 19),
-        label: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+    return FilledButton(
+      onPressed: onTap,
+      style: FilledButton.styleFrom(
+        backgroundColor: _kGreen,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF2F6F5E),
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Colors.white,
         ),
       ),
     );
   }
 }
 
-class _SecondaryButton extends StatelessWidget {
-  const _SecondaryButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
+// ─────────────────────────────────────────────────────────────────────────────
+// _CardMenu
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CardMenu extends StatelessWidget {
+  const _CardMenu({
+    required this.actions,
+    required this.onSelected,
+    required this.l,
   });
 
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
+  final List<_MenuAction> actions;
+  final void Function(_MenuAction) onSelected;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 19),
-        label: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF2F6F5E),
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          side: const BorderSide(
-            color: Color(0xFF2F6F5E),
-            width: 1.4,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
+    return PopupMenuButton<_MenuAction>(
+      padding: EdgeInsets.zero,
+      icon: const Icon(
+        Icons.more_vert_rounded,
+        color: Color(0xFFB0A899),
+        size: 18,
       ),
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        for (final action in actions)
+          PopupMenuItem<_MenuAction>(
+            value: action,
+            child: Text(
+              action == _MenuAction.restore
+                  ? l.backupMenuRestore
+                  : l.backupMenuChangeFolder,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: action == _MenuAction.restore
+                    ? _kGreen
+                    : const Color(0xFF1A2B25),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _MetaChip  — icon + small label
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip(this.icon, this.text);
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: const Color(0xFFB0A899)),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: Color(0xFF9A9088),
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _CardDivider
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CardDivider extends StatelessWidget {
+  const _CardDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(
+      height: 1,
+      thickness: 1,
+      color: Color(0xFFEEEAE2),
     );
   }
 }

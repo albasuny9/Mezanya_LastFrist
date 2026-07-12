@@ -3,5 +3,36 @@
   "appTitle": "ميزانية",
   "@appTitle": {
     "description": "اسم التطبيق كما يظهر في نظام التشغيل ومدير المهام."
-  }
+  },
+
+  "backupTitle": "النسخ الاحتياطي",
+  "backupLocalSection": "النسخ المحلي",
+  "backupCloudSection": "النسخ على السحابة",
+  "backupAutomatic": "النسخ التلقائي",
+  "backupManual": "النسخ اليدوي",
+  "backupNow": "نسخ الآن",
+  "backupNever": "لم يتم بعد",
+  "backupTimeToday": "اليوم",
+  "backupTimeYesterday": "أمس",
+  "backupConnected": "متصل",
+  "backupSignInGoogle": "تسجيل الدخول بجوجل",
+  "backupSignOut": "خروج",
+  "backupCheckingAccount": "جاري التحقق...",
+  "backupNotSignedIn": "غير مسجّل الدخول",
+  "backupMenuRestore": "استرجاع",
+  "backupMenuChangeFolder": "تغيير المجلد",
+  "backupConfirmTitle": "استرجاع النسخة",
+  "backupConfirmBody": "سيتم استبدال بياناتك الحالية بالنسخة المحفوظة. هل تريد المتابعة؟",
+  "backupConfirmProceed": "متابعة",
+  "backupConfirmCancel": "إلغاء",
+  "backupNoBackupFound": "لا توجد نسخة محفوظة",
+  "backupMsgRestored": "تم الاسترجاع ✓",
+  "backupMsgSaved": "تم حفظ النسخة ✓",
+  "backupMsgSignInFirst": "سجّل دخول بجوجل أولاً",
+  "backupMsgReAuth": "أعد تسجيل الدخول بجوجل",
+  "backupMsgFolderChanged": "تم تغيير المجلد ✓",
+  "backupMsgSignInFailed": "فشل تسجيل الدخول",
+  "backupMsgUploadFailed": "تعذّر إنشاء النسخة",
+  "backupLastBackup": "آخر نسخة",
+  "backupError": "خطأ"
 }

@@ -3,5 +3,36 @@
   "appTitle": "Mezanya",
   "@appTitle": {
     "description": "The application name as shown in the OS and task switcher."
-  }
+  },
+
+  "backupTitle": "Backup",
+  "backupLocalSection": "Local Backup",
+  "backupCloudSection": "Cloud Backup",
+  "backupAutomatic": "Automatic Backup",
+  "backupManual": "Manual Backup",
+  "backupNow": "Backup Now",
+  "backupNever": "Never backed up",
+  "backupTimeToday": "Today",
+  "backupTimeYesterday": "Yesterday",
+  "backupConnected": "Connected",
+  "backupSignInGoogle": "Sign in with Google",
+  "backupSignOut": "Sign out",
+  "backupCheckingAccount": "Checking...",
+  "backupNotSignedIn": "Not signed in",
+  "backupMenuRestore": "Restore",
+  "backupMenuChangeFolder": "Change Folder",
+  "backupConfirmTitle": "Restore Backup",
+  "backupConfirmBody": "Your current data will be replaced with the saved backup. Continue?",
+  "backupConfirmProceed": "Proceed",
+  "backupConfirmCancel": "Cancel",
+  "backupNoBackupFound": "No backup found",
+  "backupMsgRestored": "Restored ✓",
+  "backupMsgSaved": "Backup saved ✓",
+  "backupMsgSignInFirst": "Please sign in with Google first",
+  "backupMsgReAuth": "Please sign in with Google again",
+  "backupMsgFolderChanged": "Folder updated ✓",
+  "backupMsgSignInFailed": "Sign-in failed",
+  "backupMsgUploadFailed": "Backup failed",
+  "backupLastBackup": "Last backup",
+  "backupError": "Error"
 }
