@@ -351,28 +351,32 @@ class AppCubit extends Cubit<AppStateEntity> {
   void _autoSync(AppStateEntity appState) {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && user.email != null) {
-      BackupUploadPipeline.run(
-        email: user.email!,
-        displayName: user.displayName ?? user.email!,
-        localState: appState,
-        exportJson: () => jsonEncode(appState.toMap()),
-        kind: BackupKind.auto,
-      ).then((result) async {
-        final prefs = await SharedPreferences.getInstance();
-        final statusStr = switch (result.status) {
-          BackupUploadStatus.uploaded => 'ok',
-          BackupUploadStatus.deferredConflict => 'deferred',
-          BackupUploadStatus.error => 'failed',
-          BackupUploadStatus.rejectedEmpty ||
-          BackupUploadStatus.rejectedShrink ||
-          BackupUploadStatus.cancelled =>
-            'failed',
-        };
-        await prefs.setString('last_auto_cloud_status', statusStr);
-      }).catchError((_) async {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('last_auto_cloud_status', 'failed');
-      });
+      SharedPreferences.getInstance().then((prefs) {
+        final enabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
+        if (!enabled) return;
+        BackupUploadPipeline.run(
+          email: user.email!,
+          displayName: user.displayName ?? user.email!,
+          localState: appState,
+          exportJson: () => jsonEncode(appState.toMap()),
+          kind: BackupKind.auto,
+        ).then((result) async {
+          final p = await SharedPreferences.getInstance();
+          final statusStr = switch (result.status) {
+            BackupUploadStatus.uploaded => 'ok',
+            BackupUploadStatus.deferredConflict => 'deferred',
+            BackupUploadStatus.error => 'failed',
+            BackupUploadStatus.rejectedEmpty ||
+            BackupUploadStatus.rejectedShrink ||
+            BackupUploadStatus.cancelled =>
+              'failed',
+          };
+          await p.setString('last_auto_cloud_status', statusStr);
+        }).catchError((_) async {
+          final p = await SharedPreferences.getInstance();
+          await p.setString('last_auto_cloud_status', 'failed');
+        });
+      }).catchError((_) {});
     }
 
     LocalBackupService.autoEnabled().then((enabled) {

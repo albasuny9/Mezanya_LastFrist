@@ -30,23 +30,30 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
   GoogleSignInAccount? _account;
-  bool loading = false;
+  bool loading = false; // busy-state لأزرار الإجراءات فقط (رفع/استرجاع)، لا يحجب الصفحة عند فتحها
+
+  bool _accountLoading = true;
+  Future<void>? _accountFuture;
 
   // النسخ التلقائي السحابي (A)
+  bool _autoCloudCardLoading = true;
   bool _autoCloudEnabled = false;
   String? _lastAutoCloudAt;
   String _autoCloudStatus = 'unknown'; // ok | deferred | failed | unknown
 
   // النسخ التلقائي المحلي (B)
+  bool _autoLocalCardLoading = true;
   bool _autoLocalEnabled = false;
   String? _autoLocalFolder;
   String? _lastAutoLocalAt;
 
   // النسخ اليدوي السحابي (C)
+  bool _manualCloudCardLoading = true;
   String? _lastManualCloudAt;
   int? _lastManualCloudBytes;
 
   // النسخ اليدوي المحلي (D)
+  bool _manualLocalCardLoading = true;
   String? _manualLocalFolder;
   String? _lastManualLocalAt;
   int _manualLocalCount = 0;
@@ -66,15 +73,95 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _bootstrap();
+    // الصفحة تظهر فورًا (build الأول لا ينتظر أي حاجة هنا) — كل كارت
+    // يحمّل بياناته بشكل مستقل ومتوازي، بدون await على مستوى initState.
+    _ensureAccount();
+    _loadAutoCloudCard();
+    _loadAutoLocalCard();
+    _loadManualCloudCard();
+    _loadManualLocalCard();
   }
 
-  Future<void> _bootstrap() async {
-    setState(() => loading = true);
-    await _loadSettings();
-    await _loadGoogle();
-    await _loadManualCloudDetails();
-    if (mounted) setState(() => loading = false);
+  /// تحميل حساب Google — memoized بحيث أي كارت محتاجه (مثل C اللي بيجيب
+  /// حجم النسخة) يستخدم نفس النتيجة بدل تكرار تسجيل الدخول الصامت.
+  Future<void> _ensureAccount() {
+    return _accountFuture ??= _loadAccount();
+  }
+
+  Future<void> _loadAccount() async {
+    _account = _googleSignIn.currentUser;
+    _account ??= await _googleSignIn.signInSilently();
+    if (_account != null) {
+      await _signInFirebaseWithGoogle(_account!);
+    }
+    if (mounted) setState(() => _accountLoading = false);
+  }
+
+  /// إعادة تحميل الحساب فعليًا (يُستخدَم في السحب للتحديث فقط) — يتجاوز
+  /// الـ memoization بعكس [_ensureAccount].
+  Future<void> _refreshAccount() {
+    _accountFuture = _loadAccount();
+    return _accountFuture!;
+  }
+
+  Future<void> _loadAutoCloudCard() async {
+    if (mounted) setState(() => _autoCloudCardLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    _autoCloudEnabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
+    _lastAutoCloudAt = prefs.getString('last_auto_cloud_backup_at');
+    _autoCloudStatus = prefs.getString('last_auto_cloud_status') ?? 'unknown';
+    if (mounted) setState(() => _autoCloudCardLoading = false);
+  }
+
+  Future<void> _loadAutoLocalCard() async {
+    if (mounted) setState(() => _autoLocalCardLoading = true);
+    _autoLocalEnabled = await LocalBackupService.autoEnabled();
+    _autoLocalFolder = await LocalBackupService.autoFolder();
+    _lastAutoLocalAt = await LocalBackupService.lastAutoBackupAt();
+    if (mounted) setState(() => _autoLocalCardLoading = false);
+  }
+
+  Future<void> _loadManualCloudCard() async {
+    if (mounted) setState(() => _manualCloudCardLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    _lastManualCloudAt = prefs.getString('last_manual_cloud_backup_at');
+
+    // حجم آخر نسخة يدوية سحابية يحتاج الحساب — ننتظره هنا فقط (داخل
+    // تحميل هذا الكارت تحديدًا) بدل ما نعطّل باقي الكروت لحد ما يجهز.
+    await _ensureAccount();
+    if (_account != null) {
+      try {
+        final meta = await BackupService.fetchSlotMetadata(
+          _account!.email,
+          BackupSlot.manualCloud,
+        );
+        _lastManualCloudBytes = meta?['byteSize'] as int?;
+      } catch (_) {
+        // تجاهل — التفاصيل ثانوية ولا يجب أن توقف تحميل الكارت
+      }
+    }
+    if (mounted) setState(() => _manualCloudCardLoading = false);
+  }
+
+  Future<void> _loadManualLocalCard() async {
+    if (mounted) setState(() => _manualLocalCardLoading = true);
+    _manualLocalFolder = await LocalBackupService.manualFolder();
+    _lastManualLocalAt = await LocalBackupService.lastManualBackupAt();
+    _manualLocalCount = (await LocalBackupService.manualFiles()).length;
+    if (mounted) setState(() => _manualLocalCardLoading = false);
+  }
+
+  /// يُستخدَم فقط من السحب للتحديث (RefreshIndicator) — يعيد تحميل كل
+  /// كارت بالتوازي (لا الصفحة كلها بحاجز واحد). الاستخدام العادي بعد أي
+  /// إجراء يستهدف الكارت المتأثر فقط عبر الدوال أعلاه مباشرة.
+  Future<void> _refreshAll() {
+    return Future.wait([
+      _refreshAccount(),
+      _loadAutoCloudCard(),
+      _loadAutoLocalCard(),
+      _loadManualCloudCard(),
+      _loadManualLocalCard(),
+    ]);
   }
 
   String _formatBackupTime(String? iso) {
@@ -98,46 +185,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     if (kb < 1024) return '${kb.toStringAsFixed(1)} ك.ب';
     final mb = kb / 1024;
     return '${mb.toStringAsFixed(2)} م.ب';
-  }
-
-  /// حجم آخر نسخة يدوية سحابية — يُجلَب من الخانة مباشرة (وليس من
-  /// SharedPreferences) لأنه بيانات فعلية عن النسخة المخزَّنة، لا حالة
-  /// محلية بسيطة.
-  Future<void> _loadManualCloudDetails() async {
-    if (_account == null) return;
-    try {
-      final meta = await BackupService.fetchSlotMetadata(
-        _account!.email,
-        BackupSlot.manualCloud,
-      );
-      final bytes = meta?['byteSize'] as int?;
-      if (mounted) setState(() => _lastManualCloudBytes = bytes);
-    } catch (_) {
-      // تجاهل — التفاصيل ثانوية ولا يجب أن توقف تحميل الشاشة
-    }
-  }
-
-  Future<void> _loadGoogle() async {
-    _account = _googleSignIn.currentUser;
-    _account ??= await _googleSignIn.signInSilently();
-    if (_account != null) {
-      await _signInFirebaseWithGoogle(_account!);
-    }
-  }
-
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _autoCloudEnabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
-    _lastAutoCloudAt = prefs.getString('last_auto_cloud_backup_at');
-    _autoCloudStatus = prefs.getString('last_auto_cloud_status') ?? 'unknown';
-    _lastManualCloudAt = prefs.getString('last_manual_cloud_backup_at');
-
-    _autoLocalEnabled = await LocalBackupService.autoEnabled();
-    _autoLocalFolder = await LocalBackupService.autoFolder();
-    _lastAutoLocalAt = await LocalBackupService.lastAutoBackupAt();
-    _manualLocalFolder = await LocalBackupService.manualFolder();
-    _lastManualLocalAt = await LocalBackupService.lastManualBackupAt();
-    _manualLocalCount = (await LocalBackupService.manualFiles()).length;
   }
 
   bool _guardAuth() {
@@ -322,7 +369,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('last_manual_cloud_backup_at', now);
           if (mounted) setState(() => _lastManualCloudAt = now);
-          await _loadManualCloudDetails();
+          await _loadManualCloudCard();
           _msg('تم إنشاء النسخة اليدوية السحابية ✓');
           break;
         case BackupUploadStatus.cancelled:
@@ -469,26 +516,26 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator(color: _green))
-          : RefreshIndicator(
-              color: _green,
-              onRefresh: _bootstrap,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _GoogleAccountRow(
-                    account: _account,
-                    onSignIn: _signIn,
-                    onSignOut: _signOut,
-                  ),
-                  const SizedBox(height: 20),
-                  const _SectionHeader('النسخ التلقائي'),
-                  const SizedBox(height: 10),
-                  _BackupSection(
-                    title: 'النسخ التلقائي السحابي',
-                    icon: Icons.cloud_sync_rounded,
-                    trailing: Switch(
+      body: RefreshIndicator(
+        color: _green,
+        onRefresh: _refreshAll,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _GoogleAccountRow(
+              account: _account,
+              loading: _accountLoading,
+              onSignIn: _signIn,
+              onSignOut: _signOut,
+            ),
+            const SizedBox(height: 20),
+            const _SectionHeader('النسخ التلقائي'),
+            const SizedBox(height: 10),
+            _BackupSection(
+              title: 'النسخ التلقائي السحابي',
+              icon: Icons.cloud_sync_rounded,
+              loading: _autoCloudCardLoading,
+              trailing: Switch(
                       value: _autoCloudEnabled,
                       activeColor: _green,
                       onChanged: (v) => _toggleAutoCloud(v),
@@ -516,6 +563,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                   _BackupSection(
                     title: 'النسخ التلقائي المحلي',
                     icon: Icons.save_rounded,
+                    loading: _autoLocalCardLoading,
                     trailing: Switch(
                       value: _autoLocalEnabled,
                       activeColor: _green,
@@ -552,6 +600,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                   _BackupSection(
                     title: 'النسخ اليدوي السحابي',
                     icon: Icons.cloud_upload_rounded,
+                    loading: _manualCloudCardLoading,
                     rows: [
                       _InfoRow(
                         'آخر نسخة يدوية',
@@ -577,6 +626,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                   _BackupSection(
                     title: 'النسخ اليدوي المحلي',
                     icon: Icons.sim_card_download_rounded,
+                    loading: _manualLocalCardLoading,
                     rows: [
                       _InfoRow(
                         'آخر نسخة يدوية',
@@ -653,11 +703,13 @@ class _SectionHeader extends StatelessWidget {
 class _GoogleAccountRow extends StatelessWidget {
   const _GoogleAccountRow({
     required this.account,
+    required this.loading,
     required this.onSignIn,
     required this.onSignOut,
   });
 
   final GoogleSignInAccount? account;
+  final bool loading;
   final VoidCallback onSignIn;
   final VoidCallback onSignOut;
 
@@ -676,16 +728,28 @@ class _GoogleAccountRow extends StatelessWidget {
               size: 28, color: Color(0xFF2F6F5E)),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              account?.email ?? 'لم يتم تسجيل الدخول بحساب Google',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
+            child: loading
+                ? const Text(
+                    'جاري التحقق من الحساب...',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  )
+                : Text(
+                    account?.email ?? 'لم يتم تسجيل الدخول بحساب Google',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+          ),
+          if (loading)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2F6F5E)),
+            )
+          else
+            TextButton(
+              onPressed: account == null ? onSignIn : onSignOut,
+              child: Text(account == null ? 'تسجيل الدخول' : 'خروج'),
             ),
-          ),
-          TextButton(
-            onPressed: account == null ? onSignIn : onSignOut,
-            child: Text(account == null ? 'تسجيل الدخول' : 'خروج'),
-          ),
         ],
       ),
     );
@@ -705,6 +769,7 @@ class _BackupSection extends StatelessWidget {
     required this.rows,
     required this.actions,
     this.trailing,
+    this.loading = false,
   });
 
   final String title;
@@ -712,6 +777,7 @@ class _BackupSection extends StatelessWidget {
   final List<_InfoRow> rows;
   final List<Widget> actions;
   final Widget? trailing;
+  final bool loading;
 
   static const _green = Color(0xFF2F6F5E);
 
@@ -740,10 +806,30 @@ class _BackupSection extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailing != null) trailing!,
+              if (loading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _green),
+                )
+              else if (trailing != null)
+                trailing!,
             ],
           ),
           const SizedBox(height: 12),
+          if (loading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'جاري التحميل...',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.black.withValues(alpha: 0.45),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          else ...[
           ...rows.map(
             (r) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
@@ -776,6 +862,7 @@ class _BackupSection extends StatelessWidget {
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 12),
             ...actions,
+          ],
           ],
         ],
       ),

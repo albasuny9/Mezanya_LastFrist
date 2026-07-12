@@ -195,10 +195,27 @@ class BackupUploadPipeline {
       return BackupUploadResult(BackupUploadStatus.error, e.toString());
     }
 
-    await prefs.setString(
-      syncKey,
-      DateTime.now().toIso8601String(),
-    );
+    // نخزّن توقيت السيرفر نفسه (لا ساعة الجهاز) كمرجع للمقارنات القادمة.
+    // سبب جوهري: كل عمليات كشف التعارض تقارن هذا المرجع بـ `updatedAt`
+    // القادم من Firestore (توقيت سيرفر). لو خُزِّن بدلاً منه `DateTime.now()`
+    // من ساعة الجهاز، أي فرق توقيت (clock skew) بين الجهاز والسيرفر —
+    // حتى لو ثوانٍ قليلة — يجعل كل رفعة تلقائية لاحقة تظن خطأً أن السحابة
+    // تحدّثت من مصدر آخر، فتُؤجَّل للأبد دون تحديث `syncKey` مطلقًا (هذا
+    // كان يفسّر بالضبط بقاء "آخر نسخة تلقائية" عالقة عند وقت أول رفعة
+    // ناجحة فقط). قراءة السيرفر مرة إضافية هنا تضمن أن طرفي أي مقارنة
+    // مستقبلية دائمًا من نفس مصدر الساعة.
+    DateTime syncTimestamp;
+    try {
+      final freshMeta = await BackupService.fetchSlotMetadata(email, writeSlot);
+      final serverUpdatedAt = freshMeta?['updatedAt'];
+      syncTimestamp = serverUpdatedAt is Timestamp
+          ? serverUpdatedAt.toDate()
+          : DateTime.now();
+    } catch (_) {
+      syncTimestamp = DateTime.now();
+    }
+
+    await prefs.setString(syncKey, syncTimestamp.toIso8601String());
 
     return const BackupUploadResult(BackupUploadStatus.uploaded);
   }
