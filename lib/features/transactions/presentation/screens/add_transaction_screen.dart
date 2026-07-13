@@ -318,11 +318,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final allocationCategories = selectedAllocation.isEmpty
         ? <CategoryEntity>[]
         : selectedAllocation.first.categories;
-    final jarCategories =
-        selectedJar.isEmpty ? <CategoryEntity>[] : selectedJar.first.categories;
+    final jarCategories = selectedJar.isEmpty
+        ? <CategoryEntity>[]
+        : selectedJar.first.categories
+            .where((c) => c.scope == 'expense')
+            .toList();
+    final incomeJarCategories = selectedIncomeJar.isEmpty
+        ? <CategoryEntity>[]
+        : selectedIncomeJar.first.categories
+            .where((c) => c.scope == 'income')
+            .toList();
     final generalExpenseCategories = state.categories
         .where((c) => c.scope == 'expense' && c.incomeSourceId == null)
         .toList();
+    // Show the jar's own income categories when a jar is chosen as the
+    // income target; otherwise fall back to the general income bucket.
+    final visibleIncomeCategories = _incomeJarId.isNotEmpty
+        ? incomeJarCategories
+        : state.categories.where((c) => c.scope == 'income').toList();
 
     // Show general categories when outside-budget OR jar selected
     final visibleCategories = _budgetScope == BudgetScope.withinBudget.value &&
@@ -528,19 +541,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
                       const SizedBox(height: 8),
                       _CategoriesSection(
-                        categories: state.categories
-                            .where((c) => c.scope == 'income')
-                            .toList(),
+                        categories: visibleIncomeCategories,
                         selectedId: _selectedIncomeCategoryId,
                         onSelectChange: (id) =>
                             setState(() => _selectedIncomeCategoryId = id),
                         onAdd: () => _openAddCategoryDialog(
-                          budgetScope: BudgetScope.outsideBudget.value,
+                          budgetScope: _incomeJarId.isNotEmpty
+                              ? BudgetScope.withinBudget.value
+                              : BudgetScope.outsideBudget.value,
                           allocationId: '',
-                          linkedWalletId: '',
-                          existing: state.categories
-                              .where((c) => c.scope == 'income')
-                              .toList(),
+                          linkedWalletId: _incomeJarId,
+                          existing: visibleIncomeCategories,
                           scope: 'income',
                         ),
                       ),

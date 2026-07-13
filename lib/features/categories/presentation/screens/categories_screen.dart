@@ -60,6 +60,18 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           accent: const Color(0xFF4B7F52),
           iconName: 'cash',
         ),
+        ...budget.linkedWallets.map(
+          (wallet) => _SectionData(
+            key: 'linked-${wallet.id}',
+            title: wallet.name,
+            subtitle: 'فئات إيداع الدخل في الحصالة "${wallet.name}".',
+            target: _CategoryTarget('linked-wallet', wallet.id),
+            categories:
+                wallet.categories.where((c) => c.scope == 'income').toList(),
+            accent: _parseColor(wallet.iconColor),
+            iconName: wallet.icon,
+          ),
+        ),
       ];
     }
 
@@ -90,7 +102,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           title: wallet.name,
           subtitle: 'فئات الحصالة أو الحساب المرتبط "${wallet.name}".',
           target: _CategoryTarget('linked-wallet', wallet.id),
-          categories: wallet.categories,
+          categories:
+              wallet.categories.where((c) => c.scope == 'expense').toList(),
           accent: _parseColor(wallet.iconColor),
           iconName: wallet.icon,
         ),
