@@ -66,17 +66,19 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     final cached = _googleSignIn.currentUser;
     if (cached != null) {
       await _signInFirebaseWithGoogle(cached);
+      if (!mounted) return;
       _account = cached;
       if (_nameController.text.trim().isEmpty) {
         _nameController.text = cached.displayName ?? '';
       }
-      if (mounted) setState(() {});
+      setState(() {});
       return;
     }
     final acc = await _googleSignIn.signInSilently();
     if (!mounted) return;
     if (acc != null) {
       await _signInFirebaseWithGoogle(acc);
+      if (!mounted) return;
       _account = acc;
       if (_nameController.text.trim().isEmpty) {
         _nameController.text = acc.displayName ?? '';
