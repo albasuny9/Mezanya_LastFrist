@@ -382,7 +382,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  Future<void> _confirmDeleteCategory(
+  Future<bool> _confirmDeleteCategory(
     _CategoryTarget target,
     CategoryEntity category,
   ) async {
@@ -405,7 +405,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
     if (confirmed == true && mounted) {
       await _deleteCategory(target, category);
+      return true;
     }
+    return false;
   }
 
   Widget _emptySection(String text) {
@@ -466,6 +468,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           current: editing,
           scope: _tab,
           target: target,
+          onDelete: editing == null
+              ? null
+              : () => _confirmDeleteCategory(target, editing),
         ),
       ),
     );
@@ -578,11 +583,17 @@ class _CategoryEditorScreen extends StatefulWidget {
     required this.current,
     required this.scope,
     required this.target,
+    this.onDelete,
   });
 
   final CategoryEntity? current;
   final String scope;
   final _CategoryTarget target;
+
+  /// Shows the delete confirmation dialog and performs the deletion.
+  /// Returns `true` if the category was actually deleted, `false` if the
+  /// user cancelled. Only provided when editing an existing category.
+  final Future<bool> Function()? onDelete;
 
   @override
   State<_CategoryEditorScreen> createState() => _CategoryEditorScreenState();
@@ -628,6 +639,15 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
       _selectedIcon = picked.iconName;
       _selectedColor = picked.colorHex;
     });
+  }
+
+  Future<void> _handleDelete() async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null) return;
+    final deleted = await onDelete();
+    if (deleted && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _save() {
@@ -697,78 +717,107 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-          child: FilledButton(
-            onPressed: _save,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(54),
-              backgroundColor: _saveButtonColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isNew ? Icons.add_rounded : Icons.check_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isNew ? 'إضافة الفئة' : 'حفظ التعديلات',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.onDelete != null) ...[
+                TextButton(
+                  onPressed: _handleDelete,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    foregroundColor: Colors.red,
+                  ),
+                  child: const Text(
+                    'حذف الفئة',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.red,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 6),
               ],
-            ),
+              FilledButton(
+                onPressed: _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  backgroundColor: _saveButtonColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isNew ? Icons.add_rounded : Icons.check_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isNew ? 'إضافة الفئة' : 'حفظ التعديلات',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Center(
             child: Container(
-              width: 108,
-              height: 108,
+              width: 132,
+              height: 132,
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFFE8E6DE)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                color: _lightTint(accent),
+                borderRadius: BorderRadius.circular(36),
               ),
               child: Center(
                 child: AppIconPickerDialog.iconWidgetForName(
                   _selectedIcon,
-                  color: accent,
-                  size: 44,
+                  color: _darkTone(accent),
+                  size: 56,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           Center(
             child: Text(
               previewName.isEmpty ? 'اسم الفئة' : previewName,
+              textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 20,
+                fontSize: 26,
                 fontWeight: FontWeight.w900,
                 color: Color(0xFF1A1A1A),
+                letterSpacing: -0.3,
+                height: 1.15,
               ),
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              isNew ? 'فئة جديدة' : 'تعديل تفاصيل الفئة',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF9A9A92),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             decoration: BoxDecoration(
@@ -846,7 +895,7 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Text(
-                        'الأيقونة واللون',
+                        'تغيير الأيقونة واللون',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -880,6 +929,20 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
   Color _parseColor(String hex) {
     final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
     return Color(0xFF000000 | (value ?? 0x2F6F5E));
+  }
+
+  /// A very light tint (~12% opacity) of [color] blended onto white, used
+  /// as the icon preview background.
+  Color _lightTint(Color color) {
+    return Color.alphaBlend(color.withValues(alpha: 0.12), Colors.white);
+  }
+
+  /// A darker, more saturated tone of [color], used for the icon itself so
+  /// it stays legible against the light tint background.
+  Color _darkTone(Color color) {
+    final hsl = HSLColor.fromColor(color);
+    final darkened = hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0));
+    return darkened.toColor();
   }
 }
 
