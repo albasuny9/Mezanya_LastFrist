@@ -20,6 +20,7 @@ import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/repositories/app_repository.dart';
@@ -348,9 +349,35 @@ class AppCubit extends Cubit<AppStateEntity> {
   /// مستقلين تمامًا حسب التفعيل: النسخ التلقائي السحابي (BackupUploadPipeline
   /// بخانتين متبادلتين) والنسخ التلقائي المحلي (LocalBackupService بملفين
   /// متبادلين) — كل واحد منهما مستقل عن النسخ اليدوي تمامًا ولا يكتب فوقه.
+  /// يضمن وجود جلسة Firebase موثَّقة قبل أي رفع تلقائي، بدون الاعتماد
+  /// على زيارة المستخدم لأي شاشة إعدادات في نفس الجلسة (كان هذا السبب
+  /// الجذري لعدم عمل النسخ التلقائي السحابي إطلاقًا في الجلسات التي لا
+  /// تُفتح فيها شاشة الإعدادات — راجع تحقيق الباگ في نفس هذا الالتزام).
+  /// يستخدم `signInSilently()` (استرجاع صامت لجلسة Google محفوظة، بلا
+  /// أي واجهة) — إن لم توجد جلسة، يخرج بأمان بلا أثر.
+  Future<void> _ensureFirebaseBridged() async {
+    if (FirebaseAuth.instance.currentUser != null) return;
+    try {
+      final googleSignIn = GoogleSignIn(scopes: ['email']);
+      final account =
+          googleSignIn.currentUser ?? await googleSignIn.signInSilently();
+      if (account == null) return;
+      final auth = await account.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: auth.accessToken,
+        idToken: auth.idToken,
+      );
+      await FirebaseAuth.instance.signInWithCredential(credential);
+    } catch (_) {
+      // فشل الجسر — الرفع التلقائي هيتخطى هذه الدورة بأمان، زي حالة
+      // عدم وجود مستخدم مسجَّل من الأساس.
+    }
+  }
+
   void _autoSync(AppStateEntity appState) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && user.email != null) {
+    _ensureFirebaseBridged().then((_) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.email == null) return;
       SharedPreferences.getInstance().then((prefs) {
         final enabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
         if (!enabled) return;
@@ -377,7 +404,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           await p.setString('last_auto_cloud_status', 'failed');
         });
       }).catchError((_) {});
-    }
+    }).catchError((_) {});
 
     LocalBackupService.autoEnabled().then((enabled) {
       if (!enabled || appState.isEmpty) return;
