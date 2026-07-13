@@ -189,7 +189,7 @@ class _RecurringTransactionComposerScreenState
         widget.initialSubscriptionPresetId != null) {
       final preset = subscriptionPresetById(widget.initialSubscriptionPresetId);
       if (preset != null) {
-        _nameController.text = preset.name;
+        _notesController.text = preset.name;
         _iconName = preset.iconName;
         _iconColor = preset.colorHex;
       }
@@ -284,7 +284,7 @@ class _RecurringTransactionComposerScreenState
       _expensePlanKind == ExpensePlanKind.subscription.value;
 
   bool get _canSave {
-    if (_isSaving || _nameController.text.trim().isEmpty || _walletId.isEmpty) {
+    if (_isSaving || _walletId.isEmpty) {
       return false;
     }
     if (_isExpenseInstallment) {
@@ -373,14 +373,6 @@ class _RecurringTransactionComposerScreenState
                 _typeSwitcher(theme),
                 const SizedBox(height: 14),
               ],
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'اسم المعاملة',
-                  prefixIcon: Icon(Icons.title_rounded),
-                ),
-              ),
-              const SizedBox(height: 12),
               if (_type == TransactionType.income.value && _withinBudget) ...[
                 _surfaceSection(
                   child: SwitchListTile.adaptive(
@@ -460,31 +452,21 @@ class _RecurringTransactionComposerScreenState
                 _budgetScopePickerTile(budget),
                 const SizedBox(height: 12),
               ],
-              _surfaceSection(
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('الأيقونة واللون'),
-                  subtitle: const Text('تظهر داخل التخطيط والميزانية'),
-                  leading: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _parseColor(_iconColor).withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: AppIconPickerDialog.iconWidgetForName(
-                      _iconName,
-                      color: _parseColor(_iconColor),
-                      size: 22,
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: _pickIcon,
-                ),
-              ),
-              const SizedBox(height: 12),
               _categorySection(visibleCategories, budget),
               const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                minLines: 3,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'ملاحظات',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.notes_rounded),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _scheduleSectionHeader(),
+              const SizedBox(height: 14),
               if (_showRecurrenceDetails) ...[
                 DropdownButtonFormField<String>(
                   value: _recurrencePattern,
@@ -570,17 +552,6 @@ class _RecurringTransactionComposerScreenState
                   _reminderDropdown(),
                 ],
               ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: _notesController,
-                minLines: 3,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'ملاحظات',
-                  alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.notes_rounded),
-                ),
-              ),
               const SizedBox(height: 18),
               _saveButton(),
               if (widget.allowDelete && widget.initialRecurring != null) ...[
@@ -756,31 +727,6 @@ class _RecurringTransactionComposerScreenState
           prefixIcon: Icon(Icons.person_outline_rounded),
         ),
         onChanged: (_) => setState(() {}),
-      ),
-      const SizedBox(height: 12),
-
-      // الأيقونة واللون
-      _surfaceSection(
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('الأيقونة واللون'),
-          subtitle: const Text('تظهر في التقارير والميزانية'),
-          leading: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: _parseColor(_iconColor).withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: AppIconPickerDialog.iconWidgetForName(
-              _iconName,
-              color: _parseColor(_iconColor),
-              size: 22,
-            ),
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: _pickIcon,
-        ),
       ),
       const SizedBox(height: 12),
 
@@ -969,9 +915,9 @@ class _RecurringTransactionComposerScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _nameController.text.trim().isEmpty
+                  _notesController.text.trim().isEmpty
                       ? (isNew ? 'قسط جديد' : 'تعديل القسط')
-                      : _nameController.text.trim(),
+                      : _notesController.text.trim(),
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -1009,48 +955,7 @@ class _RecurringTransactionComposerScreenState
     final hasRiba = riba > 0.005;
 
     return [
-      // القسم الأول: البيانات الأساسية
-      _EditorSection(
-        title: 'البيانات الأساسية',
-        subtitle: 'حدد اسم القسط واختر له أيقونة تميزه في الميزانية.',
-        child: Column(
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'اسم القسط أو المنتج',
-                prefixIcon: Icon(Icons.title_rounded),
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 14),
-            _surfaceSection(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('الأيقونة واللون'),
-                leading: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _parseColor(_iconColor).withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: AppIconPickerDialog.iconWidgetForName(
-                    _iconName,
-                    color: _parseColor(_iconColor),
-                    size: 22,
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: _pickIcon,
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 16),
-
-      // القسم الثاني: تفاصيل المبلغ والجدولة
+      // القسم الأول: تفاصيل المبلغ والجدولة
       _EditorSection(
         title: 'تفاصيل القسط',
         subtitle: 'أدخل المبالغ وتاريخ أول دفعة لنقوم بجدولة الأقساط تلقائياً.',
@@ -1988,6 +1893,83 @@ class _RecurringTransactionComposerScreenState
     });
   }
 
+  // ── Helpers for deriving name/icon from category/notes ───────────────────
+
+  CategoryEntity? _firstSelectedCategory() {
+    if (_selectedCategoryIds.isEmpty) return null;
+    final state = widget.cubit.state;
+    final budget = state.budgetSetup;
+    final visible = _visibleCategories(state.categories, budget);
+    for (final cat in visible) {
+      if (_selectedCategoryIds.contains(cat.id)) return cat;
+    }
+    for (final cat in state.categories) {
+      if (_selectedCategoryIds.contains(cat.id)) return cat;
+    }
+    return null;
+  }
+
+  String _derivedName() {
+    final notes = _notesController.text.trim();
+    if (notes.isNotEmpty) return notes;
+    final cat = _firstSelectedCategory();
+    if (cat != null) return cat.name;
+    return _type == TransactionType.income.value ? 'دخل متكرر' : 'مصروف متكرر';
+  }
+
+  String _derivedIcon() {
+    final cat = _firstSelectedCategory();
+    return cat?.icon ?? _iconName;
+  }
+
+  String _derivedIconColor() {
+    final cat = _firstSelectedCategory();
+    return cat?.color ?? _iconColor;
+  }
+
+  // ── Schedule section header ───────────────────────────────────────────────
+
+  Widget _scheduleSectionHeader() {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.repeat_rounded,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'الجدول الزمني',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _save() async {
     setState(() => _isSaving = true);
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
@@ -2045,7 +2027,7 @@ class _RecurringTransactionComposerScreenState
 
     final recurringDraft = RecurringTransactionEntity(
       id: draftId,
-      name: _nameController.text.trim(),
+      name: _derivedName(),
       type: _type,
       amount: _showAmount ? amount : 0,
       dayOfMonth: effectiveDayOfMonth,
@@ -2057,8 +2039,8 @@ class _RecurringTransactionComposerScreenState
               ? BudgetScope.withinBudget.value
               : BudgetScope.outsideBudget.value),
       recurrencePattern: effectivePattern,
-      icon: _iconName,
-      iconColor: _iconColor,
+      icon: _derivedIcon(),
+      iconColor: _derivedIconColor(),
       weekday: _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
       weekdays: _selectedWeekdays.toList()..sort(),
       monthOfYear: _recurrencePattern == RecurrencePattern.yearly.value
