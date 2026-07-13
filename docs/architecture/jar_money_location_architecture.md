@@ -542,3 +542,52 @@ The entire `AppStateEntity` is replaced including all `walletSources`. There is 
 > **Critical observation:** There is **no single source of truth** for `walletSources`.  
 > It is maintained by two independent code paths (`TransactionProcessor` and `relabelJarWalletSource`) that are not coordinated.  
 > Transaction history **cannot be fully replayed** to recompute `walletSources` because `relabelJarWalletSource` mutations are baked directly into the entity state, and the corresponding `jarAllocation` audit transactions are only partial records of that change.
+
+---
+
+## 8. Category Ownership & Scope (Jar-Linked Categories)
+
+> **Added:** 2026-07-13, after a bug fix for jar categories appearing under the wrong Income/Expense tab.
+
+This section is a distinct data model from the money/balance system above — it governs `CategoryEntity` objects, not wallet/jar balances — but lives in the same file because it shares the same jar/allocation container entities.
+
+### 8.1 Ownership source of truth
+
+A category's ownership (which jar or allocation it "belongs to", vs. being a general category) is determined **solely by list membership**:
+
+- `LinkedWalletEntity.categories` — categories owned by a jar
+- `AllocationEntity.categories` — categories owned by an allocation
+- Categories not present in any jar's or allocation's list are **general** categories, read from `AppStateEntity.categories`
+
+`CategoryEntity.walletId` and `CategoryEntity.allocationId` are **write-only / dead fields**: some creation paths set them, but no code anywhere reads them back for filtering, grouping, ownership checks, or display. Confirmed by an exhaustive repository-wide search — every real ownership check operates on list containment:
+
+- `categories_screen.dart` `_sectionsFor`
+- `add_transaction_screen.dart` jar/allocation category pickers
+- `AppCubit.updateLinkedWalletCategories` / allocation equivalent
+
+**Do not treat `walletId`/`allocationId` as authoritative.** Reconciling or removing these dead fields is a separate, not-yet-scheduled cleanup task — do not add new logic that reads them without first making that reconciliation explicit.
+
+### 8.2 Scope is independent of ownership
+
+Every category also carries a `scope` (`'income'` or `'expense'`), which is **orthogonal to ownership**. A single jar can and normally does hold categories of both scopes at once:
+
+- Income-scope categories: labels used when depositing money **into** the jar (e.g. "Jar Deposit")
+- Expense-scope categories: labels used when spending **from** the jar
+
+A jar's `categories` list is **mixed-scope by design** — never assume it is single-scope, and never display or offer it without filtering by the scope relevant to the current context.
+
+### 8.3 Bug history: Jar Deposit appearing under Expense
+
+**Root cause (fixed 2026-07-13):**
+
+1. `categories_screen.dart`'s `_sectionsFor` only ever rendered jar (`linkedWallets`) sections under the Expense tab. The Income tab never showed jar sections at all.
+2. Because the "add category" UI for a jar was only reachable from the Expense tab, any category created from a jar section always inherited `scope: 'expense'` from the active tab — including categories meant to be income labels like "Jar Deposit".
+3. `add_transaction_screen.dart`'s jar-aware category UI existed only in the expense-type transaction block; the income-type block never referenced jars and always showed the general income category list, so a jar-scoped income category could never be created or selected there either.
+4. Both screens displayed a jar's full unfiltered `categories` list (mixed income + expense) rather than filtering by the scope relevant to the tab/flow.
+
+**Fix applied:**
+
+- `categories_screen.dart`: jar sections now render under **both** the Income and Expense tabs, each filtered to `category.scope == 'income'` or `'expense'` respectively. Category creation already used `scope: _tab`, so this alone makes jar-linked income categories creatable/visible with the correct scope.
+- `add_transaction_screen.dart`: the expense-side jar category list is filtered to `scope == 'expense'`; the income-side flow gained a jar-aware category list (`scope == 'income'`, sourced from the selected income jar) that is shown/created when a jar is chosen as the income deposit target, with the resulting category persisted into that jar via `linkedWalletId` + `scope: 'income'`.
+
+**Rule for future work:** any UI section, filter, or creation flow touching a jar's or allocation's `categories` list must filter/tag by `category.scope` explicitly. Never expose or persist-create against the raw unfiltered list, and never infer a new category's `scope` implicitly from "which tab happens to expose the add-category button" — pass it explicitly.

@@ -49,6 +49,7 @@ Firebase is configured in `lib/firebase_options.dart`. It is used optionally —
 - Never modify financial logic, backup logic, transaction processing, or app architecture.
 - Audit focus areas: duplicated code, dead code, unused imports, large widgets/long methods, architectural violations, repeated UI components, repeated strings, magic numbers, files that should be split, localization opportunities, performance issues.
 - Every recommendation in a report must include: Why, Risk level, Files affected, Estimated implementation effort.
+- Do not rely on agent persistent memory for project architecture knowledge. The repository documentation (this file and `docs/architecture/`) is the only long-term source of truth — durable architectural findings must be written there, not only in memory.
 
 ## Notes
 - The web build uses local CanvasKit (not CDN) for offline rendering
