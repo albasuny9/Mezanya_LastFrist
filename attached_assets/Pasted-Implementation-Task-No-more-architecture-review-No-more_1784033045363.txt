@@ -1,0 +1,106 @@
+Implementation Task
+
+No more architecture review.
+
+No more investigation.
+
+Implement the following UI refactor.
+
+====================================================
+
+GOAL
+
+The Recurring Transaction Composer must become a direct extension of the normal Add Transaction screen.
+
+Think of it as:
+
+Add Transaction
+
++
+
+Recurring Settings
+
+NOT as a separate screen.
+
+====================================================
+
+REQUIREMENTS
+
+Reuse the existing Add Transaction UI.
+
+Do not rebuild the same controls.
+
+The first part of the screen should be visually and behaviorally identical to Add Transaction.
+
+Reuse:
+
+- amount
+- wallet selection
+- transaction type
+- categories
+- jars
+- allocations
+- notes
+- date
+- time
+- every existing selector
+
+Do not create duplicate widgets if they already exist.
+
+====================================================
+
+After the normal transaction fields,
+
+append a new section:
+
+Recurring Settings
+
+This section contains only recurring-specific options.
+
+Examples:
+
+- recurrence frequency
+- interval
+- start date
+- end date (if supported)
+- reminder
+- manual/automatic execution
+- recurring-specific options
+
+====================================================
+
+The transaction part and the recurring part must remain separated.
+
+Normal transaction logic must continue using the existing implementation.
+
+Recurring logic must be isolated inside the recurring section.
+
+====================================================
+
+Refactor aggressively.
+
+Extract shared widgets if necessary.
+
+Delete duplicated UI code from the recurring composer whenever possible.
+
+The Add Transaction screen becomes the source of truth.
+
+====================================================
+
+Do not redesign the UI.
+
+Do not change business behavior.
+
+Do not change the recurring engine.
+
+This task is ONLY about unifying the composer UI and removing duplicated transaction-entry code.
+
+====================================================
+
+Deliverables
+
+- Files changed
+- What was extracted
+- What duplicated code was removed
+- Screenshots before/after if possible
+- Commit and push

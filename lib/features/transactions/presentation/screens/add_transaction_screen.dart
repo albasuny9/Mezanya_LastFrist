@@ -9,6 +9,8 @@ import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
+import '../../domain/services/recurring_schedule_engine.dart';
+import '../widgets/recurring_income_post_dialog.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({
@@ -18,6 +20,12 @@ class AddTransactionScreen extends StatefulWidget {
     this.recurringMode = false,
     this.recurringType,
     this.initialRecurring,
+    this.subscriptionOnlyMode = false,
+    this.debtOnlyMode = false,
+    this.initialExpensePlanKind,
+    this.allowDelete = false,
+    this.onSaved,
+    this.onDeleted,
   });
 
   final AppCubit cubit;
@@ -25,12 +33,21 @@ class AddTransactionScreen extends StatefulWidget {
   final bool recurringMode;
   final String? recurringType;
   final RecurringTransactionEntity? initialRecurring;
+  final bool subscriptionOnlyMode;
+  final bool debtOnlyMode;
+  final String? initialExpensePlanKind;
+  final bool allowDelete;
+  // Called instead of cubit + pop when set (returnOnSave pattern).
+  final void Function(RecurringTransactionEntity recurring)? onSaved;
+  // Called instead of cubit + pop on delete when set.
+  final void Function()? onDeleted;
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
+  // ── Basic transaction state ────────────────────────────────────────────────
   String _type = TransactionType.expense.value;
   String _budgetScope = BudgetScope.outsideBudget.value;
   String _incomeBudgetScope = BudgetScope.outsideBudget.value;
@@ -44,29 +61,123 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _budgetTargetId = '';
   String _incomeSourceId = 'wallet-only';
   String _incomeJarId = '';
-  String _recurrencePattern = RecurrencePattern.monthly.value;
-  int _recurrenceWeekday = DateTime.now().weekday;
-  String _recurringIconName = 'category';
-  String _recurringIconColor = '#165b47';
   bool _isSaving = false;
   String? _selectedCategoryId;
   String? _selectedIncomeCategoryId;
+
+  // ── Recurring-specific state ───────────────────────────────────────────────
+  String _recurrencePattern = RecurrencePattern.monthly.value;
+  int _recurrenceWeekday = DateTime.now().weekday; // legacy single weekday
+  String _recurringIconName = 'category';
+  String _recurringIconColor = '#165b47';
+  String _executionType = AutomationType.confirm.value;
+  String _expensePlanKind = 'normal';
+  bool _isDebtOrSubscription = false;
+  bool _isVariableIncome = false;
+  DateTime _firstPaymentDate =
+      DateTime.now().add(const Duration(days: 1));
+  int _reminderLeadDays = 0;
+  TimeOfDay _selectedTime = const TimeOfDay(hour: 9, minute: 0);
+  final Set<int> _selectedWeekdays = <int>{};
+  final Set<String> _selectedCategoryIds = <String>{}; // multi-select for recurring
+  int _monthlyDay = 1;
+  int _yearlyMonth = 1;
+  int _yearlyDay = 1;
+  final _debtPrincipalController = TextEditingController();
+  final _installmentCountController = TextEditingController();
+  final _downPaymentController = TextEditingController();
+
+  // ── computed helpers for recurring ────────────────────────────────────────
+
+  bool get _isWeekPattern =>
+      _recurrencePattern == RecurrencePattern.weekly.value ||
+      _recurrencePattern == RecurrencePattern.biweekly.value ||
+      _recurrencePattern == RecurrencePattern.every3Weeks.value;
+
+  bool get _isMonthPattern =>
+      _recurrencePattern == RecurrencePattern.monthly.value ||
+      _recurrencePattern == RecurrencePattern.every2Months.value ||
+      _recurrencePattern == RecurrencePattern.every3Months.value ||
+      _recurrencePattern == RecurrencePattern.every6Months.value;
+
+  bool get _isExpenseInstallment =>
+      _expensePlanKind == ExpensePlanKind.installment.value;
+
+  bool get _isExpenseSubscription =>
+      _expensePlanKind == ExpensePlanKind.subscription.value;
+
+  bool get _showAmount =>
+      !(_type == TransactionType.income.value && _isVariableIncome);
+
+  bool get _showRecurrenceDetails =>
+      !(_type == TransactionType.income.value && _isVariableIncome);
+
+  double get _totalPrincipal =>
+      double.tryParse(_debtPrincipalController.text.trim()) ?? 0;
+
+  int get _installmentCount =>
+      int.tryParse(_installmentCountController.text.trim()) ?? 0;
+
+  double get _downPayment =>
+      double.tryParse(_downPaymentController.text.trim()) ?? 0;
+
+  double get _calculatedInstallment {
+    final n = _installmentCount;
+    if (n <= 0) return 0;
+    final net = _totalPrincipal - _downPayment;
+    if (net <= 0) return 0;
+    return net / n;
+  }
+
+  double get _enteredInstallment =>
+      double.tryParse(_amountController.text.trim()) ?? 0;
+
+  double get _ribaAmount {
+    final calc = _calculatedInstallment;
+    if (calc <= 0) return 0;
+    final diff = _enteredInstallment - calc;
+    return diff > 0 ? diff : 0;
+  }
+
+  // ── withinBudget for recurring (expense / income) ──────────────────────────
+  bool get _withinBudgetExpense =>
+      _budgetScope == BudgetScope.withinBudget.value;
+
+  bool get _withinBudgetIncome =>
+      _incomeBudgetScope == BudgetScope.withinBudget.value;
 
   @override
   void initState() {
     super.initState();
     _amountController.addListener(_refreshAmountPreview);
+    _debtPrincipalController.addListener(_refreshAmountPreview);
+    _installmentCountController.addListener(_refreshAmountPreview);
+    _downPaymentController.addListener(_refreshAmountPreview);
     final state = widget.cubit.state;
     _walletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
     _incomeSourceId = 'wallet-only';
     _incomeJarId = '';
+
     if (widget.recurringMode) {
       _type = widget.recurringType ?? TransactionType.expense.value;
+      if (widget.subscriptionOnlyMode) {
+        _type = TransactionType.expense.value;
+        _expensePlanKind = widget.initialExpensePlanKind ??
+            ExpensePlanKind.subscription.value;
+        _isDebtOrSubscription = true;
+      }
+      if (widget.debtOnlyMode) {
+        _type = TransactionType.expense.value;
+        _expensePlanKind = widget.initialExpensePlanKind ??
+            ExpensePlanKind.installment.value;
+        _isDebtOrSubscription = true;
+      }
+
       final r = widget.initialRecurring;
       if (r != null) {
         _type = r.type;
         _walletId = r.walletId;
-        _amountController.text = r.amount.toStringAsFixed(2);
+        _amountController.text = r.amount <= 0 ? '' : r.amount.toStringAsFixed(2);
         _notesController.text = r.notes ?? '';
         _recurringNameController.text = r.name;
         _recurrencePattern = r.recurrencePattern;
@@ -79,12 +190,70 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _incomeJarId = r.targetJarId ?? '';
         if (r.allocationId != null) {
           _budgetTargetId = 'alloc:${r.allocationId!}';
-        } else if (r.targetJarId != null) {
+          _budgetScope = BudgetScope.withinBudget.value;
+        } else if (r.targetJarId != null &&
+            r.type == TransactionType.expense.value) {
           _budgetTargetId = 'jar:${r.targetJarId!}';
+          _budgetScope = BudgetScope.withinBudget.value;
         }
-        _date = DateTime(_date.year, _date.month, r.dayOfMonth);
+        _date = DateTime(_date.year, _date.month, r.dayOfMonth.clamp(1, 28));
+
+        // New recurring fields
+        _executionType = r.executionType;
+        _expensePlanKind =
+            r.expensePlanKind ?? widget.initialExpensePlanKind ?? 'normal';
+        _isDebtOrSubscription = r.isDebtOrSubscription;
+        _isVariableIncome = r.isVariableIncome;
+        _monthlyDay = (r.dayOfMonth).clamp(1, 28);
+        _yearlyDay = (r.dayOfMonth).clamp(1, 28);
+        _yearlyMonth =
+            (r.monthOfYear ?? DateTime.now().month).clamp(1, 12);
+        _reminderLeadDays = r.reminderLeadDays ?? 0;
+        _selectedCategoryIds
+            .addAll(r.categoryIds);
+        _selectedWeekdays.addAll(
+          r.weekdays.isNotEmpty
+              ? r.weekdays
+              : r.weekday != null
+                  ? <int>{r.weekday!}
+                  : <int>{DateTime.now().weekday},
+        );
+        _selectedTime = _parseStoredTime(r.scheduledTime);
+
+        final anchor = r.anchorDate != null
+            ? DateTime.tryParse(r.anchorDate!)
+            : null;
+        if (anchor != null) {
+          _firstPaymentDate = anchor;
+        }
+
+        final principal = r.debtPrincipalTotal;
+        _debtPrincipalController.text =
+            principal != null && principal > 0
+                ? principal.toStringAsFixed(2)
+                : '';
+        _installmentCountController.text =
+            r.installmentCount != null && r.installmentCount! > 0
+                ? r.installmentCount.toString()
+                : '';
+        final downPay = r.installmentDownPayment;
+        _downPaymentController.text =
+            downPay != null && downPay > 0 ? downPay.toStringAsFixed(2) : '';
+      } else {
+        // New recurring — default icon by type
+        _recurringIconName =
+            _type == TransactionType.income.value ? 'cash' : 'category';
+        _recurringIconColor =
+            _type == TransactionType.income.value ? '#0f9d7a' : '#c65d2e';
+        _selectedWeekdays.add(DateTime.now().weekday);
+        _monthlyDay = DateTime.now().day.clamp(1, 28);
+      }
+
+      if (_type == TransactionType.income.value && _isVariableIncome) {
+        _executionType = 'manual';
       }
     }
+
     final t = widget.initialTransaction;
     if (t != null) {
       _type = t.type;
@@ -110,12 +279,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             : BudgetScope.outsideBudget.value;
         _incomeJarId = t.toWalletId ?? '';
       }
-      // لو النوع اتغيّر لـ income أثناء التعديل، نضمن إن الجار المستهدف
-      // (من toWalletId الأصلية) موجود في _incomeJarId
       if (_incomeJarId.isEmpty && t.toWalletId != null) {
         _incomeJarId = t.toWalletId!;
       }
-      // تحميل الفئة المحددة
       if (t.type == TransactionType.income.value) {
         _selectedIncomeCategoryId = t.categoryId;
       } else {
@@ -127,17 +293,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void dispose() {
     _amountController.removeListener(_refreshAmountPreview);
+    _debtPrincipalController.removeListener(_refreshAmountPreview);
+    _installmentCountController.removeListener(_refreshAmountPreview);
+    _downPaymentController.removeListener(_refreshAmountPreview);
     _amountController.dispose();
     _notesController.dispose();
     _recurringNameController.dispose();
     _newCategoryController.dispose();
+    _debtPrincipalController.dispose();
+    _installmentCountController.dispose();
+    _downPaymentController.dispose();
     super.dispose();
   }
 
   void _refreshAmountPreview() {
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   double _walletReservedAmount(String walletId) {
@@ -218,10 +388,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   bool get _canSubmit {
-    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    if (_isSaving || amount <= 0 || (_walletId.isEmpty)) {
-      return false;
+    if (_isSaving || _walletId.isEmpty) return false;
+
+    if (widget.recurringMode) {
+      if (_isExpenseInstallment) {
+        return _enteredInstallment > 0;
+      }
+      if (_showAmount) {
+        final amt = double.tryParse(_amountController.text.trim()) ?? 0;
+        if (amt < 0) return false;
+        if (amt == 0 && !_isExpenseSubscription && !widget.subscriptionOnlyMode) {
+          return false;
+        }
+      }
+      if (_showRecurrenceDetails && _isWeekPattern && _selectedWeekdays.isEmpty) {
+        return false;
+      }
+      if (_type == TransactionType.expense.value &&
+          _withinBudgetExpense &&
+          !_isDebtOrSubscription &&
+          _budgetTargetId.isEmpty) {
+        return false;
+      }
+      return true;
     }
+
+    // Normal transaction mode
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    if (amount <= 0) return false;
     if (_type == TransactionType.expense.value &&
         _budgetScope == BudgetScope.withinBudget.value &&
         _budgetTargetId.isEmpty) {
@@ -233,9 +427,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _incomeJarId.isEmpty) {
       return false;
     }
-    if (widget.recurringMode && _recurringNameController.text.trim().isEmpty) {
-      return false;
-    }
     return true;
   }
 
@@ -243,7 +434,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // SMART WALLET DEFAULT
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// لما اليوزر يختار مخصص، المحفظة تتحدد تلقائياً من مصدر الدخل المرتبط
   void _autoSetWalletFromAllocation(String budgetTargetId) {
     final s = widget.cubit.state;
     final budget = s.budgetSetup;
@@ -331,13 +521,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final generalExpenseCategories = state.categories
         .where((c) => c.scope == 'expense' && c.incomeSourceId == null)
         .toList();
-    // Show the jar's own income categories when a jar is chosen as the
-    // income target; otherwise fall back to the general income bucket.
     final visibleIncomeCategories = _incomeJarId.isNotEmpty
         ? incomeJarCategories
         : state.categories.where((c) => c.scope == 'income').toList();
-
-    // Show general categories when outside-budget OR jar selected
     final visibleCategories = _budgetScope == BudgetScope.withinBudget.value &&
             _budgetTargetId.startsWith('alloc:')
         ? allocationCategories
@@ -345,6 +531,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 _budgetTargetId.startsWith('jar:'))
             ? jarCategories
             : generalExpenseCategories;
+
+    // ── recurring: visible categories for multi-select ──
+    final recurringVisibleCategories = widget.recurringMode
+        ? (_type == TransactionType.expense.value
+            ? visibleCategories
+            : visibleIncomeCategories)
+        : <CategoryEntity>[];
 
     // ── allocation dropdown items ──
     final allocationItems = [
@@ -389,72 +582,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                   children: [
-                    // ── Recurring fields ──
-                    if (widget.recurringMode) ...[
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _recurringNameController,
-                        decoration: const InputDecoration(
-                            labelText: 'اسم المعاملة المتكررة'),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _recurrencePattern,
-                        decoration: const InputDecoration(labelText: 'التكرار'),
-                        items: [
-                          DropdownMenuItem(
-                              value: RecurrencePattern.weekly.value,
-                              child: Text('مرة كل أسبوع')),
-                          DropdownMenuItem(
-                              value: RecurrencePattern.biweekly.value,
-                              child: Text('مرة كل أسبوعين')),
-                          DropdownMenuItem(
-                              value: RecurrencePattern.monthly.value,
-                              child: Text('مرة كل شهر')),
-                          DropdownMenuItem(
-                              value: RecurrencePattern.every2Months.value,
-                              child: Text('مرة كل شهرين')),
-                          DropdownMenuItem(
-                              value: RecurrencePattern.every3Months.value,
-                              child: Text('مرة كل 3 شهور')),
-                          DropdownMenuItem(
-                              value: RecurrencePattern.every6Months.value,
-                              child: Text('مرة كل 6 شهور')),
-                          DropdownMenuItem(
-                              value: RecurrencePattern.yearly.value,
-                              child: Text('مرة كل سنة')),
-                        ],
-                        onChanged: (v) {
-                          if (v != null) setState(() => _recurrencePattern = v);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final picked = await AppIconPickerDialog.show(
-                              context,
-                              initialIconName: _recurringIconName,
-                              initialColorHex: _recurringIconColor,
-                              title: 'اختيار أيقونة المعاملة المتكررة',
-                              name: _recurringNameController.text,
-                            );
-                            if (picked == null) return;
-                            setState(() {
-                              _recurringIconName = picked.iconName;
-                              _recurringIconColor = picked.colorHex;
-                            });
-                          },
-                          icon: const Icon(Icons.palette_outlined),
-                          label: const Text('اختيار الأيقونة واللون'),
-                        ),
-                      ),
-                    ],
 
                     // ── Amount ──
-                    _AmountField(controller: _amountController),
-                    const SizedBox(height: 10),
+                    if (!widget.recurringMode || _showAmount) ...[
+                      _AmountField(controller: _amountController),
+                      const SizedBox(height: 10),
+                    ],
 
                     // ── EXPENSE: المخصص (قبل المحفظة) ──
                     if (_type == TransactionType.expense.value) ...[
@@ -483,53 +616,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                     const SizedBox(height: 8),
 
-                    // ── EXPENSE: الفئات (بعد المحفظة دائماً) ──
+                    // ── EXPENSE: categories ──
                     if (_type == TransactionType.expense.value) ...[
-                      _CategoriesSection(
-                        categories: visibleCategories,
-                        selectedId: _selectedCategoryId,
-                        onSelectChange: (id) =>
-                            setState(() => _selectedCategoryId = id),
-                        onAdd: () => _openAddCategoryDialog(
-                          budgetScope: _budgetScope,
-                          allocationId: _budgetTargetId.startsWith('alloc:')
-                              ? _budgetTargetId.replaceFirst('alloc:', '')
-                              : '',
-                          linkedWalletId: _budgetTargetId.startsWith('jar:')
-                              ? _budgetTargetId.replaceFirst('jar:', '')
-                              : '',
-                          existing: visibleCategories,
+                      if (widget.recurringMode)
+                        _buildRecurringCategories(
+                          categories: recurringVisibleCategories,
+                          budget: budget,
+                        )
+                      else
+                        _CategoriesSection(
+                          categories: visibleCategories,
+                          selectedId: _selectedCategoryId,
+                          onSelectChange: (id) =>
+                              setState(() => _selectedCategoryId = id),
+                          onAdd: () => _openAddCategoryDialog(
+                            budgetScope: _budgetScope,
+                            allocationId: _budgetTargetId.startsWith('alloc:')
+                                ? _budgetTargetId.replaceFirst('alloc:', '')
+                                : '',
+                            linkedWalletId: _budgetTargetId.startsWith('jar:')
+                                ? _budgetTargetId.replaceFirst('jar:', '')
+                                : '',
+                            existing: visibleCategories,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 8),
                     ],
 
-                    // ── Recurring weekday ──
-                    if (widget.recurringMode &&
-                        (_recurrencePattern == RecurrencePattern.weekly.value ||
-                            _recurrencePattern ==
-                                RecurrencePattern.biweekly.value)) ...[
-                      DropdownButtonFormField<int>(
-                        value: _recurrenceWeekday,
-                        decoration: const InputDecoration(
-                            labelText: 'اليوم في الأسبوع'),
-                        items: [
-                          DropdownMenuItem(value: 1, child: Text('الاثنين')),
-                          DropdownMenuItem(value: 2, child: Text('الثلاثاء')),
-                          DropdownMenuItem(value: 3, child: Text('الأربعاء')),
-                          DropdownMenuItem(value: 4, child: Text('الخميس')),
-                          DropdownMenuItem(value: 5, child: Text('الجمعة')),
-                          DropdownMenuItem(value: 6, child: Text('السبت')),
-                          DropdownMenuItem(value: 7, child: Text('الأحد')),
-                        ],
-                        onChanged: (v) {
-                          if (v != null) setState(() => _recurrenceWeekday = v);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
-                    // ── INCOME fields ── (نفس ترتيب المصروف)
+                    // ── INCOME fields ──
                     if (_type == TransactionType.income.value) ...[
                       const SizedBox(height: 4),
                       _RowCard(
@@ -540,48 +654,56 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             _openIncomeTargetPicker(budget, selectedWalletName),
                       ),
                       const SizedBox(height: 8),
-                      _CategoriesSection(
-                        categories: visibleIncomeCategories,
-                        selectedId: _selectedIncomeCategoryId,
-                        onSelectChange: (id) =>
-                            setState(() => _selectedIncomeCategoryId = id),
-                        onAdd: () => _openAddCategoryDialog(
-                          budgetScope: _incomeJarId.isNotEmpty
-                              ? BudgetScope.withinBudget.value
-                              : BudgetScope.outsideBudget.value,
-                          allocationId: '',
-                          linkedWalletId: _incomeJarId,
-                          existing: visibleIncomeCategories,
-                          scope: 'income',
+                      if (widget.recurringMode)
+                        _buildRecurringCategories(
+                          categories: recurringVisibleCategories,
+                          budget: budget,
+                        )
+                      else
+                        _CategoriesSection(
+                          categories: visibleIncomeCategories,
+                          selectedId: _selectedIncomeCategoryId,
+                          onSelectChange: (id) =>
+                              setState(() => _selectedIncomeCategoryId = id),
+                          onAdd: () => _openAddCategoryDialog(
+                            budgetScope: _incomeJarId.isNotEmpty
+                                ? BudgetScope.withinBudget.value
+                                : BudgetScope.outsideBudget.value,
+                            allocationId: '',
+                            linkedWalletId: _incomeJarId,
+                            existing: visibleIncomeCategories,
+                            scope: 'income',
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 8),
                     ],
 
                     const SizedBox(height: 10),
 
-                    // ── Date + Time row (2/3 + 1/3) ──
-                    _DateTimeRow(
-                      date: _date,
-                      time: _time,
-                      onDateTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _date,
-                          firstDate: DateTime(2023),
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null) setState(() => _date = picked);
-                      },
-                      onTimeTap: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: _time,
-                        );
-                        if (picked != null) setState(() => _time = picked);
-                      },
-                    ),
-                    const SizedBox(height: 10),
+                    // ── Date + Time row (hidden in recurring mode) ──
+                    if (!widget.recurringMode) ...[
+                      _DateTimeRow(
+                        date: _date,
+                        time: _time,
+                        onDateTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _date,
+                            firstDate: DateTime(2023),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setState(() => _date = picked);
+                        },
+                        onTimeTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _time,
+                          );
+                          if (picked != null) setState(() => _time = picked);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
 
                     // ── Notes ──
                     TextField(
@@ -597,20 +719,308 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── Delete buttons ──
-                    if (widget.recurringMode && widget.initialRecurring != null)
-                      TextButton(
-                        onPressed: () async {
-                          await widget.cubit.deleteRecurringTransaction(
-                            widget.initialRecurring!.id,
+                    // ═══════════════════════════════════════════════════════
+                    // RECURRING SETTINGS SECTION
+                    // ═══════════════════════════════════════════════════════
+                    if (widget.recurringMode) ...[
+                      _scheduleSectionHeader(),
+                      const SizedBox(height: 14),
+
+                      // ── Name ──
+                      TextField(
+                        controller: _recurringNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'اسم المعاملة المتكررة',
+                          prefixIcon: Icon(Icons.label_outline_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Icon / Color ──
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await AppIconPickerDialog.show(
+                              context,
+                              initialIconName: _recurringIconName,
+                              initialColorHex: _recurringIconColor,
+                              title: 'اختيار أيقونة المعاملة المتكررة',
+                              name: _recurringNameController.text,
+                            );
+                            if (picked == null) return;
+                            setState(() {
+                              _recurringIconName = picked.iconName;
+                              _recurringIconColor = picked.colorHex;
+                            });
+                          },
+                          icon: const Icon(Icons.palette_outlined),
+                          label: const Text('اختيار الأيقونة واللون'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Variable income toggle ──
+                      if (_type == TransactionType.income.value &&
+                          _withinBudgetIncome) ...[
+                        _surfaceSection(
+                          child: SwitchListTile.adaptive(
+                            value: _isVariableIncome,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('دخل متغير'),
+                            subtitle: const Text(
+                              'الدخل المتغير يكون يدويًا ولا يحتاج مبلغ أو توقيت ثابت',
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                _isVariableIncome = value;
+                                if (value) {
+                                  _executionType = 'manual';
+                                  _amountController.clear();
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // ── Recurrence pattern + details ──
+                      if (_showRecurrenceDetails) ...[
+                        DropdownButtonFormField<String>(
+                          value: _recurrencePattern,
+                          decoration: const InputDecoration(
+                            labelText: 'نوع التكرار',
+                            prefixIcon: Icon(Icons.repeat_rounded),
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                                value: RecurrencePattern.daily.value,
+                                child: const Text('يومي')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.weekly.value,
+                                child: const Text('أسبوعي')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.biweekly.value,
+                                child: const Text('كل أسبوعين')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.every3Weeks.value,
+                                child: const Text('كل 3 أسابيع')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.monthly.value,
+                                child: const Text('شهري')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.every2Months.value,
+                                child: const Text('كل شهرين')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.every3Months.value,
+                                child: const Text('كل 3 شهور')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.every6Months.value,
+                                child: const Text('كل 6 شهور')),
+                            DropdownMenuItem(
+                                value: RecurrencePattern.yearly.value,
+                                child: const Text('سنوي')),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) setState(() => _recurrencePattern = v);
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        _recurrenceDetails(),
+                        const SizedBox(height: 12),
+
+                        // ── Execution type ──
+                        DropdownButtonFormField<String>(
+                          value: _executionType,
+                          decoration: const InputDecoration(
+                            labelText: 'طريقة التنفيذ',
+                            prefixIcon: Icon(Icons.bolt_rounded),
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                                value: AutomationType.auto.value,
+                                child: const Text('تلقائي')),
+                            DropdownMenuItem(
+                                value: AutomationType.confirm.value,
+                                child: const Text('يحتاج تأكيد')),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) setState(() => _executionType = v);
+                          },
+                        ),
+                        if (_executionType == AutomationType.confirm.value) ...[
+                          const SizedBox(height: 12),
+                          _reminderDropdown(),
+                        ],
+                      ] else ...[
+                        // variable income info tile
+                        _surfaceSection(
+                          child: const ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.info_outline_rounded),
+                            title: Text('دخل متغير'),
+                            subtitle: Text(
+                              'سيتم تسجيله يدويًا فقط بدون تاريخ أو تكرار ثابت',
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      // ── Installment fields ──
+                      if (_isExpenseInstallment) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _debtPrincipalController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'المبلغ الإجمالي',
+                            helperText:
+                                'السعر الأصلي للمنتج أو قيمة الدين الكامل',
+                            prefixIcon:
+                                Icon(Icons.account_balance_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _installmentCountController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'عدد الأقساط',
+                            prefixIcon:
+                                Icon(Icons.format_list_numbered_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _downPaymentController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'المقدم',
+                            prefixIcon:
+                                Icon(Icons.monetization_on_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Installment amount field
+                        Builder(builder: (ctx) {
+                          final calcInstallment = _calculatedInstallment;
+                          final hasCalc = calcInstallment > 0;
+                          final riba = _ribaAmount;
+                          final hasRiba = riba > 0.005;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                controller: _amountController,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                decoration: InputDecoration(
+                                  labelText: 'القسط الشهري',
+                                  helperText: hasCalc
+                                      ? 'المحسوب: ${calcInstallment.toStringAsFixed(2)}'
+                                      : 'أدخل المبلغ الإجمالي والعدد أولاً',
+                                  prefixIcon:
+                                      const Icon(Icons.payments_rounded),
+                                  suffixIcon: hasCalc
+                                      ? IconButton(
+                                          icon: const Icon(
+                                              Icons.calculate_rounded,
+                                              size: 18),
+                                          tooltip: 'تطبيق المبلغ المحسوب',
+                                          onPressed: () {
+                                            _amountController.text =
+                                                calcInstallment
+                                                    .toStringAsFixed(2);
+                                            setState(() {});
+                                          },
+                                        )
+                                      : null,
+                                ),
+                              ),
+                              if (hasRiba) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFC65D2E)
+                                        .withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFC65D2E)
+                                          .withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.warning_amber_rounded,
+                                          color: Color(0xFFC65D2E), size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'ربا / فائدة زيادة: ${riba.toStringAsFixed(2)} لكل قسط'
+                                          ' (${(riba * _installmentCount).toStringAsFixed(2)} إجمالي)',
+                                          style: const TextStyle(
+                                            color: Color(0xFFC65D2E),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           );
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop();
-                        },
-                        child: Text(
-                          'حذف المعاملة المتكررة',
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.error),
+                        }),
+                        const SizedBox(height: 12),
+                        // First payment date
+                        _surfaceSection(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.event_rounded),
+                            title: const Text('تاريخ أول دفعة'),
+                            subtitle: Text(
+                              '${_firstPaymentDate.day}/${_firstPaymentDate.month}/${_firstPaymentDate.year}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            trailing:
+                                const Icon(Icons.chevron_left_rounded),
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _firstPaymentDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2040),
+                              );
+                              if (picked != null) {
+                                setState(() => _firstPaymentDate = picked);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 18),
+                    ], // end recurring settings section
+
+                    // ── Delete buttons ──
+                    if (widget.recurringMode &&
+                        widget.initialRecurring != null &&
+                        widget.allowDelete)
+                      TextButton.icon(
+                        onPressed: _deleteRecurring,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('حذف المعاملة'),
+                        style: TextButton.styleFrom(
+                          foregroundColor:
+                              Theme.of(context).colorScheme.error,
                         ),
                       ),
                     if (!widget.recurringMode &&
@@ -632,222 +1042,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Submit ──
                     FilledButton(
                       onPressed: () async {
-                        // حماية من الضغط المزدوج — synchronous guard
                         if (_isSaving || !_canSubmit) return;
-                        _isSaving = true; // يتحدد فوراً قبل أي await
-                        setState(() {}); // تحديث الـ UI لتعطيل الزر
+                        _isSaving = true;
+                        setState(() {});
                         try {
-                          if (amount <= 0) {
-                            _showValidationError(
-                                'أدخل مبلغًا صحيحًا أكبر من صفر.');
-                            return;
-                          }
-                          if (_walletId.isEmpty) {
-                            _showValidationError(
-                                'اختر محفظة أو اختر "بدون محفظة" أولًا.');
-                            return;
-                          }
-                          if (_type == TransactionType.expense.value &&
-                              _budgetScope == BudgetScope.withinBudget.value &&
-                              _budgetTargetId.isEmpty) {
-                            _showValidationError(
-                                'اختر مخصصًا أو حصالة للمعاملة داخل الميزانية.');
-                            return;
-                          }
-                          if (_budgetTargetId == 'unallocated' &&
-                              amount > budget.unallocatedAmount) {
-                            _showValidationError(
-                                'المبلغ أكبر من المتاح في غير المخصص.');
-                            return;
-                          }
-                          if (_type == TransactionType.income.value &&
-                              _incomeBudgetScope ==
-                                  BudgetScope.withinBudget.value &&
-                              _incomeSourceId == 'wallet-only' &&
-                              _incomeJarId.isEmpty) {
-                            _showValidationError(
-                                'اختر مصدر دخل أو حصالة للدخل داخل الميزانية.');
-                            return;
-                          }
-                          if (widget.recurringMode &&
-                              _recurringNameController.text.trim().isEmpty) {
-                            _showValidationError('اكتب اسم المعاملة المتكررة.');
-                            return;
-                          }
-
-                          // ملاحظة: تم حذف تحقق "الرصيد غير الممول" الذي كان
-                          // يرفض الصرف من الحصالة بدون اختيار محفظة عندما
-                          // يتجاوز المبلغ Unknown. الحصالات مسموح أن يصبح
-                          // رصيدها سالبًا؛ المعاملة يجب أن تُنفَّذ دائمًا،
-                          // وأي عدم اتساق في Money Location يُعالَج لاحقًا
-                          // عبر مراجعة (review) تُنشأ تلقائيًا، لا برفض العملية.
-
-                          if (!widget.recurringMode &&
-                              _type == TransactionType.expense.value &&
-                              _walletId != 'no-wallet') {
-                            final currentWallet = wallets
-                                .where((wallet) => wallet.id == _walletId)
-                                .toList();
-                            if (currentWallet.isNotEmpty) {
-                              final approved = await _confirmExpenseImpact(
-                                wallet: currentWallet.first,
-                                amount: amount,
-                              );
-                              if (!approved) return;
-                            }
-                          }
-
-                          final selectedJarId =
-                              _budgetTargetId.startsWith('jar:')
-                                  ? _budgetTargetId.replaceFirst('jar:', '')
-                                  : null;
-
                           if (widget.recurringMode) {
-                            final recurring = widget.initialRecurring;
-                            final recurringEntity = RecurringTransactionEntity(
-                              id: recurring?.id ??
-                                  'rec-${DateTime.now().microsecondsSinceEpoch}',
-                              name: _recurringNameController.text.trim(),
-                              type: _type,
-                              amount: amount,
-                              dayOfMonth: _date.day.clamp(1, 28),
-                              executionType: AutomationType.confirm.value,
-                              walletId:
-                                  _walletId == 'no-wallet' ? '' : _walletId,
-                              budgetScope:
-                                  _type == TransactionType.expense.value
-                                      ? _budgetScope
-                                      : _incomeBudgetScope,
-                              recurrencePattern: _recurrencePattern,
-                              icon: _recurringIconName,
-                              iconColor: _recurringIconColor,
-                              weekday: (_recurrencePattern ==
-                                          RecurrencePattern.weekly.value ||
-                                      _recurrencePattern ==
-                                          RecurrencePattern.biweekly.value)
-                                  ? _recurrenceWeekday
-                                  : null,
-                              allocationId: _type ==
-                                          TransactionType.expense.value &&
-                                      _budgetScope ==
-                                          BudgetScope.withinBudget.value &&
-                                      _budgetTargetId.startsWith('alloc:')
-                                  ? _budgetTargetId.replaceFirst('alloc:', '')
-                                  : null,
-                              targetJarId: _type ==
-                                          TransactionType.income.value &&
-                                      _incomeBudgetScope ==
-                                          BudgetScope.withinBudget.value &&
-                                      _incomeJarId.isNotEmpty
-                                  ? _incomeJarId
-                                  : (_type == TransactionType.expense.value &&
-                                          _budgetTargetId.startsWith('jar:')
-                                      ? selectedJarId
-                                      : null),
-                              incomeSourceId:
-                                  _type == TransactionType.income.value &&
-                                          _incomeSourceId != 'wallet-only'
-                                      ? _incomeSourceId
-                                      : null,
-                              notes: _notesController.text.trim().isEmpty
-                                  ? null
-                                  : _notesController.text.trim(),
-                              isActive: recurring?.isActive ?? true,
-                            );
-                            if (recurring == null) {
-                              await widget.cubit.addRecurringTransaction(
-                                name: recurringEntity.name,
-                                type: recurringEntity.type,
-                                amount: recurringEntity.amount,
-                                dayOfMonth: recurringEntity.dayOfMonth,
-                                executionType: recurringEntity.executionType,
-                                walletId: recurringEntity.walletId,
-                                budgetScope: recurringEntity.budgetScope,
-                                recurrencePattern:
-                                    recurringEntity.recurrencePattern,
-                                icon: recurringEntity.icon,
-                                iconColor: recurringEntity.iconColor,
-                                weekday: recurringEntity.weekday,
-                                allocationId: recurringEntity.allocationId,
-                                targetJarId: recurringEntity.targetJarId,
-                                incomeSourceId: recurringEntity.incomeSourceId,
-                                notes: recurringEntity.notes,
-                              );
-                            } else {
-                              await widget.cubit
-                                  .updateRecurringTransaction(recurringEntity);
-                            }
+                            await _submitRecurring(amount, budget);
                           } else {
-                            if (widget.initialTransaction != null) {
-                              await widget.cubit.deleteTransaction(
-                                widget.initialTransaction!.id,
-                              );
-                            }
-                            await widget.cubit.addTransaction(
-                              walletId:
-                                  _walletId == 'no-wallet' ? null : _walletId,
-                              toWalletId:
-                                  _type == TransactionType.income.value &&
-                                          _incomeBudgetScope ==
-                                              BudgetScope.withinBudget.value &&
-                                          _incomeJarId.isNotEmpty
-                                      ? _incomeJarId
-                                      : selectedJarId,
-                              amount: amount,
-                              type: _type,
-                              createdAt: DateTime(
-                                _date.year,
-                                _date.month,
-                                _date.day,
-                                _time.hour,
-                                _time.minute,
-                              ),
-                              allocationId: _type ==
-                                          TransactionType.expense.value &&
-                                      _budgetScope ==
-                                          BudgetScope.withinBudget.value &&
-                                      _budgetTargetId.startsWith('alloc:')
-                                  ? _budgetTargetId.replaceFirst('alloc:', '')
-                                  : null,
-                              budgetScope:
-                                  _type == TransactionType.expense.value
-                                      ? _budgetScope
-                                      : _type == TransactionType.income.value
-                                          ? _incomeBudgetScope
-                                          : null,
-                              incomeSourceId:
-                                  _type == TransactionType.income.value &&
-                                          _incomeSourceId != 'wallet-only'
-                                      ? _incomeSourceId
-                                      : null,
-                              transferType: widget.initialTransaction
-                                              ?.transferType ==
-                                          TransferType
-                                              .jarFundingPhysical.value &&
-                                      _type == TransactionType.expense.value
-                                  ? TransferType.jarFundingPhysical.value
-                                  : _type == TransactionType.income.value &&
-                                          _incomeJarId.isNotEmpty
-                                      ? TransferType.depositWithJarLabel.value
-                                      : null,
-                              notes: _notesController.text.trim().isEmpty
-                                  ? null
-                                  : _notesController.text.trim(),
-                              categoryId: _type == TransactionType.income.value
-                                  ? _selectedIncomeCategoryId
-                                  : _selectedCategoryId,
-                            );
+                            await _submitNormal(amount, budget, wallets);
                           }
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(widget.recurringMode
-                                    ? 'تم حفظ المعاملة المتكررة.'
-                                    : (_type == TransactionType.income.value
-                                        ? 'تم تسجيل الدخل.'
-                                        : 'تم تسجيل المعاملة.'))),
-                          );
-                          Navigator.of(context).pop();
                         } finally {
                           if (mounted) setState(() => _isSaving = false);
                         }
@@ -859,15 +1062,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                       ),
                       child: Text(
-                        widget.recurringMode
-                            ? (widget.initialRecurring == null
-                                ? 'حفظ المعاملة المتكررة'
-                                : 'تحديث التكرار')
-                            : widget.initialTransaction != null
-                                ? 'حفظ التعديل'
-                                : (_type == TransactionType.income.value
-                                    ? 'تسجيل الدخل'
-                                    : 'تسجيل المعاملة'),
+                        _isSaving
+                            ? 'جارٍ الحفظ...'
+                            : widget.recurringMode
+                                ? (widget.initialRecurring == null
+                                    ? 'حفظ المعاملة المتكررة'
+                                    : 'تحديث التكرار')
+                                : widget.initialTransaction != null
+                                    ? 'حفظ التعديل'
+                                    : (_type == TransactionType.income.value
+                                        ? 'تسجيل الدخل'
+                                        : 'تسجيل المعاملة'),
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w800),
                       ),
@@ -883,10 +1088,367 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // SUBMIT: NORMAL TRANSACTION
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _submitNormal(
+    double amount,
+    BudgetSetupEntity budget,
+    List<WalletEntity> wallets,
+  ) async {
+    if (amount <= 0) {
+      _showValidationError('أدخل مبلغًا صحيحًا أكبر من صفر.');
+      return;
+    }
+    if (_walletId.isEmpty) {
+      _showValidationError('اختر محفظة أو اختر "بدون محفظة" أولًا.');
+      return;
+    }
+    if (_type == TransactionType.expense.value &&
+        _budgetScope == BudgetScope.withinBudget.value &&
+        _budgetTargetId.isEmpty) {
+      _showValidationError('اختر مخصصًا أو حصالة للمعاملة داخل الميزانية.');
+      return;
+    }
+    if (_budgetTargetId == 'unallocated' &&
+        amount > budget.unallocatedAmount) {
+      _showValidationError('المبلغ أكبر من المتاح في غير المخصص.');
+      return;
+    }
+    if (_type == TransactionType.income.value &&
+        _incomeBudgetScope == BudgetScope.withinBudget.value &&
+        _incomeSourceId == 'wallet-only' &&
+        _incomeJarId.isEmpty) {
+      _showValidationError('اختر مصدر دخل أو حصالة للدخل داخل الميزانية.');
+      return;
+    }
+
+    if (_type == TransactionType.expense.value &&
+        _walletId != 'no-wallet') {
+      final currentWallet =
+          wallets.where((wallet) => wallet.id == _walletId).toList();
+      if (currentWallet.isNotEmpty) {
+        final approved = await _confirmExpenseImpact(
+          wallet: currentWallet.first,
+          amount: amount,
+        );
+        if (!approved) return;
+      }
+    }
+
+    final selectedJarId = _budgetTargetId.startsWith('jar:')
+        ? _budgetTargetId.replaceFirst('jar:', '')
+        : null;
+
+    if (widget.initialTransaction != null) {
+      await widget.cubit
+          .deleteTransaction(widget.initialTransaction!.id);
+    }
+    await widget.cubit.addTransaction(
+      walletId: _walletId == 'no-wallet' ? null : _walletId,
+      toWalletId: _type == TransactionType.income.value &&
+              _incomeBudgetScope == BudgetScope.withinBudget.value &&
+              _incomeJarId.isNotEmpty
+          ? _incomeJarId
+          : selectedJarId,
+      amount: amount,
+      type: _type,
+      createdAt: DateTime(
+        _date.year,
+        _date.month,
+        _date.day,
+        _time.hour,
+        _time.minute,
+      ),
+      allocationId: _type == TransactionType.expense.value &&
+              _budgetScope == BudgetScope.withinBudget.value &&
+              _budgetTargetId.startsWith('alloc:')
+          ? _budgetTargetId.replaceFirst('alloc:', '')
+          : null,
+      budgetScope: _type == TransactionType.expense.value
+          ? _budgetScope
+          : _type == TransactionType.income.value
+              ? _incomeBudgetScope
+              : null,
+      incomeSourceId: _type == TransactionType.income.value &&
+              _incomeSourceId != 'wallet-only'
+          ? _incomeSourceId
+          : null,
+      transferType: widget.initialTransaction?.transferType ==
+                  TransferType.jarFundingPhysical.value &&
+              _type == TransactionType.expense.value
+          ? TransferType.jarFundingPhysical.value
+          : _type == TransactionType.income.value && _incomeJarId.isNotEmpty
+              ? TransferType.depositWithJarLabel.value
+              : null,
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+      categoryId: _type == TransactionType.income.value
+          ? _selectedIncomeCategoryId
+          : _selectedCategoryId,
+    );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(_type == TransactionType.income.value
+              ? 'تم تسجيل الدخل.'
+              : 'تم تسجيل المعاملة.')),
+    );
+    Navigator.of(context).pop();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SUBMIT: RECURRING TRANSACTION
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _submitRecurring(
+    double amount,
+    BudgetSetupEntity budget,
+  ) async {
+    if (_walletId.isEmpty) {
+      _showValidationError('اختر محفظة أو اختر "بدون محفظة" أولًا.');
+      return;
+    }
+
+    final selectedJarId = _budgetTargetId.startsWith('jar:')
+        ? _budgetTargetId.replaceFirst('jar:', '')
+        : null;
+    final selectedAllocId = _budgetTargetId.startsWith('alloc:')
+        ? _budgetTargetId.replaceFirst('alloc:', '')
+        : null;
+
+    final effectivePattern = _isExpenseInstallment
+        ? RecurrencePattern.monthly.value
+        : (_type == TransactionType.income.value && _isVariableIncome
+            ? RecurrencePattern.manualVariable.value
+            : _recurrencePattern);
+
+    final effectiveExecutionType =
+        _type == TransactionType.income.value && _isVariableIncome
+            ? 'manual'
+            : _executionType;
+
+    final effectiveDayOfMonth = _isExpenseInstallment
+        ? _firstPaymentDate.day.clamp(1, 28)
+        : (_recurrencePattern == RecurrencePattern.yearly.value
+            ? _yearlyDay
+            : (_isMonthPattern ? _monthlyDay : 1));
+
+    final effectiveAnchorDate = _isExpenseInstallment
+        ? _firstPaymentDate.toIso8601String()
+        : widget.initialRecurring?.anchorDate;
+
+    final derivedName = _recurringNameController.text.trim().isEmpty
+        ? _derivedName()
+        : _recurringNameController.text.trim();
+
+    final recurringDraft = RecurringTransactionEntity(
+      id: widget.initialRecurring?.id ??
+          'rec-${DateTime.now().microsecondsSinceEpoch}',
+      name: derivedName,
+      type: _type,
+      amount: _showAmount ? amount : 0,
+      dayOfMonth: effectiveDayOfMonth,
+      executionType: effectiveExecutionType,
+      walletId: _walletId == 'no-wallet' ? '' : _walletId,
+      budgetScope: _isExpenseInstallment
+          ? BudgetScope.withinBudget.value
+          : (_type == TransactionType.expense.value
+              ? _budgetScope
+              : _incomeBudgetScope),
+      recurrencePattern: effectivePattern,
+      icon: _recurringIconName,
+      iconColor: _recurringIconColor,
+      weekday:
+          _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
+      weekdays: _selectedWeekdays.toList()..sort(),
+      monthOfYear:
+          _recurrencePattern == RecurrencePattern.yearly.value
+              ? _yearlyMonth
+              : null,
+      anchorDate: effectiveAnchorDate,
+      scheduledTime: !_isExpenseInstallment && _showRecurrenceDetails
+          ? _formatTime(_selectedTime)
+          : null,
+      reminderLeadDays:
+          effectiveExecutionType == AutomationType.confirm.value
+              ? _reminderLeadDays
+              : null,
+      allocationId: _type == TransactionType.expense.value &&
+              _withinBudgetExpense &&
+              !_isDebtOrSubscription &&
+              selectedAllocId != null
+          ? selectedAllocId
+          : null,
+      targetJarId: _type == TransactionType.income.value &&
+              _incomeJarId.isNotEmpty
+          ? _incomeJarId
+          : (_type == TransactionType.expense.value &&
+                  !_isDebtOrSubscription &&
+                  selectedJarId != null
+              ? selectedJarId
+              : null),
+      incomeSourceId: _type == TransactionType.income.value &&
+              _incomeSourceId != 'wallet-only'
+          ? _incomeSourceId
+          : null,
+      categoryIds: _selectedCategoryIds.toList(),
+      isVariableIncome: _isVariableIncome,
+      isDebtOrSubscription: _isExpenseInstallment ||
+          (_type == TransactionType.expense.value && _isDebtOrSubscription),
+      expensePlanKind:
+          _type == TransactionType.expense.value ? _expensePlanKind : null,
+      debtPrincipalTotal: _isExpenseInstallment
+          ? double.tryParse(_debtPrincipalController.text.trim())
+          : null,
+      installmentCount: _isExpenseInstallment
+          ? int.tryParse(_installmentCountController.text.trim())
+          : null,
+      installmentDownPayment: _isExpenseInstallment
+          ? double.tryParse(_downPaymentController.text.trim())
+          : null,
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+      isActive: widget.initialRecurring?.isActive ?? true,
+    );
+
+    // Apply defaultAnchorDate if no anchor set
+    final recurring = effectiveAnchorDate != null
+        ? recurringDraft
+        : recurringDraft.copyWith(
+            anchorDate:
+                RecurringScheduleEngine.defaultAnchorDate(recurringDraft)
+                    .toIso8601String(),
+          );
+
+    // onSaved callback (returnOnSave pattern from composer wrapper)
+    if (widget.onSaved != null) {
+      widget.onSaved!(recurring);
+      return;
+    }
+
+    // Normal flow: persist via cubit
+    if (widget.initialRecurring == null) {
+      await widget.cubit.addRecurringTransaction(
+        id: recurring.id,
+        name: recurring.name,
+        type: recurring.type,
+        amount: recurring.amount,
+        dayOfMonth: recurring.dayOfMonth,
+        executionType: recurring.executionType,
+        walletId: recurring.walletId,
+        budgetScope: recurring.budgetScope,
+        recurrencePattern: recurring.recurrencePattern,
+        icon: recurring.icon,
+        iconColor: recurring.iconColor,
+        weekday: recurring.weekday,
+        weekdays: recurring.weekdays,
+        monthOfYear: recurring.monthOfYear,
+        anchorDate: recurring.anchorDate,
+        scheduledTime: recurring.scheduledTime,
+        reminderLeadDays: recurring.reminderLeadDays,
+        allocationId: recurring.allocationId,
+        targetJarId: recurring.targetJarId,
+        incomeSourceId: recurring.incomeSourceId,
+        categoryIds: recurring.categoryIds,
+        isVariableIncome: recurring.isVariableIncome,
+        isDebtOrSubscription: recurring.isDebtOrSubscription,
+        expensePlanKind: recurring.expensePlanKind,
+        debtPrincipalTotal: recurring.debtPrincipalTotal,
+        installmentCount: recurring.installmentCount,
+        installmentDownPayment: recurring.installmentDownPayment,
+        notes: recurring.notes,
+      );
+      if (recurring.type == TransactionType.income.value &&
+          (recurring.incomeSourceId ?? '').isEmpty) {
+        await _maybePromptRetroactiveIncomePost(recurring);
+      }
+    } else {
+      await widget.cubit.updateRecurringTransaction(
+        widget.initialRecurring!.copyWith(
+          name: recurring.name,
+          type: recurring.type,
+          amount: recurring.amount,
+          dayOfMonth: recurring.dayOfMonth,
+          executionType: recurring.executionType,
+          walletId: recurring.walletId,
+          budgetScope: recurring.budgetScope,
+          recurrencePattern: recurring.recurrencePattern,
+          icon: recurring.icon,
+          iconColor: recurring.iconColor,
+          weekday: recurring.weekday,
+          weekdays: recurring.weekdays,
+          monthOfYear: recurring.monthOfYear,
+          anchorDate: recurring.anchorDate,
+          scheduledTime: recurring.scheduledTime,
+          reminderLeadDays: recurring.reminderLeadDays,
+          allocationId: recurring.allocationId,
+          targetJarId: recurring.targetJarId,
+          incomeSourceId: recurring.incomeSourceId,
+          categoryIds: recurring.categoryIds,
+          isVariableIncome: recurring.isVariableIncome,
+          isDebtOrSubscription: recurring.isDebtOrSubscription,
+          expensePlanKind: recurring.expensePlanKind,
+          debtPrincipalTotal: recurring.debtPrincipalTotal,
+          installmentCount: recurring.installmentCount,
+          installmentDownPayment: recurring.installmentDownPayment,
+          notes: recurring.notes,
+        ),
+      );
+    }
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم حفظ المعاملة المتكررة.')),
+    );
+    Navigator.of(context).pop();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DELETE RECURRING
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _deleteRecurring() async {
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف المعاملة'),
+        content: const Text(
+            'سيتم حذف هذه المعاملة المتكررة. هل تريد المتابعة؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+
+    if (widget.onDeleted != null) {
+      widget.onDeleted!();
+      return;
+    }
+
+    if (widget.initialRecurring != null) {
+      await widget.cubit
+          .deleteRecurringTransaction(widget.initialRecurring!.id);
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // TYPE TOGGLE
   // ─────────────────────────────────────────────────────────────────────────
   Widget _typeSegmentedToggle(ThemeData theme) {
     final activeOnRight = _type == TransactionType.income.value;
+    // In subscription/debt-only modes the type is locked
+    final locked = widget.subscriptionOnlyMode || widget.debtOnlyMode;
     return Container(
       height: 56,
       decoration: BoxDecoration(
@@ -922,7 +1484,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               Expanded(
                 child: InkWell(
                   borderRadius: BorderRadius.circular(14),
-                  onTap: widget.recurringMode
+                  onTap: locked
                       ? null
                       : () => setState(() {
                             _type = TransactionType.expense.value;
@@ -943,12 +1505,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               Expanded(
                 child: InkWell(
                   borderRadius: BorderRadius.circular(14),
-                  onTap: widget.recurringMode
+                  onTap: locked
                       ? null
                       : () => setState(() {
                             _type = TransactionType.income.value;
                             _budgetTargetId = '';
                             _selectedCategoryId = null;
+                            _isDebtOrSubscription = false;
+                            _expensePlanKind = 'normal';
                           }),
                   child: Center(
                     child: Text(
@@ -1035,7 +1599,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF165b47).withValues(alpha: 0.10),
+                        color:
+                            const Color(0xFF165b47).withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Center(
@@ -1345,7 +1910,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     );
                   }),
 
-                  // Jars section — no progress bar, show balance like wallet
+                  // Jars section
                   if (jars.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     _SheetSectionLabel(label: 'الحصالات'),
@@ -1487,8 +2052,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           'الإيداع يذهب إلى محفظة $walletName فقط.',
                           style: TextStyle(
                             fontSize: 11,
-                            color:
-                                Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
+                            color: Theme.of(sheetCtx)
+                                .colorScheme
+                                .onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1907,7 +2473,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     if (!mounted) return;
-    // تحديد الفئة الجديدة تلقائياً بعد إضافتها
     setState(() {
       if (scope == 'income') {
         _selectedIncomeCategoryId = category.id;
@@ -1915,6 +2480,333 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _selectedCategoryId = category.id;
       }
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RECURRING SECTION HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _scheduleSectionHeader() {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.repeat_rounded,
+                  size: 16, color: theme.colorScheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                'الإعدادات المتكررة',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _recurrenceDetails() {
+    if (_recurrencePattern == RecurrencePattern.daily.value) {
+      return _timeTile();
+    }
+    if (_isWeekPattern) {
+      return Column(
+        children: [
+          _weekdayPicker(),
+          const SizedBox(height: 12),
+          _timeTile(),
+        ],
+      );
+    }
+    if (_isMonthPattern) {
+      return Column(
+        children: [
+          _DayPickerTile(
+            label: 'اليوم الشهري',
+            selectedDay: _monthlyDay,
+            onDaySelected: (day) => setState(() => _monthlyDay = day),
+          ),
+          const SizedBox(height: 12),
+          _timeTile(),
+        ],
+      );
+    }
+    if (_recurrencePattern == RecurrencePattern.yearly.value) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: _yearlyMonth,
+                  decoration: const InputDecoration(
+                    labelText: 'الشهر',
+                    prefixIcon: Icon(Icons.date_range_rounded),
+                  ),
+                  items: List.generate(
+                    12,
+                    (index) => DropdownMenuItem(
+                      value: index + 1,
+                      child: Text(_monthLabel(index + 1)),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _yearlyMonth = value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _DayPickerTile(
+                  label: 'اليوم',
+                  selectedDay: _yearlyDay,
+                  onDaySelected: (day) => setState(() => _yearlyDay = day),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _timeTile(),
+        ],
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _weekdayPicker() {
+    return _surfaceSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('أيام التكرار',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(7, (index) {
+              final weekday = index + 1;
+              return FilterChip(
+                selected: _selectedWeekdays.contains(weekday),
+                label: Text(_weekdayLabel(weekday)),
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedWeekdays.add(weekday);
+                    } else {
+                      _selectedWeekdays.remove(weekday);
+                    }
+                  });
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeTile() {
+    final label = _formatTime(_selectedTime);
+    return _surfaceSection(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.schedule_rounded),
+        title: const Text('الوقت'),
+        subtitle: Text(label),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () async {
+          final picked =
+              await showTimePicker(context: context, initialTime: _selectedTime);
+          if (picked != null) setState(() => _selectedTime = picked);
+        },
+      ),
+    );
+  }
+
+  Widget _reminderDropdown() {
+    return DropdownButtonFormField<int>(
+      value: _reminderLeadDays,
+      decoration: const InputDecoration(
+        labelText: 'وقت الإشعار',
+        prefixIcon: Icon(Icons.notifications_active_rounded),
+      ),
+      items: (_recurrencePattern == RecurrencePattern.daily.value ||
+              _isWeekPattern)
+          ? const [
+              DropdownMenuItem(value: 0, child: Text('في الوقت المحدد')),
+              DropdownMenuItem(value: 1, child: Text('قبلها بساعة')),
+              DropdownMenuItem(value: 2, child: Text('قبلها بساعتين')),
+              DropdownMenuItem(value: 3, child: Text('قبلها بـ 3 ساعات')),
+            ]
+          : const [
+              DropdownMenuItem(value: 0, child: Text('في نفس اليوم')),
+              DropdownMenuItem(value: 1, child: Text('مبكر بيوم')),
+              DropdownMenuItem(value: 2, child: Text('مبكر بيومين')),
+              DropdownMenuItem(value: 3, child: Text('مبكر بـ 3 أيام')),
+            ],
+      onChanged: (value) {
+        if (value != null) setState(() => _reminderLeadDays = value);
+      },
+    );
+  }
+
+  Widget _surfaceSection({required Widget child}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  /// Multi-select category chips for recurring mode.
+  Widget _buildRecurringCategories({
+    required List<CategoryEntity> categories,
+    required BudgetSetupEntity budget,
+  }) {
+    return _surfaceSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text('الفئات',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              TextButton.icon(
+                onPressed: () => _openAddCategoryDialog(
+                  budgetScope: _type == TransactionType.expense.value
+                      ? _budgetScope
+                      : _incomeBudgetScope,
+                  allocationId: _budgetTargetId.startsWith('alloc:')
+                      ? _budgetTargetId.replaceFirst('alloc:', '')
+                      : '',
+                  linkedWalletId: _budgetTargetId.startsWith('jar:')
+                      ? _budgetTargetId.replaceFirst('jar:', '')
+                      : _incomeJarId,
+                  existing: categories,
+                  scope:
+                      _type == TransactionType.income.value ? 'income' : 'expense',
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('إضافة فئة'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (categories.isEmpty)
+            const Text('لا توجد فئات متاحة')
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: categories
+                  .map(
+                    (c) => FilterChip(
+                      selected: _selectedCategoryIds.contains(c.id),
+                      label: Text(c.name),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategoryIds.add(c.id);
+                          } else {
+                            _selectedCategoryIds.remove(c.id);
+                          }
+                        });
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _derivedName() {
+    final notes = _notesController.text.trim();
+    if (notes.isNotEmpty) return notes;
+    final state = widget.cubit.state;
+    final budget = state.budgetSetup;
+    final visible = _type == TransactionType.expense.value
+        ? ((_budgetScope == BudgetScope.withinBudget.value &&
+                _budgetTargetId.startsWith('alloc:'))
+            ? budget.allocations
+                .where((a) =>
+                    _budgetTargetId == 'alloc:${a.id}')
+                .expand((a) => a.categories)
+                .toList()
+            : state.categories
+                .where((c) => c.scope == 'expense')
+                .toList())
+        : state.categories.where((c) => c.scope == 'income').toList();
+    for (final cat in visible) {
+      if (_selectedCategoryIds.contains(cat.id)) return cat.name;
+    }
+    return _type == TransactionType.income.value ? 'دخل متكرر' : 'مصروف متكرر';
+  }
+
+  Future<void> _maybePromptRetroactiveIncomePost(
+    RecurringTransactionEntity recurring,
+  ) async {
+    final due = RecurringScheduleEngine.unhandledDueOccurrence(
+      recurring,
+      DateTime.now(),
+    );
+    if (due == null || !mounted) return;
+
+    final result = await RecurringIncomePostDialog.show(
+      context,
+      name: recurring.name,
+      defaultAmount: recurring.amount,
+      occurrence: due,
+      allowVariableAmount: recurring.isVariableIncome,
+      isRetroactivePrompt: true,
+    );
+    if (!mounted || result == null || !result.approved) return;
+
+    final logMessage =
+        'تم تسجيل دخل متكرر: ${recurring.name} (${result.amount.toStringAsFixed(2)})';
+    await widget.cubit.recordRecurringIncomeOccurrence(
+      recurring: recurring,
+      amount: result.amount,
+      occurrence: result.occurrenceDate,
+      transactionNotes: recurring.name,
+      logDetails: logMessage,
+      titleOverride: logMessage,
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1928,6 +2820,43 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void _showValidationError(String message) {
     ScaffoldMessenger.maybeOf(context)
         ?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final hh = time.hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  TimeOfDay _parseStoredTime(String? value) {
+    if (value == null || !value.contains(':')) {
+      return const TimeOfDay(hour: 9, minute: 0);
+    }
+    final parts = value.split(':');
+    final hour = int.tryParse(parts.first) ?? 9;
+    final minute = int.tryParse(parts.last) ?? 0;
+    return TimeOfDay(
+        hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
+  }
+
+  String _weekdayLabel(int weekday) {
+    switch (weekday) {
+      case 1: return 'الإثنين';
+      case 2: return 'الثلاثاء';
+      case 3: return 'الأربعاء';
+      case 4: return 'الخميس';
+      case 5: return 'الجمعة';
+      case 6: return 'السبت';
+      default: return 'الأحد';
+    }
+  }
+
+  String _monthLabel(int month) {
+    const labels = <String>[
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+    ];
+    return labels[month - 1];
   }
 }
 
@@ -2096,9 +3025,11 @@ class _AmountField extends StatelessWidget {
           TextField(
             controller: controller,
             autofocus: false,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
+            style:
+                const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
             decoration: const InputDecoration(
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -2195,18 +3126,8 @@ class _DateTimeRow extends StatelessWidget {
 
   String get _dateLabel {
     const months = [
-      'يناير',
-      'فبراير',
-      'مارس',
-      'أبريل',
-      'مايو',
-      'يونيو',
-      'يوليو',
-      'أغسطس',
-      'سبتمبر',
-      'أكتوبر',
-      'نوفمبر',
-      'ديسمبر'
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ];
     return '${date.day} ${months[date.month - 1]}';
   }
@@ -2241,7 +3162,8 @@ class _DateTimeRow extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(18),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 border: border,
@@ -2455,6 +3377,160 @@ class _SheetSectionLabel extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
       ],
+    );
+  }
+}
+
+/// Day-of-month picker tile (used by recurring section)
+class _DayPickerTile extends StatelessWidget {
+  const _DayPickerTile({
+    this.label,
+    required this.selectedDay,
+    required this.onDaySelected,
+  });
+
+  final String? label;
+  final int selectedDay;
+  final ValueChanged<int> onDaySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null) ...[
+          Text(
+            label!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+        GestureDetector(
+          onTap: () => _showDaySheet(context),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.calendar_today_rounded,
+                    size: 20, color: colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'اليوم $selectedDay من كل شهر',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Icon(Icons.unfold_more_rounded,
+                    size: 20, color: colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showDaySheet(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'اختر اليوم الشهري',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 20),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1,
+                ),
+                itemCount: 28,
+                itemBuilder: (_, index) {
+                  final day = index + 1;
+                  final isSelected = day == selectedDay;
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      onDaySelected(day);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primary
+                            : colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant
+                                  .withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$day',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: isSelected
+                                ? colorScheme.onPrimary
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
