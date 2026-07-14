@@ -1,0 +1,390 @@
+You are NOT allowed to modify any code before completing the investigation.
+
+Your mission is to perform a deep business logic audit of the transaction system in the Mezanya project.
+
+This is NOT a UI review.
+This is NOT a Flutter review.
+
+It is a backend/domain architecture investigation.
+
+The application currently has two ways of creating transactions:
+
+Manual Transactions
+Generated Transactions created from Recurring Transactions
+
+There are severe inconsistencies between both flows.
+
+Phase 1 — Discover the Complete Transaction Pipeline
+
+Trace every path from:
+
+User Action
+
+↓
+
+UI
+
+↓
+
+Controller / Cubit / Bloc
+
+↓
+
+Use Case
+
+↓
+
+Repository
+
+↓
+
+Database
+
+↓
+
+Balance Update
+
+↓
+
+Analytics
+
+↓
+
+UI Refresh
+
+Produce a diagram of the entire pipeline.
+
+Do not skip any layer.
+
+Phase 2 — Identify Every Transaction Type
+
+Find every transaction model used inside the project.
+
+Examples:
+
+Transaction
+
+TransactionModel
+
+RecurringTransaction
+
+GeneratedTransaction
+
+TransferTransaction
+
+DraftTransaction
+
+ScheduledTransaction
+
+Any DTOs
+
+Any Firestore model
+
+Any Mapper
+
+For each one explain:
+
+Purpose
+
+Where it is created
+
+Who owns it
+
+Who edits it
+
+Who deletes it
+
+Who updates balances
+
+Who syncs it
+
+Phase 3 — Compare Manual vs Recurring Generated Transactions
+
+Build a comparison table.
+
+For every operation:
+
+Create
+
+Edit
+
+Delete
+
+Restore
+
+Undo
+
+Transfer
+
+Deposit
+
+Withdraw
+
+Goal contribution
+
+Budget contribution
+
+Balance update
+
+History
+
+Analytics
+
+Cloud Sync
+
+Offline Sync
+
+Determine whether:
+
+Manual and Generated transactions use the exact same pipeline
+
+or
+
+Separate business logic exists.
+
+If separate logic exists:
+
+Explain why.
+
+Show where it diverges.
+
+Phase 4 — Editing Investigation
+
+Investigate why:
+
+Manual transactions edit correctly.
+
+Generated recurring transactions behave differently.
+
+Trace:
+
+UI
+
+↓
+
+Edit Screen
+
+↓
+
+Validation
+
+↓
+
+Repository
+
+↓
+
+Database
+
+↓
+
+Refresh
+
+↓
+
+Balance recalculation
+
+↓
+
+Recurring engine
+
+Determine:
+
+Is editing blocked intentionally?
+
+Is editing partially supported?
+
+Does editing accidentally modify recurrence rules?
+
+Does editing modify only one occurrence?
+
+Does editing create duplicated records?
+
+Does editing break IDs?
+
+Does editing break references?
+
+Phase 5 — Source of Truth
+
+Determine what is considered the authoritative source.
+
+Is it:
+
+Firestore
+
+Recurring Schedule
+
+Generated Transaction
+
+Cached Transaction
+
+Memory State
+
+Repository Cache
+
+If more than one source exists,
+document every conflict.
+
+Phase 6 — Lifecycle Audit
+
+Document the lifecycle of a recurring transaction.
+
+Example:
+
+Recurring Rule Created
+
+↓
+
+Scheduler Executes
+
+↓
+
+Transaction Generated
+
+↓
+
+Balance Updated
+
+↓
+
+Stored
+
+↓
+
+Edited
+
+↓
+
+Deleted
+
+↓
+
+Next Occurrence
+
+↓
+
+Sync
+
+↓
+
+Archive
+
+Explain every object created.
+
+Explain every object destroyed.
+
+Explain every relationship.
+
+Phase 7 — Invariants
+
+List every business invariant.
+
+Examples:
+
+Balance must equal sum of transactions.
+
+Generated transaction must belong to exactly one recurring rule.
+
+Editing one occurrence must not corrupt recurrence.
+
+Deleting one occurrence must not delete the rule.
+
+Recurring rule must never directly affect balances.
+
+Generated transaction IDs must remain stable.
+
+Find every violated invariant.
+
+Phase 8 — Hidden Business Rules
+
+Search the project for:
+
+Special flags
+
+Boolean conditions
+
+Magic strings
+
+isRecurring
+
+generated
+
+isGenerated
+
+sourceId
+
+parentId
+
+recurringId
+
+origin
+
+type
+
+status
+
+Any hidden branching.
+
+Explain why each exists.
+
+Phase 9 — Architecture Problems
+
+Identify:
+
+Duplicated logic
+
+Repository duplication
+
+Business rule duplication
+
+Balance duplication
+
+Validation duplication
+
+Mapper duplication
+
+Firestore duplication
+
+State duplication
+
+Explain every architectural smell.
+
+Phase 10 — Final Report
+
+Do NOT write code.
+
+Produce a detailed engineering report including:
+
+Current architecture
+
+Transaction lifecycle
+
+Recurring lifecycle
+
+Manual lifecycle
+
+Pipeline diagram
+
+Sequence diagrams
+
+Source of truth
+
+Broken business rules
+
+Architectural risks
+
+Root causes
+
+Recommended redesign
+
+Migration strategy
+
+Risk assessment
+
+No assumptions.
+
+Every conclusion must reference actual code.
+
+Do not speculate.
+
+If something cannot be proven from code, explicitly state that it is unknown.
