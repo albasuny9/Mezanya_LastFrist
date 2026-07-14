@@ -320,6 +320,25 @@ This is the same class of bug that was already identified and fixed for `jarToJa
 
 ---
 
+## Confirmed Facts
+
+- `_openTransactionEditor` (`transaction_details_sheet.dart:664-701`) routes `transferType` values `jarFunding`, `jarFundingPhysical`, `jarAllocation`, and `jarToJar` to dedicated editors; `'wallet-to-wallet'` is not in that list and falls through to the generic `AddTransactionScreen`.
+- `AddTransactionScreen` has no UI branch for `_type == TransactionType.transfer.value` — only expense/income are represented in the toggle and form sections (`add_transaction_screen.dart:888-889` and surrounding conditionals).
+- `initState` hydrates `_walletId` from `t.walletId`, which is `null` for a wallet-to-wallet transfer, and never reads `fromWalletId`/`toWalletId` into any state field (`add_transaction_screen.dart:88-96`).
+- The Save handler performs delete-then-add with no dirty-field diffing; the `addTransaction(...)` call it issues omits `fromWalletId` entirely and resolves `toWalletId`/`transferType` to `null` for this case (`add_transaction_screen.dart:780-840`).
+- `AppCubit.addTransaction` constructs a brand-new `TransactionEntity` purely from the arguments it receives, with no memory of the transaction being replaced (`app_cubit.dart:459-514`). `TransactionEntity` has no `copyWith` (`transaction_entity.dart:1-77`), so there is no in-place-patch path that could have been used instead.
+- `AppCubit.deleteTransaction` correctly reverses the **original** transaction's wallet balances using the original object's `fromWalletId`/`toWalletId` (`app_cubit.dart:617-624`) — the defect is isolated to the subsequent add step.
+- `TransactionProcessor.apply()` requires non-null `fromWalletId` and `toWalletId` resolving to entries in `wallets` to take the physical wallet-to-wallet balance branch; when both are `null` it falls to a no-op branch that touches no balances (`transaction_processor.dart:133-138, 206-221`).
+- Regardless of which balance branch runs (or doesn't), `apply()` unconditionally appends the transaction to `transactions` at the top of the function (`transaction_processor.dart:33-36`), so the effect-less record still renders in the Timeline/Logs.
+- No business-logic branch in the transfer path reads `.notes`/`.description` to make a routing or balance decision — `notes` is used only for display/notification strings (`app_cubit.dart:561-570`, `transaction_details_sheet.dart:647`). The bug reproduces on *any* Save through this screen, not specifically because Notes was the field edited.
+- The same failure mode was previously identified and fixed for `jarToJar` transfers, with an explanatory code comment documenting it (`transaction_details_sheet.dart:703-705`); that fix's exclusion list was never extended to `'wallet-to-wallet'`.
+
+## Likely Causes
+
+- None beyond what is stated in Confirmed Facts / Root Cause — every mechanical step in the execution flow was traced to and verified against actual source code, so no unverified inference was required to explain the reported symptom.
+
+---
+
 ## Unknowns
 
 - **Not proven:** whether any other `transferType` values besides `jarFunding`, `jarFundingPhysical`, `jarAllocation`, `jarToJar`, and `wallet-to-wallet` exist and are similarly affected — a full enumeration of `TransferType` was not exhaustively cross-checked against `_openTransactionEditor`'s exclusion list beyond what is quoted above.
@@ -353,7 +372,7 @@ This is the same class of bug that was already identified and fixed for `jarToJa
 
 ---
 
-## Recommended Next Investigation
+## Next Investigation
 
 (Provided for completeness only — no fix proposed here, per investigation scope.)
 - Confirm the complete `TransferType` enum member list and check each value against `_openTransactionEditor`'s routing conditions to find any other transferType left unprotected the same way `'wallet-to-wallet'` is.
