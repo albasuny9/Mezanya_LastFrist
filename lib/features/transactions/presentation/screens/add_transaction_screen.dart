@@ -195,7 +195,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         } else if (r.targetJarId != null &&
             r.type == TransactionType.expense.value) {
           _budgetTargetId = 'jar:${r.targetJarId!}';
-          _budgetScope = BudgetScope.withinBudget.value;
+          // Jars are NOT part of the budget — restore outside-budget when
+          // re-opening a jar-targeted recurring expense for editing.
+          _budgetScope = BudgetScope.outsideBudget.value;
         }
         _date = DateTime(_date.year, _date.month, r.dayOfMonth.clamp(1, 28));
 
@@ -1917,7 +1919,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           onTap: () {
                             setState(() {
                               _budgetTargetId = id;
-                              _budgetScope = BudgetScope.withinBudget.value;
+                              // Jars are NOT part of the budget — a jar-targeted
+                              // expense must always be recorded as outside-budget,
+                              // unlike allocations/unallocated which are within-budget.
+                              _budgetScope = BudgetScope.outsideBudget.value;
                             });
                             Navigator.pop(sheetCtx);
                           },

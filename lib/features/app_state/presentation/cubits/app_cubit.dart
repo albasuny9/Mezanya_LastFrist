@@ -1564,6 +1564,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     final transaction = TransactionEntity(
       id: _id('txn'),
       walletId: recurring.walletId,
+      toWalletId: recurring.targetJarId,
       amount: amount,
       type: TransactionType.expense.value,
       budgetScope: recurring.budgetScope,
