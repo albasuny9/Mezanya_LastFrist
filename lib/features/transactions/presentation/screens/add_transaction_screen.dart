@@ -527,11 +527,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final visibleIncomeCategories = _incomeJarId.isNotEmpty
         ? incomeJarCategories
         : state.categories.where((c) => c.scope == 'income').toList();
-    final visibleCategories = _budgetScope == BudgetScope.withinBudget.value &&
-            _budgetTargetId.startsWith('alloc:')
+    final visibleCategories = _budgetTargetId.startsWith('alloc:')
         ? allocationCategories
-        : (_budgetScope == BudgetScope.withinBudget.value &&
-                _budgetTargetId.startsWith('jar:'))
+        : _budgetTargetId.startsWith('jar:')
             ? jarCategories
             : generalExpenseCategories;
 
