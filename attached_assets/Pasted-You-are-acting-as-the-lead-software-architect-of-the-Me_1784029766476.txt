@@ -1,0 +1,259 @@
+You are acting as the lead software architect of the Mezanya project.
+
+This is NOT a coding task first.
+
+Your job is to perform a complete architecture review before implementing anything.
+
+The recurring transactions system has grown organically and now needs to become a unified financial engine.
+
+Follow the phases below exactly.
+Do not skip any phase.
+Do not start implementation until Phase 4 has been approved.
+
+=========================================================
+PHASE 1 — COMPLETE ARCHITECTURE ANALYSIS
+=========================================================
+
+Inspect every file related to recurring transactions, budgeting and transaction creation.
+
+At minimum inspect:
+
+- recurring_transaction_entity.dart
+- recurring_schedule_engine.dart
+- recurring_transaction_composer_screen.dart
+- recurring_transactions_screen.dart
+- add_transaction screen
+- app_cubit.dart
+- Budget Setup
+- Budget Tracking
+- Transaction Entity
+- Category Entity
+- Wallet Entity
+- Jar Entity
+
+Create a dependency map showing:
+
+• which files own business logic
+• which files only display UI
+• where scheduling decisions happen
+• where execution happens
+• where recurring occurrences become real transactions
+
+Do not assume.
+
+Trace everything.
+
+=========================================================
+PHASE 2 — DOMAIN REVIEW
+=========================================================
+
+Identify every recurring operation supported.
+
+For each operation explain:
+
+Income
+Expense
+Debt
+Installment
+Subscription
+Loan
+Jar Deposit
+Jar Withdrawal
+Transfer
+
+For every type answer:
+
+What is shared?
+
+What is unique?
+
+What fields exist only because of implementation history?
+
+What fields are true Domain concepts?
+
+=========================================================
+PHASE 3 — DUPLICATED LOGIC
+=========================================================
+
+Search the entire project for duplicated recurring logic.
+
+Find duplicated code involving:
+
+posting
+
+confirmation
+
+retroactive posting
+
+manual posting
+
+pending occurrences
+
+snoozing
+
+date calculations
+
+reminders
+
+execution
+
+wallet updates
+
+budget updates
+
+Generate a report containing:
+
+Duplicate location
+
+Why duplicated
+
+Suggested abstraction
+
+Risk of refactoring
+
+=========================================================
+PHASE 4 — DESIGN THE NEW ARCHITECTURE
+=========================================================
+
+Design ONE unified recurring engine.
+
+The engine should treat recurring operations as:
+
+Recurring Operation
+
+instead of
+
+Recurring Income
+
+Recurring Expense
+
+Recurring Subscription
+
+etc.
+
+Every recurring type should be a specialization of one generic operation.
+
+Design:
+
+Entity
+
+Execution Engine
+
+Occurrence Generator
+
+Execution Pipeline
+
+Reminder Pipeline
+
+Confirmation Pipeline
+
+Manual Posting
+
+Retroactive Posting
+
+=========================================================
+PHASE 5 — COMPOSER REDESIGN
+=========================================================
+
+Compare
+
+Add Transaction Screen
+
+vs
+
+Recurring Transaction Composer
+
+Build a comparison table.
+
+For every field decide:
+
+Shared
+
+Recurring only
+
+Transaction only
+
+Then design a composer where:
+
+80-90% is shared with Add Transaction
+
+10-20% contains recurrence settings
+
+Do NOT duplicate UI.
+
+=========================================================
+PHASE 6 — CATEGORY VALIDATION
+=========================================================
+
+Audit the entire category system.
+
+Trace category lifecycle:
+
+Creation
+
+Storage
+
+Entity
+
+Firestore
+
+Loading
+
+Filtering
+
+UI
+
+Verify whether Jar categories are being stored with the correct scope.
+
+Do not assume this is only a UI issue.
+
+Identify the real root cause.
+
+=========================================================
+PHASE 7 — IMPLEMENTATION PLAN
+=========================================================
+
+Before writing code produce a detailed migration plan.
+
+For every step include:
+
+Files affected
+
+Breaking changes
+
+Migration risks
+
+Rollback strategy
+
+Estimated complexity
+
+=========================================================
+PHASE 8 — IMPLEMENTATION
+=========================================================
+
+Implement only after all previous phases are complete.
+
+Never rewrite large files blindly.
+
+Keep existing behavior unless intentionally improved.
+
+Avoid duplicate business rules.
+
+Keep all financial logic centralized.
+
+=========================================================
+RULES
+=========================================================
+
+Never assume.
+
+Never fix UI before verifying Domain.
+
+Never duplicate recurring logic.
+
+Never duplicate transaction logic.
+
+Always prefer extracting shared business rules.
+
+Architecture first.
+Implementation second.
