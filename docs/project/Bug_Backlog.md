@@ -29,7 +29,7 @@ Recurring income has retroactive prompt and manual registration support. Recurri
 
 ### BUG-002 — Jar categories are mixed with expense/income categories
 
-**Status:** Open  
+**Status:** Open — investigated, verdict NOT PROVEN (see `docs/project/investigations/BUG-002 Jar Category Scope Investigation.md`)  
 **Priority:** High  
 **Area:** Categories / Jars
 
@@ -68,6 +68,20 @@ Editing only the notes of a wallet-to-wallet transfer causes the transfer to rem
 
 #### UX/domain note
 A transfer should expose full transaction metadata, including date, time, and notes.
+
+---
+
+## NEW BUG CANDIDATES (discovered during other investigations — unconfirmed, not yet prioritized)
+
+### NBC-001 — Category breakdown charts miscategorize jar/allocation-owned categories as "uncategorized"
+
+**Discovered while investigating:** BUG-002.  
+**Area:** Home / Charts.
+
+#### Summary
+`_CategoryBreakdown` and `_IncomeBreakdown` in the Home/Charts screen resolve a transaction's category name by searching only the general category bucket. Transactions categorized under a Jar- or Allocation-owned category fail this lookup and render as uncategorized, even though the same category resolves correctly elsewhere (`getCategoryForTransaction`).
+
+See `docs/project/investigations/NBC-001 Category Breakdown General-Bucket-Only Lookup.md` for full evidence. Distinct from BUG-002 — not to be merged with or used to resolve it.
 
 ---
 

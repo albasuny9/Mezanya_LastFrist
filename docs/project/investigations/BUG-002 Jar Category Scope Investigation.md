@@ -7,9 +7,11 @@
 
 ## Executive Summary
 
-`CategoryEntity` has exactly two possible `scope` values in practice, `'expense'` and `'income'` — there is no distinct `'jar'` scope anywhere in the codebase. A category's membership in the "general" bucket vs. a specific Jar (`LinkedWalletEntity`) or Allocation is determined **entirely by which physical list stores it** (`AppStateEntity.categories` vs. `LinkedWalletEntity.categories` vs. `AllocationEntity.categories`), not by any field on the category itself. The entity does carry apparent "owner" fields (`allocationId`, `walletId`, `incomeSourceId`), but they are **write-only** — set once at creation and never read by any filtering, retrieval, or display logic anywhere in the app. In particular, `incomeSourceId` is hardcoded to `null` every time a category is created through the UI, which makes the existing `c.incomeSourceId == null` filter predicate (used to carve "general expense" categories out of the global list) always true for every UI-created category — it currently does no discriminating work.
+**Verdict on the reported symptom ("Jar categories are mixed with expense/income categories"): NOT PROVEN as a storage-level or section-display defect.** Every write path traced (`setCategories`, `updateAllocationCategories`, `updateLinkedWalletCategories`) keeps general, per-allocation, and per-jar categories in three structurally disjoint lists, and the Categories screen's own section rendering (`_sectionsFor`) reads each bucket separately into its own titled section — no mechanism was found by which a jar-owned category is written into, or displayed inside, the general expense/income sections or vice versa. If the reported symptom is specifically "a jar category visibly appears under the general Expense or Income section in the Categories screen," this investigation did not find a way for that to happen and did not reproduce it against a running build (see Unknowns/Next Investigation) — so it is recorded as **NOT PROVEN** rather than Confirmed or Disproven.
 
-Because storage location is the *only* real discriminator, any code path that reads categories from just one bucket while a transaction's `categoryId` actually points into a different bucket will silently fail to resolve that category. This is independently confirmed in the category breakdown charts (`_CategoryBreakdown`, `_IncomeBreakdown` in `transaction_charts_screen.dart`), which look a transaction's `categoryId` up only inside `state.categories` (the general bucket) and never search `budget.allocations[*].categories` or `budget.linkedWallets[*].categories`. A transaction categorized under a Jar- or Allocation-owned category therefore renders as "uncategorized" in these charts, even though the same transaction correctly resolves its category name elsewhere (e.g. `getCategoryForTransaction` in `transaction_details_sheet.dart`, which does search all three buckets).
+What *is* confirmed, and is squarely within this bug's required-investigation scope ("Separate category scope from category owner"), is that `CategoryEntity` has exactly two possible `scope` values in practice, `'expense'` and `'income'` — there is no distinct `'jar'` scope anywhere in the codebase — and that the entity's apparent "owner" fields (`allocationId`, `walletId`, `incomeSourceId`) are **write-only**: set once at creation and never read by any filtering, retrieval, or display logic anywhere in the app. `incomeSourceId` in particular is hardcoded to `null` every time a category is created through the UI, making the existing `c.incomeSourceId == null` filter predicate (used to carve "general expense" categories out of the global list) a tautology for every UI-created category. This means "category scope" (expense/income) and "category owner" (which bucket it lives in) are in practice conflated into a single mechanism — storage location — while the fields that look like they should express ownership do nothing. This is a real, confirmed design gap even though it was not shown to produce the specific "categories appear in the wrong section" symptom as reported.
+
+A distinct, separate bug was discovered during this investigation — the Home/Charts category-breakdown widgets resolve a transaction's category name from only the general bucket, so jar/allocation-owned categories render as "uncategorized" there. That is a different symptom (miscategorized/uncategorized display, not "mixed into the wrong section") and is **not** used here to explain BUG-002; it is recorded separately in `docs/project/investigations/NBC-001 Category Breakdown General-Bucket-Only Lookup.md` per the operating protocol's rule against substituting one bug for another.
 
 ---
 
@@ -141,23 +143,18 @@ return allCategories.where((category) => category.scope == _type).toList();  // 
 
 Every one of these predicates filters by `scope` (`'expense'`/`'income'`) combined with **which list is being iterated** (general / this allocation's / this jar's own `categories`). None of them ever consult `allocationId`/`walletId`/`incomeSourceId` to decide membership — consistent with Section 4's finding that those fields are unread. Because `incomeSourceId` is always `null` in practice (Section 2), the `&& c.incomeSourceId == null` clause used to isolate "general expense" categories is currently a tautology for any UI-created category — it does not exclude anything that wouldn't already be excluded by scope + bucket membership.
 
-### 6. Display — category-name lookup is inconsistent across the app
+### 6. Display — the Categories screen itself keeps sections separate (relevant to the reported symptom)
 
 ```dart
-// transaction_details_sheet.dart:15-32 (getCategoryForTransaction) — searches ALL three buckets
-for (final c in state.categories) { if (c.id == categoryId) return c; }
-for (final alloc in state.budgetSetup.allocations) { for (final c in alloc.categories) { if (c.id == categoryId) return c; } }
-for (final jar in state.budgetSetup.linkedWallets) { for (final c in jar.categories) { if (c.id == categoryId) return c; } }
+// categories_screen.dart:78-111 (_sectionsFor, expense tab) — each bucket rendered in its own titled section
+_SectionData(key: 'general-expense', ..., categories: generalExpense, ...),
+...budget.allocations.map((allocation) => _SectionData(key: 'allocation-${allocation.id}', ..., categories: allocation.categories, ...)),
+...budget.linkedWallets.map((wallet) => _SectionData(key: 'linked-${wallet.id}', ..., categories: wallet.categories.where((c) => c.scope == 'expense').toList(), ...)),
 ```
 
-```dart
-// transaction_charts_screen.dart:60 + 706, 1074 — searches ONLY the general bucket
-final categories = widget.cubit.state.categories;   // general only
-...
-final cat = e.key == '__none__' ? null : categories.where((c) => c.id == e.key).firstOrNull;  // in both _CategoryBreakdown (706) and _IncomeBreakdown (1074)
-```
+Each section pulls from exactly one bucket and renders under its own heading (e.g. "الفئات العامة" for general, the allocation's own name, the jar's own name with a "حصالة" ("jar") subtitle). No section's category list is a union of multiple buckets, and no jar/allocation category was found leaking into the `generalExpense`/`generalIncome` lists at either the storage layer (Section 3) or this display layer. This is the strongest available evidence against the literal "jar categories appear mixed into the expense/income sections" reading of the reported symptom — but it falls short of a full disproof, since it was not verified against a running build with real user data (see Unknowns).
 
-`_CategoryBreakdown` and `_IncomeBreakdown` (the expense/income pie-chart-style breakdowns in the Home/Charts screen) receive only `widget.cubit.state.categories` (`transaction_charts_screen.dart:60`) and never look inside `budget.allocations[*].categories` or `budget.linkedWallets[*].categories`. Any transaction whose `categoryId` points at an allocation- or jar-owned category will fail this lookup (`firstOrNull` → `null`) and be grouped/rendered as if uncategorized, even though the transaction detail sheet (using `getCategoryForTransaction`) correctly resolves and displays the same category's name.
+A separate, unrelated display gap was found while examining other category-consuming screens (the Home/Charts breakdown widgets look up a transaction's category name from only the general bucket, missing jar/allocation-owned categories). That is a different symptom from what's being investigated here and is documented on its own in `NBC-001 Category Breakdown General-Bucket-Only Lookup.md` rather than folded into this conclusion.
 
 ---
 
@@ -169,7 +166,7 @@ final cat = e.key == '__none__' ? null : categories.where((c) => c.id == e.key).
 | 2 | How is a category recognized as belonging to a specific Jar? | Purely by physical storage location — being an element of `LinkedWalletEntity.categories` for that jar's `id`. Not by any field on the category. | `categories_screen.dart:504-516` (`updateLinkedWalletCategories`); `app_cubit.dart:1296-1307`. |
 | 3 | Are `allocationId`/`walletId`/`incomeSourceId` used anywhere to filter or resolve categories? | No confirmed read site found anywhere in the app. | Repo-wide greps in Section 4 above returned no matching read usages. |
 | 4 | Is `incomeSourceId` ever set to a non-null value on a category? | No — the only UI creation path hardcodes it to `null`. | `categories_screen.dart:673` (`incomeSourceId: null,`). |
-| 5 | Does a jar-owned category's name resolve correctly everywhere it's displayed? | Inconsistent: `getCategoryForTransaction` searches all three buckets and resolves correctly; the Home/Charts breakdown widgets search only the general bucket and will show such a transaction as uncategorized. | `transaction_details_sheet.dart:15-32` vs. `transaction_charts_screen.dart:60,706,1074`. |
+| 5 | Does the Categories screen ever render a jar/allocation category inside a general expense/income section, or vice versa? | Not proven — no such path was found in the traced write/display code, but this was not confirmed against a running build with real data. | `categories_screen.dart:44-111` (`_sectionsFor`), `481-540` (`_saveCategory`). |
 | 6 | Files involved | See "Files Involved" below. | — |
 | 7 | Methods involved | See "Methods Involved" below. | — |
 
@@ -177,11 +174,11 @@ final cat = e.key == '__none__' ? null : categories.where((c) => c.id == e.key).
 
 ## Root Cause
 
-There is no single "smoking gun" line producing wrongly-mixed categories in storage — the three category lists (general / per-allocation / per-jar) are kept structurally separate at write time (`setCategories` / `updateAllocationCategories` / `updateLinkedWalletCategories`), so a category cannot literally end up in the wrong list through the creation/save path traced above.
+**For the reported symptom itself: NOT PROVEN.** There is no "smoking gun" line found that produces wrongly-mixed categories in storage or in the Categories screen's section display — the three category lists (general / per-allocation / per-jar) are kept structurally separate at write time (`setCategories` / `updateAllocationCategories` / `updateLinkedWalletCategories`) and are rendered into separate, non-overlapping sections (`_sectionsFor`), so a category cannot be shown to literally end up mixed into the wrong section through any creation/save/display path traced above. This investigation could not confirm the reported symptom, and also found no direct evidence disproving it beyond static code reading (no running-build reproduction was attempted) — hence NOT PROVEN rather than Confirmed or Disproven.
 
-The underlying design defect is that **`CategoryEntity` carries "owner" fields (`allocationId`, `walletId`, `incomeSourceId`) that look like they encode ownership/scope, but no code anywhere reads them** — the real discriminator used everywhere is a combination of (a) which of the three lists holds the entity, and (b) the two-valued `scope` string, which only distinguishes expense vs. income and has no jar-specific value. This satisfies the Bug Backlog's caution not to conflate "category scope" with "category owner": the codebase already conflates them in the opposite direction — the owner fields exist but do no work, while `scope` (a pure expense/income flag) and storage location together stand in for both concerns.
+Independent of that verdict, a genuine design defect **within the scope this bug asks about** ("Separate category scope from category owner") was confirmed: `CategoryEntity` carries "owner" fields (`allocationId`, `walletId`, `incomeSourceId`) that look like they encode ownership, but no code anywhere reads them back — the real discriminator used everywhere is a combination of (a) which of the three lists holds the entity, and (b) the two-valued `scope` string, which only distinguishes expense vs. income and has no jar-specific value. The codebase already conflates "scope" and "owner" in the opposite direction from what a naive fix might assume: the owner fields exist but do no work, while `scope` plus storage location together stand in for both concerns. This is worth tracking regardless of the original symptom's verdict, since it is exactly the ownership-vs-scope conflation the Bug Backlog asked to rule in or out.
 
-The practical, user-visible consequence of this design gap that was independently confirmed in this investigation is in **display**, not storage: because `_CategoryBreakdown`/`_IncomeBreakdown` only search the general bucket for a category's display name, any transaction categorized under a Jar- or Allocation-owned category is misrepresented as uncategorized in the Home/Charts screen, producing an apparent "categories are missing/mixed up" symptom from the user's point of view, while `getCategoryForTransaction` elsewhere in the app resolves the same category correctly.
+A separate display bug was discovered while examining related screens (Home/Charts breakdown widgets miscategorize jar/allocation-owned categories as "uncategorized"). Per the operating protocol, that is **not** treated as the explanation for this bug and is documented independently in `NBC-001 Category Breakdown General-Bucket-Only Lookup.md`.
 
 ---
 
@@ -191,7 +188,7 @@ The practical, user-visible consequence of this design gap that was independentl
 - Category bucket membership (general / allocation / jar) is determined solely by which of `AppStateEntity.categories`, `AllocationEntity.categories`, or `LinkedWalletEntity.categories` stores the entity — confirmed via the three disjoint write paths in `AppCubit` (`setCategories`, `updateAllocationCategories`, `updateLinkedWalletCategories`).
 - `CategoryEntity.allocationId`, `.walletId`, and `.incomeSourceId` are populated at creation (`categories_screen.dart:668-673`) but have no confirmed read site anywhere in the app outside of `toMap()`/`fromMap()` persistence round-tripping.
 - `incomeSourceId` is hardcoded to `null` on every category created through the UI (`categories_screen.dart:673`), making the `c.incomeSourceId == null` filter clause (`categories_screen.dart:47`, `add_transaction_screen.dart:332`) a tautology for all UI-created categories as currently used.
-- `_CategoryBreakdown` and `_IncomeBreakdown` (`transaction_charts_screen.dart`) resolve a transaction's category name by searching only `state.categories` (the general bucket), while `getCategoryForTransaction` (`transaction_details_sheet.dart`) searches all three buckets. This is a confirmed inconsistency between two display code paths for the same underlying data.
+- The Categories screen's own section builder (`_sectionsFor`) reads each of the three buckets separately into its own titled section, with no code path found that merges or cross-lists them — no confirmed mechanism for a jar/allocation category to visibly appear inside a general expense/income section, or vice versa.
 
 ## Likely Causes
 
@@ -201,10 +198,9 @@ The practical, user-visible consequence of this design gap that was independentl
 
 ## Unknowns
 
-- **Not proven:** whether the user-reported symptom ("categories mixed with expense/income categories") refers to the Home/Charts breakdown miscategorization confirmed here, to some other screen not yet inspected, or to a data-corruption scenario (e.g. duplicate IDs across buckets) that was not reproduced or found in this investigation.
-- **Not proven:** whether any other screen besides `_CategoryBreakdown`/`_IncomeBreakdown` reads only the general bucket while a transaction could reference a jar/allocation category id — a full inventory of every `categories.where(...)`/`categories.firstWhere(...)` call site in the app was not exhaustively completed beyond the call sites quoted above.
-- **Not proven:** whether category `id` values could ever collide across the three buckets (e.g. two independently-created categories in different buckets sharing an id) — the id generator (`'cat-${DateTime.now().microsecondsSinceEpoch}'`) is timestamp-based and was not stress-tested or proven collision-free.
-- **Not proven:** whether recurring-transaction flows (`recurring_transaction_composer_screen.dart`) have any additional display sites with the same general-bucket-only lookup gap — only `_visibleCategories`/`_firstSelectedCategory` were traced, not every category-name render in that file.
+- **Not proven:** what the user-reported symptom ("categories mixed with expense/income categories") was actually observed to look like on-screen — no reproduction against a running build with real user data was performed, so a genuine section-mixing defect cannot be fully ruled out even though no mechanism for it was found in the traced code.
+- **Not proven:** whether category `id` values could ever collide across the three buckets (e.g. two independently-created categories in different buckets sharing an id) — the id generator (`'cat-${DateTime.now().microsecondsSinceEpoch}'`) is timestamp-based and was not stress-tested or proven collision-free. A collision could plausibly produce a "wrong category shown" symptom that would look like mixing without the buckets themselves being merged.
+- **Not proven:** whether any historical version of the app (prior to the current code) ever wrote a jar/allocation category into the general bucket or vice versa, and whether stale data from that version could still exist in a user's persisted state — only the current code paths were traced, not data migration history.
 
 ---
 
@@ -217,8 +213,6 @@ The practical, user-visible consequence of this design gap that was independentl
 - `lib/features/app_state/domain/entities/app_state_entity.dart`
 - `lib/features/transactions/presentation/screens/add_transaction_screen.dart`
 - `lib/features/transactions/presentation/screens/recurring_transaction_composer_screen.dart`
-- `lib/features/transactions/presentation/widgets/transaction_details_sheet.dart`
-- `lib/features/home/presentation/screens/transaction_charts_screen.dart`
 - `lib/features/wallets/presentation/screens/jar_editor_screen.dart` (contrast — jar creation/edit does not seed or migrate categories)
 
 ## Methods Involved
@@ -227,15 +221,15 @@ The practical, user-visible consequence of this design gap that was independentl
 - `_CategoriesScreenState._sectionsFor` — `categories_screen.dart` (per-bucket filtering for display)
 - `_CategoriesScreenState._saveCategory` / `_deleteCategory` — `categories_screen.dart` (routes writes to one of three disjoint storage lists)
 - `AppCubit.setCategories` / `updateAllocationCategories` / `updateLinkedWalletCategories` — `app_cubit.dart`
-- `getCategoryForTransaction` — `transaction_details_sheet.dart` (searches all three buckets — contrast case)
 - `_visibleCategories` — `recurring_transaction_composer_screen.dart`
-- `_CategoryBreakdown.build` / `_IncomeBreakdown.build` — `transaction_charts_screen.dart` (searches general bucket only — confirmed gap)
+
+*(A related but distinct display bug — `getCategoryForTransaction` in `transaction_details_sheet.dart` vs. `_CategoryBreakdown`/`_IncomeBreakdown` in `transaction_charts_screen.dart` — was discovered during this investigation and is documented separately in `NBC-001 Category Breakdown General-Bucket-Only Lookup.md`; it is intentionally not listed here so this file stays scoped to the originally reported symptom.)*
 
 ---
 
 ## Next Investigation
 
 (Provided for completeness only — no fix proposed here, per investigation scope.)
-- Reproduce the reported symptom directly against a running build (create a Jar category, categorize a transaction under it, open Home/Charts) to confirm the breakdown-widget gap identified here is the actual symptom the user/bug-reporter observed, rather than inferring it purely from static code reading.
-- Enumerate every category-list read site in the app (`grep`-complete, not sample-based) to close the "Unknowns" item about other screens with the same general-bucket-only gap.
-- If a fix is later authorized, evaluate whether the intended design is (a) making all display/lookup sites search all three buckets like `getCategoryForTransaction` does, or (b) actually wiring up the currently-inert owner fields as the single source of truth — this is a design decision outside forensic-investigation scope.
+- Reproduce the reported symptom directly against a running build with real/representative data (create categories under the general bucket, an allocation, and a jar; inspect the Categories screen's sections) to move the verdict from NOT PROVEN to Confirmed or Disproven.
+- If reproduced, capture the exact screen, tab, and category involved so the mechanism (if any beyond what was traced here) can be identified.
+- Triage `NBC-001 Category Breakdown General-Bucket-Only Lookup.md` as its own item in the Task Plan — it does not depend on this bug's resolution.

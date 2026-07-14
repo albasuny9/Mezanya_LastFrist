@@ -52,6 +52,7 @@ Firebase is configured in `lib/firebase_options.dart`. It is used optionally —
   - Documentation reviews only classify docs as duplicated / obsolete / inconsistent / wrong location / legacy candidate — never rewrite unless explicitly requested.
   - After finishing a task: save/update its investigation doc, cross-check against the Domain Bible, Decisions, and Bug Backlog. If no contradiction exists, automatically continue to the next priority in the Task Plan without waiting for another instruction.
   - Stop immediately (and create a Design Finding) if a design decision is required, evidence is missing, or the task requires implementation/architecture changes.
+  - If an investigation surfaces a different bug than the one originally reported, never substitute it for the original: keep investigating the original symptom to a conclusion (Confirmed / Disproven / NOT PROVEN), and record the newly discovered issue separately as its own New Bug Candidate / Design Finding document — never blend the two into one write-up.
 - Do not rely on agent persistent memory for project architecture knowledge. The repository documentation (this file and `docs/architecture/`) is the only long-term source of truth — durable architectural findings must be written there, not only in memory.
 
 ## Notes
