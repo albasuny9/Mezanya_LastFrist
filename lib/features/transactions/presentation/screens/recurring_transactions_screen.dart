@@ -893,8 +893,11 @@ class _RecurringTransactionsScreenState
   }
 
   String _scopeLabel(AppStateEntity state, RecurringTransactionEntity record) {
-    if ((record.targetJarId ?? '').isNotEmpty &&
-        record.type == TransactionType.income.value) {
+    // Jars are never part of the budget, for either income or expense — show
+    // the jar name regardless of type instead of falling through to a
+    // generic label (was previously income-only, leaving jar-targeted
+    // expense rules mislabeled).
+    if ((record.targetJarId ?? '').isNotEmpty) {
       return 'حصالة: ${_jarName(state, record.targetJarId)}';
     }
     if (record.budgetScope == BudgetScope.withinBudget.value) {
