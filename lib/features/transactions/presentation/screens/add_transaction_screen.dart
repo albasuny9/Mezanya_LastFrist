@@ -74,12 +74,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _expensePlanKind = 'normal';
   bool _isDebtOrSubscription = false;
   bool _isVariableIncome = false;
-  DateTime _firstPaymentDate =
-      DateTime.now().add(const Duration(days: 1));
+  DateTime _firstPaymentDate = DateTime.now().add(const Duration(days: 1));
   int _reminderLeadDays = 0;
   TimeOfDay _selectedTime = const TimeOfDay(hour: 9, minute: 0);
   final Set<int> _selectedWeekdays = <int>{};
-  final Set<String> _selectedCategoryIds = <String>{}; // multi-select for recurring
+  final Set<String> _selectedCategoryIds =
+      <String>{}; // multi-select for recurring
   int _monthlyDay = 1;
   int _yearlyMonth = 1;
   int _yearlyDay = 1;
@@ -162,14 +162,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _type = widget.recurringType ?? TransactionType.expense.value;
       if (widget.subscriptionOnlyMode) {
         _type = TransactionType.expense.value;
-        _expensePlanKind = widget.initialExpensePlanKind ??
-            ExpensePlanKind.subscription.value;
+        _expensePlanKind =
+            widget.initialExpensePlanKind ?? ExpensePlanKind.subscription.value;
         _isDebtOrSubscription = true;
       }
       if (widget.debtOnlyMode) {
         _type = TransactionType.expense.value;
-        _expensePlanKind = widget.initialExpensePlanKind ??
-            ExpensePlanKind.installment.value;
+        _expensePlanKind =
+            widget.initialExpensePlanKind ?? ExpensePlanKind.installment.value;
         _isDebtOrSubscription = true;
       }
 
@@ -177,7 +177,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (r != null) {
         _type = r.type;
         _walletId = r.walletId;
-        _amountController.text = r.amount <= 0 ? '' : r.amount.toStringAsFixed(2);
+        _amountController.text =
+            r.amount <= 0 ? '' : r.amount.toStringAsFixed(2);
         _notesController.text = r.notes ?? '';
         _recurringNameController.text = r.name;
         _recurrencePattern = r.recurrencePattern;
@@ -206,11 +207,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _isVariableIncome = r.isVariableIncome;
         _monthlyDay = (r.dayOfMonth).clamp(1, 28);
         _yearlyDay = (r.dayOfMonth).clamp(1, 28);
-        _yearlyMonth =
-            (r.monthOfYear ?? DateTime.now().month).clamp(1, 12);
+        _yearlyMonth = (r.monthOfYear ?? DateTime.now().month).clamp(1, 12);
         _reminderLeadDays = r.reminderLeadDays ?? 0;
-        _selectedCategoryIds
-            .addAll(r.categoryIds);
+        _selectedCategoryIds.addAll(r.categoryIds);
         _selectedWeekdays.addAll(
           r.weekdays.isNotEmpty
               ? r.weekdays
@@ -220,18 +219,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         );
         _selectedTime = _parseStoredTime(r.scheduledTime);
 
-        final anchor = r.anchorDate != null
-            ? DateTime.tryParse(r.anchorDate!)
-            : null;
+        final anchor =
+            r.anchorDate != null ? DateTime.tryParse(r.anchorDate!) : null;
         if (anchor != null) {
           _firstPaymentDate = anchor;
         }
 
         final principal = r.debtPrincipalTotal;
-        _debtPrincipalController.text =
-            principal != null && principal > 0
-                ? principal.toStringAsFixed(2)
-                : '';
+        _debtPrincipalController.text = principal != null && principal > 0
+            ? principal.toStringAsFixed(2)
+            : '';
         _installmentCountController.text =
             r.installmentCount != null && r.installmentCount! > 0
                 ? r.installmentCount.toString()
@@ -397,11 +394,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (_showAmount) {
         final amt = double.tryParse(_amountController.text.trim()) ?? 0;
         if (amt < 0) return false;
-        if (amt == 0 && !_isExpenseSubscription && !widget.subscriptionOnlyMode) {
+        if (amt == 0 &&
+            !_isExpenseSubscription &&
+            !widget.subscriptionOnlyMode) {
           return false;
         }
       }
-      if (_showRecurrenceDetails && _isWeekPattern && _selectedWeekdays.isEmpty) {
+      if (_showRecurrenceDetails &&
+          _isWeekPattern &&
+          _selectedWeekdays.isEmpty) {
         return false;
       }
       if (_type == TransactionType.expense.value &&
@@ -582,7 +583,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                   children: [
-
                     // ── Amount ──
                     if (!widget.recurringMode || _showAmount) ...[
                       _AmountField(controller: _amountController),
@@ -823,7 +823,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 child: const Text('سنوي')),
                           ],
                           onChanged: (v) {
-                            if (v != null) setState(() => _recurrencePattern = v);
+                            if (v != null)
+                              setState(() => _recurrencePattern = v);
                           },
                         ),
                         const SizedBox(height: 12),
@@ -878,8 +879,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             labelText: 'المبلغ الإجمالي',
                             helperText:
                                 'السعر الأصلي للمنتج أو قيمة الدين الكامل',
-                            prefixIcon:
-                                Icon(Icons.account_balance_outlined),
+                            prefixIcon: Icon(Icons.account_balance_outlined),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -899,8 +899,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               decimal: true),
                           decoration: const InputDecoration(
                             labelText: 'المقدم',
-                            prefixIcon:
-                                Icon(Icons.monetization_on_outlined),
+                            prefixIcon: Icon(Icons.monetization_on_outlined),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -990,8 +989,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               style:
                                   const TextStyle(fontWeight: FontWeight.w700),
                             ),
-                            trailing:
-                                const Icon(Icons.chevron_left_rounded),
+                            trailing: const Icon(Icons.chevron_left_rounded),
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: context,
@@ -1019,8 +1017,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         icon: const Icon(Icons.delete_outline_rounded),
                         label: const Text('حذف المعاملة'),
                         style: TextButton.styleFrom(
-                          foregroundColor:
-                              Theme.of(context).colorScheme.error,
+                          foregroundColor: Theme.of(context).colorScheme.error,
                         ),
                       ),
                     if (!widget.recurringMode &&
@@ -1109,8 +1106,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _showValidationError('اختر مخصصًا أو حصالة للمعاملة داخل الميزانية.');
       return;
     }
-    if (_budgetTargetId == 'unallocated' &&
-        amount > budget.unallocatedAmount) {
+    if (_budgetTargetId == 'unallocated' && amount > budget.unallocatedAmount) {
       _showValidationError('المبلغ أكبر من المتاح في غير المخصص.');
       return;
     }
@@ -1122,8 +1118,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    if (_type == TransactionType.expense.value &&
-        _walletId != 'no-wallet') {
+    if (_type == TransactionType.expense.value && _walletId != 'no-wallet') {
       final currentWallet =
           wallets.where((wallet) => wallet.id == _walletId).toList();
       if (currentWallet.isNotEmpty) {
@@ -1140,8 +1135,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         : null;
 
     if (widget.initialTransaction != null) {
-      await widget.cubit
-          .deleteTransaction(widget.initialTransaction!.id);
+      await widget.cubit.deleteTransaction(widget.initialTransaction!.id);
     }
     await widget.cubit.addTransaction(
       walletId: _walletId == 'no-wallet' ? null : _walletId,
@@ -1259,35 +1253,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       recurrencePattern: effectivePattern,
       icon: _recurringIconName,
       iconColor: _recurringIconColor,
-      weekday:
-          _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
+      weekday: _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
       weekdays: _selectedWeekdays.toList()..sort(),
-      monthOfYear:
-          _recurrencePattern == RecurrencePattern.yearly.value
-              ? _yearlyMonth
-              : null,
+      monthOfYear: _recurrencePattern == RecurrencePattern.yearly.value
+          ? _yearlyMonth
+          : null,
       anchorDate: effectiveAnchorDate,
       scheduledTime: !_isExpenseInstallment && _showRecurrenceDetails
           ? _formatTime(_selectedTime)
           : null,
-      reminderLeadDays:
-          effectiveExecutionType == AutomationType.confirm.value
-              ? _reminderLeadDays
-              : null,
+      reminderLeadDays: effectiveExecutionType == AutomationType.confirm.value
+          ? _reminderLeadDays
+          : null,
       allocationId: _type == TransactionType.expense.value &&
               _withinBudgetExpense &&
               !_isDebtOrSubscription &&
               selectedAllocId != null
           ? selectedAllocId
           : null,
-      targetJarId: _type == TransactionType.income.value &&
-              _incomeJarId.isNotEmpty
-          ? _incomeJarId
-          : (_type == TransactionType.expense.value &&
-                  !_isDebtOrSubscription &&
-                  selectedJarId != null
-              ? selectedJarId
-              : null),
+      targetJarId:
+          _type == TransactionType.income.value && _incomeJarId.isNotEmpty
+              ? _incomeJarId
+              : (_type == TransactionType.expense.value &&
+                      !_isDebtOrSubscription &&
+                      selectedJarId != null
+                  ? selectedJarId
+                  : null),
       incomeSourceId: _type == TransactionType.income.value &&
               _incomeSourceId != 'wallet-only'
           ? _incomeSourceId
@@ -1413,8 +1404,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('حذف المعاملة'),
-        content: const Text(
-            'سيتم حذف هذه المعاملة المتكررة. هل تريد المتابعة؟'),
+        content:
+            const Text('سيتم حذف هذه المعاملة المتكررة. هل تريد المتابعة؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -1599,8 +1590,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color:
-                            const Color(0xFF165b47).withValues(alpha: 0.10),
+                        color: const Color(0xFF165b47).withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Center(
@@ -2052,9 +2042,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           'الإيداع يذهب إلى محفظة $walletName فقط.',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Theme.of(sheetCtx)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color:
+                                Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -2635,8 +2624,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         subtitle: Text(label),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () async {
-          final picked =
-              await showTimePicker(context: context, initialTime: _selectedTime);
+          final picked = await showTimePicker(
+              context: context, initialTime: _selectedTime);
           if (picked != null) setState(() => _selectedTime = picked);
         },
       ),
@@ -2690,67 +2679,30 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required List<CategoryEntity> categories,
     required BudgetSetupEntity budget,
   }) {
-    return _surfaceSection(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text('الفئات',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-              TextButton.icon(
-                onPressed: () => _openAddCategoryDialog(
-                  budgetScope: _type == TransactionType.expense.value
-                      ? _budgetScope
-                      : _incomeBudgetScope,
-                  allocationId: _budgetTargetId.startsWith('alloc:')
-                      ? _budgetTargetId.replaceFirst('alloc:', '')
-                      : '',
-                  linkedWalletId: _budgetTargetId.startsWith('jar:')
-                      ? _budgetTargetId.replaceFirst('jar:', '')
-                      : _incomeJarId,
-                  existing: categories,
-                  scope:
-                      _type == TransactionType.income.value ? 'income' : 'expense',
-                ),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('إضافة فئة'),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (categories.isEmpty)
-            const Text('لا توجد فئات متاحة')
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: categories
-                  .map(
-                    (c) => FilterChip(
-                      selected: _selectedCategoryIds.contains(c.id),
-                      label: Text(c.name),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategoryIds.add(c.id);
-                          } else {
-                            _selectedCategoryIds.remove(c.id);
-                          }
-                        });
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-        ],
+    return _CategoriesSection(
+      categories: categories,
+      selectedId:
+          _selectedCategoryIds.isEmpty ? null : _selectedCategoryIds.first,
+      onSelectChange: (id) {
+        setState(() {
+          _selectedCategoryIds.clear();
+          if (id != null) {
+            _selectedCategoryIds.add(id);
+          }
+        });
+      },
+      onAdd: () => _openAddCategoryDialog(
+        budgetScope: _type == TransactionType.expense.value
+            ? _budgetScope
+            : _incomeBudgetScope,
+        allocationId: _budgetTargetId.startsWith('alloc:')
+            ? _budgetTargetId.replaceFirst('alloc:', '')
+            : '',
+        linkedWalletId: _budgetTargetId.startsWith('jar:')
+            ? _budgetTargetId.replaceFirst('jar:', '')
+            : _incomeJarId,
+        existing: categories,
+        scope: _type == TransactionType.income.value ? 'income' : 'expense',
       ),
     );
   }
@@ -2764,13 +2716,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ? ((_budgetScope == BudgetScope.withinBudget.value &&
                 _budgetTargetId.startsWith('alloc:'))
             ? budget.allocations
-                .where((a) =>
-                    _budgetTargetId == 'alloc:${a.id}')
+                .where((a) => _budgetTargetId == 'alloc:${a.id}')
                 .expand((a) => a.categories)
                 .toList()
-            : state.categories
-                .where((c) => c.scope == 'expense')
-                .toList())
+            : state.categories.where((c) => c.scope == 'expense').toList())
         : state.categories.where((c) => c.scope == 'income').toList();
     for (final cat in visible) {
       if (_selectedCategoryIds.contains(cat.id)) return cat.name;
@@ -2835,26 +2784,42 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final parts = value.split(':');
     final hour = int.tryParse(parts.first) ?? 9;
     final minute = int.tryParse(parts.last) ?? 0;
-    return TimeOfDay(
-        hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
+    return TimeOfDay(hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
   }
 
   String _weekdayLabel(int weekday) {
     switch (weekday) {
-      case 1: return 'الإثنين';
-      case 2: return 'الثلاثاء';
-      case 3: return 'الأربعاء';
-      case 4: return 'الخميس';
-      case 5: return 'الجمعة';
-      case 6: return 'السبت';
-      default: return 'الأحد';
+      case 1:
+        return 'الإثنين';
+      case 2:
+        return 'الثلاثاء';
+      case 3:
+        return 'الأربعاء';
+      case 4:
+        return 'الخميس';
+      case 5:
+        return 'الجمعة';
+      case 6:
+        return 'السبت';
+      default:
+        return 'الأحد';
     }
   }
 
   String _monthLabel(int month) {
     const labels = <String>[
-      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
     ];
     return labels[month - 1];
   }
@@ -3025,11 +2990,9 @@ class _AmountField extends StatelessWidget {
           TextField(
             controller: controller,
             autofocus: false,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
-            style:
-                const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
+            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
             decoration: const InputDecoration(
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -3126,8 +3089,18 @@ class _DateTimeRow extends StatelessWidget {
 
   String get _dateLabel {
     const months = [
-      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر'
     ];
     return '${date.day} ${months[date.month - 1]}';
   }
@@ -3162,8 +3135,7 @@ class _DateTimeRow extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(18),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 border: border,
@@ -3414,8 +3386,7 @@ class _DayPickerTile extends StatelessWidget {
         GestureDetector(
           onTap: () => _showDaySheet(context),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
@@ -3480,8 +3451,7 @@ class _DayPickerTile extends StatelessWidget {
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 7,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
