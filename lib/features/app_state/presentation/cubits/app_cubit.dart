@@ -1571,7 +1571,13 @@ class AppCubit extends Cubit<AppStateEntity> {
       categoryId:
           recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
       notes: transactionNotes,
-      createdAt: DateTime.now(),
+      createdAt: DateTime(
+        occurrence.year,
+        occurrence.month,
+        occurrence.day,
+        occurrence.hour,
+        occurrence.minute,
+      ),
     );
 
     final updatedRecurring = recurring.copyWith(

@@ -565,13 +565,13 @@ class _RecurringTransactionsScreenState
             ),
             const SizedBox(height: 14),
             _DetailsTable(rows: _detailsRows(state, record)),
-            if (_canPostIncome(record)) ...[
+            if (_canPostManually(record)) ...[
               const SizedBox(height: 14),
               FilledButton.icon(
-                onPressed: () => _postIncomeOccurrence(sheetContext, record),
+                onPressed: () => _postOccurrence(sheetContext, record),
                 icon: const Icon(Icons.download_done_rounded),
                 label: Text(
-                  _pendingIncomeOccurrence(record) != null
+                  _pendingOccurrence(record) != null
                       ? 'تسجيل الدفعة المستحقة'
                       : 'تسجيل معاملة يدويًا',
                 ),
@@ -903,26 +903,35 @@ class _RecurringTransactionsScreenState
     return record.type == TransactionType.income.value ? 'دخل عام' : 'عام';
   }
 
-  bool _canPostIncome(RecurringTransactionEntity record) {
-    return record.type == TransactionType.income.value &&
-        record.isActive &&
-        (record.incomeSourceId ?? '').isEmpty;
+  // Manual posting is available for both income and expense recurring
+  // items. Both share the exact same due-detection/pending-occurrence
+  // engine (`RecurringScheduleEngine`), confirmation dialog
+  // (`RecurringIncomePostDialog`) and occurrence-generation logic — only
+  // the entity type (and which cubit method records the transaction)
+  // differs.
+  bool _canPostManually(RecurringTransactionEntity record) {
+    if (!record.isActive) return false;
+    if (record.type == TransactionType.income.value) {
+      return (record.incomeSourceId ?? '').isEmpty;
+    }
+    return record.type == TransactionType.expense.value;
   }
 
-  DateTime? _pendingIncomeOccurrence(RecurringTransactionEntity record) {
+  DateTime? _pendingOccurrence(RecurringTransactionEntity record) {
     return RecurringScheduleEngine.unhandledDueOccurrence(
       record,
       DateTime.now(),
     );
   }
 
-  Future<void> _postIncomeOccurrence(
+  Future<void> _postOccurrence(
     BuildContext sheetContext,
     RecurringTransactionEntity record,
   ) async {
+    final isExpense = record.type == TransactionType.expense.value;
     final now = DateTime.now();
 
-    final due = _pendingIncomeOccurrence(record) ??
+    final due = _pendingOccurrence(record) ??
         DateTime(
           now.year,
           now.month,
@@ -936,7 +945,8 @@ class _RecurringTransactionsScreenState
       name: record.name,
       defaultAmount: record.amount,
       occurrence: initialOccurrence,
-      allowVariableAmount: record.isVariableIncome,
+      allowVariableAmount: !isExpense && record.isVariableIncome,
+      isExpense: isExpense,
     );
     if (!mounted || result == null || !result.approved) return;
 
@@ -944,16 +954,29 @@ class _RecurringTransactionsScreenState
         .where((item) => item.id == record.id);
     final latest = matches.isEmpty ? record : matches.first;
 
-    final logMessage =
-        'تم تسجيل دخل متكرر: ${latest.name} (${result.amount.toStringAsFixed(2)})';
-    await widget.cubit.recordRecurringIncomeOccurrence(
-      recurring: latest,
-      amount: result.amount,
-      occurrence: result.occurrenceDate,
-      transactionNotes: latest.name,
-      logDetails: logMessage,
-      titleOverride: logMessage,
-    );
+    if (isExpense) {
+      final logMessage =
+          'تم تسجيل مصروف متكرر: ${latest.name} (${result.amount.toStringAsFixed(2)})';
+      await widget.cubit.recordRecurringExpenseOccurrence(
+        recurring: latest,
+        amount: result.amount,
+        occurrence: result.occurrenceDate,
+        transactionNotes: latest.name,
+        logDetails: logMessage,
+        titleOverride: logMessage,
+      );
+    } else {
+      final logMessage =
+          'تم تسجيل دخل متكرر: ${latest.name} (${result.amount.toStringAsFixed(2)})';
+      await widget.cubit.recordRecurringIncomeOccurrence(
+        recurring: latest,
+        amount: result.amount,
+        occurrence: result.occurrenceDate,
+        transactionNotes: latest.name,
+        logDetails: logMessage,
+        titleOverride: logMessage,
+      );
+    }
 
     if (sheetContext.mounted) {
       Navigator.pop(sheetContext);

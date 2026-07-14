@@ -21,6 +21,7 @@ class RecurringIncomePostDialog extends StatefulWidget {
     required this.occurrence,
     required this.allowVariableAmount,
     this.isRetroactivePrompt = false,
+    this.isExpense = false,
   });
 
   final String name;
@@ -29,6 +30,10 @@ class RecurringIncomePostDialog extends StatefulWidget {
   final bool allowVariableAmount;
   final bool isRetroactivePrompt;
 
+  /// When true, the dialog renders expense-flavored copy and accent color
+  /// while reusing the exact same manual-posting flow used for income.
+  final bool isExpense;
+
   static Future<RecurringIncomePostDialogResult?> show(
     BuildContext context, {
     required String name,
@@ -36,6 +41,7 @@ class RecurringIncomePostDialog extends StatefulWidget {
     required DateTime occurrence,
     required bool allowVariableAmount,
     bool isRetroactivePrompt = false,
+    bool isExpense = false,
   }) {
     return showDialog<RecurringIncomePostDialogResult>(
       context: context,
@@ -45,6 +51,7 @@ class RecurringIncomePostDialog extends StatefulWidget {
         occurrence: occurrence,
         allowVariableAmount: allowVariableAmount,
         isRetroactivePrompt: isRetroactivePrompt,
+        isExpense: isExpense,
       ),
     );
   }
@@ -120,7 +127,10 @@ class _RecurringIncomePostDialogState extends State<RecurringIncomePostDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = const Color(0xFF2F6F5E);
+    final accent = widget.isExpense
+        ? const Color(0xFFC65D2E)
+        : const Color(0xFF2F6F5E);
+    final kindLabel = widget.isExpense ? 'المصروف' : 'الدخل';
     final dateLabel = DateFormat('EEEE d MMMM yyyy', 'ar').format(_selectedDate);
 
     return AlertDialog(
@@ -128,7 +138,7 @@ class _RecurringIncomePostDialogState extends State<RecurringIncomePostDialog> {
       title: Text(
         widget.isRetroactivePrompt
             ? 'تسجيل دفعة سابقة؟'
-            : 'تسجيل معاملة الدخل',
+            : 'تسجيل معاملة $kindLabel',
         style: const TextStyle(fontWeight: FontWeight.w900),
       ),
       content: ConstrainedBox(
@@ -140,7 +150,7 @@ class _RecurringIncomePostDialogState extends State<RecurringIncomePostDialog> {
             Text(
               widget.isRetroactivePrompt
                   ? 'يوجد استحقاق سابق لـ "${widget.name}" لم يُسجّل بعد. هل تريد إنشاء المعاملة بتاريخ يمكنك تعديله؟'
-                  : 'سجّل معاملة لهذا الدخل المتكرر وعدّل التاريخ إذا احتجت.',
+                  : 'سجّل معاملة لهذا $kindLabel المتكرر وعدّل التاريخ إذا احتجت.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 height: 1.45,
