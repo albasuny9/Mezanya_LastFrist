@@ -9,6 +9,8 @@ import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../money_distribution/domain/services/distribution_engine.dart';
+import '../../../wallets/domain/entities/wallet_entity.dart';
+import '../../../wallets/presentation/widgets/wallet_shared_widgets.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../screens/add_transaction_screen.dart';
 
@@ -686,6 +688,14 @@ Future<void> _openTransactionEditor(
     );
     return;
   }
+  if (transaction.transferType == TransferType.walletToWallet.value) {
+    await _openWalletToWalletEditor(
+      context,
+      cubit: cubit,
+      transaction: transaction,
+    );
+    return;
+  }
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -696,6 +706,295 @@ Future<void> _openTransactionEditor(
         cubit: cubit,
         initialTransaction: transaction,
       ),
+    ),
+  );
+}
+
+/// محرر مخصص لمعاملات التحويل بين محفظتين (wallet-to-wallet) — BUG-003.
+/// لا يستخدم الشاشة العامة لأنها لا تدعم نوع transfer ولا تمرر
+/// fromWalletId/toWalletId عند الحفظ — مما كان سيمحو أثر التحويل بالكامل
+/// عند التعديل (راجع تحقيق BUG-001 وقرار Transaction Editing Architecture).
+/// يطابق تجربة إنشاء التحويل بين المحافظ (WalletsScreen._openWalletTransferDialog)
+/// ويحافظ على الهوية التجارية للتحويل: fromWalletId / toWalletId / transferType.
+Future<void> _openWalletToWalletEditor(
+  BuildContext context, {
+  required AppCubit cubit,
+  required TransactionEntity transaction,
+}) async {
+  final amountController =
+      TextEditingController(text: transaction.amount.toStringAsFixed(2));
+  final notesController = TextEditingController(text: transaction.notes ?? '');
+  final wallets = cubit.state.wallets;
+  var fromId = transaction.fromWalletId ??
+      (wallets.isNotEmpty ? wallets.first.id : '');
+  var toId = transaction.toWalletId ??
+      (wallets.length > 1 ? wallets[1].id : '');
+  var selectedDate = transaction.createdAt;
+  var selectedTime = TimeOfDay(
+    hour: transaction.createdAt.hour,
+    minute: transaction.createdAt.minute,
+  );
+
+  Color parseColor(String hex) {
+    final normalized = hex.replaceAll('#', '');
+    final value = int.tryParse(normalized, radix: 16) ?? 0xFF165B47;
+    return Color(0xFF000000 | value);
+  }
+
+  void showWalletPicker(
+    BuildContext sheetContext, {
+    required String title,
+    required String excludeId,
+    required void Function(String id) onSelected,
+  }) {
+    showModalBottomSheet<void>(
+      context: sheetContext,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (pickerContext) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        children: [
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          ...wallets.where((w) => w.id != excludeId).map((w) => ListTile(
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: parseColor(w.iconColor ?? '#165b47')
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: AppIconPickerDialog.iconWidgetForName(
+                        w.icon ?? 'account_balance_wallet',
+                        color: parseColor(w.iconColor ?? '#165b47'),
+                        size: 22),
+                  ),
+                ),
+                title: Text(w.name,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(
+                  '${w.balance.toStringAsFixed(2)} ${currencyLabelAr(cubit.state.currencyCode)}',
+                ),
+                onTap: () {
+                  Navigator.pop(pickerContext);
+                  onSelected(w.id);
+                },
+              )),
+        ],
+      ),
+    );
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheet) {
+        final currentWallets = cubit.state.wallets;
+        WalletEntity? fromWallet;
+        WalletEntity? toWallet;
+        for (final w in currentWallets) {
+          if (w.id == fromId) fromWallet = w;
+          if (w.id == toId) toWallet = w;
+        }
+        fromWallet ??=
+            currentWallets.isNotEmpty ? currentWallets.first : null;
+        toWallet ??= currentWallets.length > 1
+            ? currentWallets[1]
+            : (currentWallets.isNotEmpty ? currentWallets.first : null);
+
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text(
+                'تعديل التحويل بين المحافظ',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 14),
+              if (fromWallet != null)
+                WalletPickerTile(
+                  label: 'من',
+                  wallet: fromWallet,
+                  onTap: () => showWalletPicker(
+                    sheetContext,
+                    title: 'اختر المحفظة المصدر',
+                    excludeId: toId,
+                    onSelected: (id) => setSheet(() => fromId = id),
+                  ),
+                ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Icon(Icons.keyboard_double_arrow_down_rounded,
+                    color: Colors.black26, size: 26),
+              ),
+              if (toWallet != null)
+                WalletPickerTile(
+                  label: 'إلى',
+                  wallet: toWallet,
+                  onTap: () => showWalletPicker(
+                    sheetContext,
+                    title: 'اختر المحفظة الوجهة',
+                    excludeId: fromId,
+                    onSelected: (id) => setSheet(() => toId = id),
+                  ),
+                ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'المبلغ'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: sheetContext,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2023),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setSheet(() => selectedDate = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_month_outlined),
+                      label: Text(
+                          DateFormat('d MMM yyyy', 'ar').format(selectedDate)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: sheetContext,
+                          initialTime: selectedTime,
+                        );
+                        if (picked != null) {
+                          setSheet(() => selectedTime = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.schedule_outlined),
+                      label: Text(selectedTime.format(sheetContext)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: notesController,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'ملاحظات'),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: sheetContext,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('حذف التحويل'),
+                      content: const Text(
+                          'سيتم حذف هذا التحويل بالكامل. هل تريد المتابعة؟'),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                          child: const Text('إلغاء'),
+                        ),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                          child: const Text('حذف'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  await cubit.deleteTransaction(transaction.id);
+                  if (sheetContext.mounted) Navigator.pop(sheetContext);
+                },
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('حذف التحويل'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  foregroundColor: Theme.of(sheetContext).colorScheme.error,
+                  side: BorderSide(
+                    color: Theme.of(sheetContext)
+                        .colorScheme
+                        .error
+                        .withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: fromId.isEmpty || toId.isEmpty || fromId == toId
+                    ? null
+                    : () async {
+                        final amount =
+                            double.tryParse(amountController.text.trim());
+                        if (amount == null || amount <= 0) return;
+
+                        final createdAt = DateTime(
+                          selectedDate.year,
+                          selectedDate.month,
+                          selectedDate.day,
+                          selectedTime.hour,
+                          selectedTime.minute,
+                        );
+                        // تحديث = حذف القديم (يعكس أثره بشكل صحيح) ثم إضافة
+                        // معاملة جديدة بنفس الهوية التجارية الكاملة
+                        // (fromWalletId/toWalletId/transferType) — بلا حذف
+                        // أو فقدان لأي حقل بنيوي. نفس نمط _openJarToJarEditor
+                        // المعتمد لتفادي الباگ الموصوف في BUG-001.
+                        await cubit.deleteTransaction(transaction.id);
+                        await cubit.addTransaction(
+                          fromWalletId: fromId,
+                          toWalletId: toId,
+                          amount: amount,
+                          type: TransactionType.transfer.value,
+                          transferType: TransferType.walletToWallet.value,
+                          notes: notesController.text.trim().isEmpty
+                              ? null
+                              : notesController.text.trim(),
+                          createdAt: createdAt,
+                          details:
+                              'تم تعديل تحويل بين المحافظ بقيمة ${amount.toStringAsFixed(2)}',
+                        );
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('حفظ'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }

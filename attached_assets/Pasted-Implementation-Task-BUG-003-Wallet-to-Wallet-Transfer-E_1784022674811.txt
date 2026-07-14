@@ -1,0 +1,136 @@
+Implementation Task
+
+BUG-003 — Wallet-to-Wallet Transfer Editing
+
+Before writing code, read only:
+
+1.
+docs/project/investigations/BUG-001 Wallet Transfer Investigation.md
+
+2.
+docs/project/decisions/Transaction Editing Architecture.md
+
+Do NOT re-investigate.
+
+Do NOT challenge the investigation.
+
+The investigation and decision are considered authoritative.
+
+==================================================
+
+Goal
+
+Implement the approved editing behavior for Wallet-to-Wallet transfers.
+
+==================================================
+
+Requirements
+
+When the user edits a Wallet Transfer:
+
+The editor must preserve the business identity of the transfer.
+
+The edit operation must preserve:
+
+- fromWalletId
+- toWalletId
+- transferType
+
+The editor must expose:
+
+- Source wallet
+- Destination wallet
+- Amount
+- Date
+- Time
+- Notes
+
+All fields must be editable.
+
+==================================================
+
+UI
+
+Do NOT reuse the generic transaction editing experience if it cannot correctly represent a wallet transfer.
+
+The editing experience must match the Wallet Transfer creation experience.
+
+Opening an existing transfer should preload every field.
+
+==================================================
+
+Business Rules
+
+Editing a transfer must behave as an UPDATE of the existing transfer.
+
+The business identity of the transfer must remain intact.
+
+Editing Notes must never remove wallet effects.
+
+Editing Date or Time must never remove wallet effects.
+
+Editing Amount must correctly update balances.
+
+Changing source or destination wallet must correctly reverse the previous effect and apply the new one.
+
+==================================================
+
+Implementation Rules
+
+Implement the smallest clean solution.
+
+Avoid hacks.
+
+Avoid parsing Notes.
+
+Avoid temporary compatibility code.
+
+Avoid duplicated logic.
+
+Reuse existing wallet-transfer logic whenever possible.
+
+==================================================
+
+Documentation
+
+If implementation requires a small update to an existing document, update it.
+
+Do not modify the Domain Bible.
+
+Do not create new architecture documents.
+
+==================================================
+
+Validation
+
+Before committing, verify:
+
+✓ Editing Notes keeps balances correct.
+
+✓ Editing Amount updates balances correctly.
+
+✓ Editing Date works.
+
+✓ Editing Time works.
+
+✓ Editing source wallet works.
+
+✓ Editing destination wallet works.
+
+✓ Transaction remains visible.
+
+✓ Wallet balances remain correct.
+
+✓ No duplicate transfer is created.
+
+==================================================
+
+Deliverables
+
+1. Code changes.
+
+2. Files changed.
+
+3. Short explanation of the implementation.
+
+4. Commit and push to GitHub.

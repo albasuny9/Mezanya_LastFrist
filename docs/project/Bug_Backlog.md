@@ -54,20 +54,21 @@ Trace the full lifecycle:
 
 ### BUG-003 — Wallet transfer loses wallet effects after editing notes
 
-**Status:** Open  
+**Status:** Fixed — implemented per `docs/project/investigations/BUG-001 Wallet Transfer Investigation.md` and `docs/project/decisions/Transaction Editing Architecture.md`.
 **Priority:** Critical  
 **Area:** Transfers / Transactions
 
 #### Summary
 Editing only the notes of a wallet-to-wallet transfer causes the transfer to remain visible in history while disappearing from the wallets and restoring balances as if the transfer never happened.
 
-#### Required investigation
-- Check whether notes are incorrectly used in transfer identity or reconstruction.
-- Verify whether transfer editing rebuilds the operation from notes.
-- Confirm the true source of the reversal bug before patching.
+#### Root cause (confirmed, not re-investigated)
+Same mechanism as BUG-001: editing a `wallet-to-wallet` transfer fell through to the generic `AddTransactionScreen`, whose save handler omits `fromWalletId`/`toWalletId`/`transferType` when reconstructing the transaction, silently dropping the wallet balance effect while the transaction record stayed visible.
+
+#### Fix implemented
+Added a dedicated `_openWalletToWalletEditor` in `transaction_details_sheet.dart` (mirrors the existing, already-fixed `_openJarToJarEditor` pattern for jar-to-jar transfers). `_openTransactionEditor` now routes `transferType == 'wallet-to-wallet'` to this editor instead of the generic screen. The editor matches the Wallet Transfer creation UI (`WalletsScreen._openWalletTransferDialog`), preloads source wallet / destination wallet / amount / date / time / notes, and on save always supplies `fromWalletId`, `toWalletId`, and `transferType: 'wallet-to-wallet'` so the transfer's business identity is preserved through any edit. Covered by `test/wallet_to_wallet_transfer_edit_test.dart` (notes-only, amount, date/time, and source/destination wallet edits — all confirmed to preserve correct balances with no duplicate transaction).
 
 #### UX/domain note
-A transfer should expose full transaction metadata, including date, time, and notes.
+A transfer should expose full transaction metadata, including date, time, and notes. (Satisfied by the new editor.)
 
 ---
 
