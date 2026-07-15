@@ -1,0 +1,209 @@
+You are continuing an unfinished refactor on the Mezanya repository.
+
+IMPORTANT
+
+This is NOT a new refactor.
+
+Another agent already completed approximately half of the work before running out of quota.
+
+Your responsibility is to CONTINUE that work, not restart it.
+
+=========================================================
+FIRST
+=========================================================
+
+Before writing any code:
+
+Read:
+
+1.
+.agents/CURRENT_STATE.md
+
+2.
+docs/architecture/Mezanya Domain Bible/10 - Transaction Lifecycle.md
+
+The purpose is to understand the approved architecture.
+
+Chapter 10 establishes that:
+
+- Manual transactions and recurring-generated transactions share exactly the same Transaction Lifecycle.
+- They must therefore share the same transaction-entry pipeline.
+- Lent Money is NOT part of this pipeline.
+
+Do NOT redesign the domain.
+
+The architecture has already been approved.
+
+=========================================================
+CURRENT STATE
+=========================================================
+
+The previous agent already:
+
+✓ Created TransactionEntryForm.
+
+✓ Started extracting reusable sections.
+
+✓ Started extracting picker widgets.
+
+✓ Created TransactionFormController.
+
+✓ Started converting AddTransactionScreen into a wrapper.
+
+✓ Started reorganizing the presentation layer.
+
+The work is incomplete.
+
+=========================================================
+FIRST TASK
+=========================================================
+
+DO NOT continue coding immediately.
+
+Audit the current repository first.
+
+Produce a report containing:
+
+1.
+
+Files successfully extracted.
+
+2.
+
+Files partially extracted.
+
+3.
+
+Files still missing.
+
+4.
+
+Broken imports.
+
+5.
+
+Broken references.
+
+6.
+
+Missing dialogs.
+
+7.
+
+Missing picker files.
+
+8.
+
+Compile errors.
+
+9.
+
+Architecture problems introduced by the unfinished extraction.
+
+=========================================================
+SECOND TASK
+=========================================================
+
+Only after the audit:
+
+Finish ONLY the unfinished extraction.
+
+Examples:
+
+- missing files
+
+- broken imports
+
+- missing dialog implementations
+
+- wrapper connections
+
+- section wiring
+
+- picker wiring
+
+- controller initialization
+
+Do NOT redesign.
+
+Do NOT rename concepts.
+
+Do NOT change business logic.
+
+Do NOT introduce new features.
+
+Goal:
+
+Return the project to a compiling, fully working state while preserving the intended architecture.
+
+=========================================================
+ARCHITECTURE RULES
+=========================================================
+
+The final structure should be:
+
+TransactionEntryForm
+        │
+        ├── TypeSection
+        ├── WalletSection
+        ├── TargetSection
+        ├── CategorySection
+        ├── AmountSection
+        ├── NotesSection
+        ├── DateTimeSection
+        ├── RecurringSettingsSection
+        └── ActionsSection
+
+Both:
+
+AddTransactionScreen
+
+and
+
+RecurringTransactionComposer
+
+must become thin wrappers responsible only for configuration and navigation.
+
+The shared transaction-entry pipeline must exist in one place only.
+
+=========================================================
+VERY IMPORTANT
+=========================================================
+
+Do NOT start another refactor.
+
+Do NOT split into more files unless required to finish the current extraction.
+
+Do NOT change domain behavior.
+
+Do NOT modify validation rules.
+
+Do NOT modify Transaction Lifecycle.
+
+Do NOT modify Financial Engine behavior.
+
+This is a structural completion task only.
+
+=========================================================
+FINAL STEP
+=========================================================
+
+When finished:
+
+Run analyzer.
+
+Fix every compile error introduced by the refactor.
+
+Remove dead code left from the old implementation.
+
+Report:
+
+- files completed
+
+- files removed
+
+- analyzer status
+
+- remaining technical debt (if any)
+
+Stop after the refactor compiles successfully.

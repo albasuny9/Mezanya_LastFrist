@@ -1,0 +1,478 @@
+Let me find the right chapter and fully understand the current form structure before planning anything.
+
+
+Show less
+
+Searched for "Transaction Lifecycle|t…"
+
+Searched for "Chapter 10|# Chapter 10…"
+
+Read $f
+Reading and planning
+
+Reading and planning
+Let me read Chapter 10 - Transaction Lifecycle from the Domain Bible first, then explore the current form structure to plan the proper refactor.
+
+
+Opened 10 - Transaction Lifecycle.md
+
+Opened 09 - Recurring Operations.md
+Understanding codebase state
+
+Understanding codebase state
+Let me now fully understand the current state of the codebase and plan the proper refactor. Based on what I've read:
+
+From Chapter 10 (Transaction Lifecycle):
+
+Transaction is a recorded financial event with a fixed Business Identity
+Recurring operations (Chapter 9) produce Transactions that go through the same lifecycle
+Lent money is NOT a recurring operation - it's a separate concept (Person-Level Ledger)
+The architectural insight: The key insight from chapters 9 and 10 is that:
+
+Manual transaction entry → creates Transaction
+Recurring transaction setup → creates RecurringTransactionEntity (a "scheduled intention")
+Recurring occurrence execution → creates Transaction (same as #1)
+Lent money → is a separate domain concept entirely
+So the "Transaction Entry" pipeline is indeed shared between manual and recurring modes. The form should be split into focused section widgets rather than one monolithic component. I'm planning to compose TransactionEntryForm from smaller, reusable section widgets like type toggle, amount field, wallet picker, allocation/income target picker, and category multi-select.
+
+I also need sections for date/time (hidden when in recurring mode), notes, recurring-specific settings, and action buttons. Each section will be a stateless widget receiving state and callbacks from the parent form, which handles all the state management. Now I need to examine the current form structure to understand what state variables and callbacks need to be threaded through these sections.
+
+فاهم الـ domain. الآن أقرأ الكود الموجود بالكامل قبل أي حركة.
+
+
+Show less
+
+Counted lines
+
+Opened add_transaction_screen.dart
+Analyzing code structure
+
+Analyzing code structure
+Let me read the rest of the current add_transaction_screen.dart to understand the full picture before planning the extraction.
+
+Let me read the key sections I need:
+
+The build method (to understand the ListView structure)
+The submit methods
+The helper methods
+The private widget classes at the bottom
+And also the entity/domain structures I'll need.
+
+
+Opened add_transaction_screen.dart
+
+Opened add_transaction_screen.dart
+
+Opened add_transaction_screen.dart
+Finishing reading file
+
+Finishing reading file
+Let me finish reading the current add_transaction_screen.dart to get the full picture of the helper methods and private widget classes at the bottom, then plan the extraction properly.
+
+Let me finish reading the remaining sections before writing a single line of code.
+
+
+Show less
+
+Opened add_transaction_screen.dart
+
+Opened add_transaction_screen.dart
+
+Opened add_transaction_screen.dart
+Planning code extraction
+
+Planning code extraction
+Now I have a complete picture of the codebase. Let me plan the proper extraction before writing any code.
+
+Current state:
+add_transaction_screen.dart: 3509 lines — monolithic StatefulWidget containing everything
+recurring_transaction_composer_screen.dart: 549 lines — thin-ish wrapper but still embeds AddTransactionScreen
+What the user wants:
+TransactionEntryForm  ← shared canonical form, split into section widgets
+      ↓
+AddTransactionScreen (thin wrapper — config + navigation only)
+RecurringComposer    (thin wrapper — config + navigation only)
+
+The form needs to be broken down into focused section widgets—TypeSection, AmountSection, TargetSection, WalletSection, CategorySection, DateTimeSection, NotesSection, RecurringSettingsSection, and ActionsSection. This aligns with the domain model where a transaction is a recorded financial event and a recurring transaction is a scheduled intention, both flowing through the same financial engine. The form captures intent before it becomes a Transaction, and lent money isn't a recurring operation at all—it's a Person relationship.
+
+Now I'm mapping out the file structure for the presentation layer, organizing the form controller to manage state, the main form widget to build from sections, individual section components, and picker sheets for wallet selection, allocation targets, and income targets.
+
+add_dialog.dart
+    widgets/
+      amount_field.dart
+      row_card.dart
+      surface_section.dart
+      day_picker_tile.dart
+      sheet_section_label.dart
+      date_time_row.dart
+      categories_section.dart
+      allocation_option.dart
+      allocation_row.dart
+
+For state management, I'm using a TransactionFormController that extends ChangeNotifier to hold all form state in one place, avoiding the need to thread callbacks through every section. Each section widget receives the controller and only renders its specific UI, calling back to update state as needed.
+The submit logic stays in TransactionEntryForm since it needs access to the cubit, while the sections focus purely on rendering and state updates. I'm breaking this into about ten key files: the controller itself, the main form widget, and individual section files for type, amount, target, wallet, category, datetime, notes, recurring settings, and actions.
+
+The controller will hold all the form state as simple fields along with TextEditingControllers for text inputs, and I'll use computed getters to derive any values needed by the UI. Building the form layout... The cubit and Navigator context are needed for those operations. Now I'm planning out the file structure—I'll organize the form controller, main form widget, and individual section components into separate files, with each section handling its own UI and state management through the shared controller. lines) allocation_row.dart (~70 lines)
+
+That brings the total to about 25 files and roughly 2700 lines — a bit leaner than the current structure but much better organized. The main screens would become thin wrappers at around 80-300 lines each.
+
+Now I'm reconsidering the ChangeNotifier approach. It's elegant in theory, but managing side effects when the transaction type switches — like clearing the budget target or category when moving from expense to income — gets tricky. Right now those side effects are inline in setState callbacks, which is straightforward but scattered throughout the widget.
+
+With a controller, those side effects would live in dedicated methods, which is cleaner conceptually. The picker sheets would also be simpler: instead of calling setState after closing, they'd invoke controller methods and let the controller handle notifying listeners. That's definitely an improvement over the current pattern.
+
+Let me start writing the code now. I'll tackle the controller and form first, then move through the sections and pickers, and finally rewrite the screens.
+
+Actually, there's one more thing I need to think through before diving in. The cubit state needs to be passed down to the sections so they can access wallets and budget for the pickers. The cleanest approach is to have the form compute all derived data upfront and pass it as constructor arguments to each section—this keeps them pure and testable, with no internal computation. Now I'm ready to start writing the controller and form structure. The sections should be stateless widgets that receive the controller as a const snapshot and callbacks for mutations, keeping the form widget responsible for calling setState whenever the controller changes. This keeps the architecture simple without introducing unnecessary reactive patterns—the controller is just a data container, and the form manages the rebuild cycle. Defining each section's props... I'm promoting several private widgets to public in the widgets folder so they can be reused across the codebase—things like the amount field, row cards, date/time components, category sections, and allocation options that were previously internal to the transaction sheet.
+
+Now I need to write out about 20 files for this refactor, starting with the state container and main form widget, then moving through individual section files for type, amount, target, wallet, category, datetime, notes, recurring settings, and actions. The last two files are thin wrapper screens for the transaction and recurring transaction composers. Now I'm thinking through the implementation details more carefully—specifically how to extract the allocation picker into a reusable sheet function. The current approach uses StatefulBuilder inside the bottom sheet to access the form's state, and when a user selects an option, it updates the form state and closes the sheet. I need to figure out how to pass the current allocation values and handle the callback properly when extracting this into a separate function. The allocation picker doesn't need its own state—it just displays the current selection and triggers a callback when tapped, same pattern as the wallet picker. Now I'm building out the TransactionFormController class to hold all the form state as plain properties without any business logic or side effects.
+
+Defining controller properties... Adding more controllers and computed properties... Setting up the form widget to initialize the controller in initState and then attach listeners to the amount, debt principal, and installment count fields so they trigger rebuilds when values change.
+
+In dispose, I'm removing those listeners and cleaning up the controller itself. For mutations like changing the transaction type, I'm wrapping the state changes in setState so the UI updates accordingly.
+
+Now I'm ready to write out the actual implementation. I'll create the picker sheets as functions that handle the modal presentation and pass callbacks back up for selections.
+
+Writing picker sheet code... Writing the controller... Adding more constructor parameters... Setting up text controllers for amount, notes, recurring name, categories, and debt-related fields, then defining computed properties to check if the recurrence pattern matches weekly or monthly intervals. Adding computed properties for installment calculations... Continuing the validation logic for normal mode, checking that the amount is positive and validating budget constraints for expenses.
+
+Now I'm setting up the dispose method to clean up all the text controllers, then moving into the factory constructor that initializes the form controller from the AddTransactionScreen parameters. Setting up default values for recurring transaction properties like recurrence pattern, automation type, and scheduling details, along with initializing collections for selected weekdays and category selections. Setting up the recurring transaction mode by determining the type and plan kind based on whether it's subscription or debt only, then populating the controllers with initial values from an existing recurring transaction if one was provided. Setting the jar target ID and budget scope for expenses, then adjusting the date to clamp the day between 1 and 28, and initializing various recurring transaction properties like execution type, expense plan kind, and income/debt flags along with monthly and yearly scheduling parameters.
+
+Now I'm populating the reminder lead days, adding selected categories and weekdays (defaulting to the current weekday if none are specified), parsing the scheduled time, and handling the anchor date for the first payment along with debt principal information. Setting the execution type to manual for variable income transactions, then populating the form fields from the initial transaction if it exists—extracting the type, date, time, wallet, amount, notes, and income source, plus handling budget-related fields for expenses. Finishing the income jar assignment and then constructing the TransactionFormController with all the extracted values from the transaction object. Writing controller initialization... Writing the form files... Continuing with the file structure for the remaining sections, pickers, and shared widgets that handle the form's UI components.
+
+Now I'm thinking through the implementation approach — AddTransactionScreen is a thin wrapper that just passes parameters to TransactionEntryForm since it's already a bottom-sheet widget without needing a Scaffold. I need to clarify how it's currently being used before I start writing the code. I need to be careful about the Scaffold structure since the form will be rendered as a bottom sheet without its own Scaffold, and I should move those private widget classes into the shared widgets directory with proper public names like TransactionAmountField. I've decided to keep the smaller private widgets in their respective files to avoid unnecessary file proliferation, but I'll extract _SheetSectionLabel as a public widget since it's reused across multiple picker sheets. Now I'm ready to start writing the code systematically, beginning with the core form files and then moving through the remaining components in batches. I need to finish refactoring the remaining screens and handle the shared widgets by embedding them as private classes within their respective section files rather than creating separate files for each one. Let me start with the controller since everything depends on it, then move through the form widget and sections.
+
+For the form widget's build method, I'm handling the budget target ID invalidation check that clears the selection if it's no longer in the available allocations, and I'm also managing the wallet auto-selection logic that reads from the cubit state.
+
+Now I'm writing out the controller, form, and sections together. I need to be careful with the recurring categories section since it currently uses a multi-select adapter that takes only the first selected category ID and passes it to the single-select categories section, then updates the full set on selection change. I need to use _CategoriesSection for both single and recurring modes, wrapping it appropriately to manage the selected category IDs. Now I'm ready to write out all the files—I'll batch them together and run analysis once at the end to catch any errors. The key constraint is that the picker sheets need the parent form to handle state updates.
+
+Designing the picker sheets so they call a callback when the user selects something, letting the parent form or section respond with setState.
+
+Writing picker sheet code...
+
+I have the full picture. Before writing code, here's the complete plan derived from the code and Chapter 10:
+
+What Chapter 10 says architecturally: A Transaction is a recorded financial event. A RecurringTransactionEntity is a "scheduled intention" (Chapter 9). Both share the same financial entry pipeline. Lent money is a separate domain concept entirely (Person-Level Ledger). Therefore: one shared entry form, two thin screen wrappers.
+
+Exact structure I'll build:
+
+form/
+  transaction_form_controller.dart     — state + init + computed getters (no UI)
+  transaction_entry_form.dart          — ListView composer, submit logic
+  sections/
+    type_section.dart                  — income/expense toggle
+    amount_section.dart                — amount field + installment math display
+    target_section.dart                — allocation row (expense) / income target row
+    wallet_section.dart                — wallet row card
+    category_section.dart              — category chips
+    datetime_section.dart              — date + time row
+    notes_section.dart                 — notes field
+    recurring_settings_section.dart    — full recurring config block
+    actions_section.dart               — delete + submit
+  pickers/
+    wallet_picker_sheet.dart
+    allocation_picker_sheet.dart
+    income_target_picker_sheet.dart
+    category_add_dialog.dart
+screens/
+  add_transaction_screen.dart          — 30-line StatelessWidget wrapper
+  recurring_transaction_composer_screen.dart — Scaffold + lent form only
+
+
+Show less
+
+Created transaction_form_controller.dart
+Writing files in parallel
+
+Writing files in parallel
+Let me continue writing the files. I'll batch parallel writes for the sections and pickers.
+
+Let me now write the form widget, sections, pickers, and screen wrappers in parallel batches.
+
+I need to read a few more sections of the current file to understand the remaining pickers (allocation + income target) before writing them.
+
+Let me read the remaining sections I haven't seen yet, and write the next batch of files in parallel.
+
+
+Show less
+
+Opened add_transaction_screen.dart
+
+Opened add_transaction_screen.dart
+
+Opened add_transaction_screen.dart
+
+Opened recurring_transaction_composer_screen.dart
+Writing remaining files
+
+Writing remaining files
+Now I have everything I need. Let me write all the remaining files in parallel batches.
+
+I'll write:
+
+form/transaction_entry_form.dart - the main form widget
+form/sections/type_section.dart
+form/sections/amount_section.dart
+form/sections/target_section.dart
+form/sections/wallet_section.dart
+Then: 6. form/sections/category_section.dart 7. form/sections/datetime_section.dart 8. form/sections/notes_section.dart 9. form/sections/recurring_settings_section.dart 10. form/sections/actions_section.dart
+
+Followed by the picker sheets and dialogs for wallet selection, allocation picking, income targets, and category creation, then wrapping up with the transaction screen and recurring transaction handling.
+
+Now I'm starting with the main form widget. The transaction_entry_form.dart will be a stateful widget that takes the same parameters as the current screen, manages state through a controller, and handles all the complex logic like wallet auto-selection from allocations, expense impact confirmation, retroactive income posting, and the various picker dialogs for selecting wallets, allocations, and income targets.
+
+For the pickers, I'm extracting them into separate files but the form widget will call the top-level functions like showWalletPickerSheet() that return the selected value. The category add dialog will stay in the form widget since it needs access to the cubit for saving. The form widget will pass the cubit to the dialog so it can save the category after the user confirms, and the dialog itself just handles showing the UI and collecting input. I'm thinking about extracting showCategoryAddDialog into a separate picker file that returns the created category, keeping the cubit interaction and side effects in the form widget where they belong.
+
+For the income target and allocation pickers, they'll show a sheet and call back with multiple selected values at once, updating the controller fields through setState.
+
+Now I'm ready to write out all the files. I need to decide on the widget organization — the picker-related widgets like _AllocationOption, _AllocationRow, and _SheetSectionLabel are currently private in the main screen file. I'll move them into their respective picker sheet files as private widgets since both pickers use similar components. I'm reconsidering the naming to avoid redundancy—AllocationOptionCard, AllocationProgressRow, SheetSectionHeader, and MonthlyDayPickerTile are clearer public names that stand on their own. Now I'm ready to write out all the files.
+
+The _newCategoryController currently lives in the form state, but I'm moving it into TransactionFormController so the form widget can pass it directly to the category dialog via _ctrl.newCategoryController.
+
+Good, I have everything I need. Now I'll write all the files in parallel batches.
+
+
+Show less
+
+Created transaction_entry_form.dart
+Parallel file writing
+
+Parallel file writing
+Let me continue writing all the remaining files in parallel batches. I'll write 5-6 files at a time.
+
+Batch 2: sections (type, amount, target, wallet, category) Batch 3: sections (datetime, notes, recurring_settings, actions) Batch 4: pickers (wallet, allocation, income_target, category_add) Batch 5: screen wrappers (add_transaction_screen, recurring_transaction_composer_screen)
+
+Now writing all the sections and pickers in parallel.
+
+
+Show less
+
+Created type_section.dart
+Parallel file writing
+
+Parallel file writing
+Let me continue writing all the remaining files in parallel batches. I have 5+ files to write.
+
+
+Created amount_section.dart
+Writing remaining files
+
+Writing remaining files
+Let me continue writing the remaining files in parallel. I'll write 5-6 files at a time.
+
+I need to write:
+
+sections: target_section, wallet_section, category_section, datetime_section, notes_section, recurring_settings_section, actions_section
+pickers: wallet_picker_sheet, allocation_picker_sheet, income_target_picker_sheet, category_add_dialog
+screen wrappers: add_transaction_screen, (recurring_transaction_composer_screen just needs imports updated)
+
+Created target_section.dart
+Writing remaining files
+
+Writing remaining files
+Let me continue writing all the remaining files in parallel batches. I need to write:
+
+form/_shared/row_card.dart (referenced by target_section.dart)
+form/sections/wallet_section.dart
+form/sections/category_section.dart
+form/sections/datetime_section.dart
+form/sections/notes_section.dart
+form/sections/recurring_settings_section.dart
+form/sections/actions_section.dart
+form/pickers/wallet_picker_sheet.dart
+form/pickers/allocation_picker_sheet.dart
+form/pickers/income_target_picker_sheet.dart
+form/pickers/category_add_dialog.dart
+screens/add_transaction_screen.dart (thin wrapper)
+I'll batch these writes in parallel to speed things up.
+
+For the recurring settings section, I need to handle the most complex piece—it'll include a name field, icon and color picker button, and variable income toggle.
+
+The section also needs recurrence pattern controls like a dropdown for the pattern type, then conditional fields for weekday selection, time, month day, and year combinations depending on what's chosen. There's also an execution type dropdown, reminder settings, and installment fields for the first payment date.
+
+Since the form passes a mutable controller object and an onChanged callback, the section can directly modify the controller's fields and then trigger the callback to rebuild the parent. This keeps the pattern clean and straightforward.
+
+I'll move the day picker tile logic into this section as a private class since it's only needed here.
+
+Now I'm ready to start writing the implementation files, beginning with the simpler sections like the wallet, category, datetime, and notes sections, then moving to the more complex recurring settings section. I need to extract the private widget classes that are currently in add_transaction_screen.dart and reorganize them. _SheetSectionLabel is used across multiple picker files, so I'll move it to a shared file that the pickers can import. _AllocationOption and _AllocationRow are specific to the allocation picker, so they'll stay localized there.
+
+Actually, looking at the usage more carefully, _AllocationOption is needed by both the allocation and income target pickers, so I should extract these widgets into a shared directory structure under form/_shared/ with public class names like AllocationOptionCard, AllocationProgressRow, and SheetSectionLabel. I'll also need to handle the _AppIconPickerDialog.iconWidgetForName import path when setting up the pickers.
+
+Now I'm ready to write all the files in parallel since most of them don't depend on each other—the simple section files are independent, the pickers depend on the shared widgets, and the screen wrapper comes last. I see that allocation_progress_row.dart is only needed internally by allocation_picker_sheet.dart, so I'll keep it private there. Now I'm ready to write out all these files in parallel with a batch of WriteFile calls.
+
+
+Created row_card.dart
+Writing files in parallel batches
+
+Writing files in parallel batches
+Let me continue writing all the remaining files in parallel batches. I have many files to write. Let me batch as many as possible.
+
+Continuing with maximum parallelism — writing all remaining files at once.
+
+
+Show less
+
+Created sheet_section_label.dart
+Parallel file writing
+
+Parallel file writing
+Let me continue writing all remaining files in parallel batches. I'll write multiple files at once.
+
+
+Created wallet_section.dart
+Writing files in parallel
+
+Writing files in parallel
+Let me write all remaining files in parallel batches. I have many files to write.
+
+Files remaining:
+
+form/sections/category_section.dart
+form/sections/datetime_section.dart
+form/sections/notes_section.dart
+form/sections/recurring_settings_section.dart
+form/sections/actions_section.dart
+form/pickers/wallet_picker_sheet.dart
+form/pickers/allocation_picker_sheet.dart
+form/pickers/income_target_picker_sheet.dart
+form/pickers/category_add_dialog.dart
+screens/add_transaction_screen.dart (thin wrapper)
+Delete old widget file
+I'll write them all in one response.
+
+Writing all remaining files in parallel now.
+
+
+Show less
+
+Created category_section.dart
+Writing files in parallel
+
+Writing files in parallel
+Let me continue writing all the remaining files in parallel batches. I have many files left to write.
+
+Files remaining:
+
+form/sections/datetime_section.dart
+form/sections/notes_section.dart
+form/sections/recurring_settings_section.dart
+form/sections/actions_section.dart
+form/pickers/wallet_picker_sheet.dart
+form/pickers/allocation_picker_sheet.dart
+form/pickers/income_target_picker_sheet.dart
+form/pickers/category_add_dialog.dart
+screens/add_transaction_screen.dart (thin wrapper)
+Delete old transaction_entry_form widget (from previous failed attempt)
+I'll batch as many parallel writes as possible, aiming for 5-6 files at once.
+
+
+Created datetime_section.dart
+Writing remaining files
+
+Writing remaining files
+Let me continue writing all the remaining files in parallel batches. I have many files left to write. Let me write them all at once.
+
+Remaining files:
+
+form/sections/notes_section.dart
+form/sections/recurring_settings_section.dart
+form/sections/actions_section.dart
+form/pickers/wallet_picker_sheet.dart
+form/pickers/allocation_picker_sheet.dart
+form/pickers/income_target_picker_sheet.dart
+form/pickers/category_add_dialog.dart
+screens/add_transaction_screen.dart (thin wrapper)
+Possibly update screens/recurring_transaction_composer_screen.dart
+Delete old widgets/transaction_entry_form.dart if it exists
+I'll include the _DayPickerTile as a private class within the recurring settings section, and the pickers will need the AllocationOptionCard component.
+
+I'm going to create a shared file at form/_shared/allocation_option_card.dart so both picker files can use it without duplication. Now I'll write everything in parallel.
+
+Writing all remaining files in one parallel batch:
+
+
+Show less
+
+Created notes_section.dart
+Batching file writes
+
+Batching file writes
+Let me continue writing all remaining files in parallel. I need to write many files still. Let me batch them all at once.
+
+Writing all remaining files in one parallel batch:
+
+
+Show less
+
+Created allocation_option_card.dart
+Writing remaining files
+
+Writing remaining files
+Let me continue writing all remaining files in parallel batches. I'll write multiple files at once.
+
+Remaining files to write:
+
+form/sections/recurring_settings_section.dart
+form/sections/actions_section.dart
+form/pickers/wallet_picker_sheet.dart
+form/pickers/allocation_picker_sheet.dart
+form/pickers/income_target_picker_sheet.dart
+form/pickers/category_add_dialog.dart
+screens/add_transaction_screen.dart (thin wrapper)
+Possibly update screens/recurring_transaction_composer_screen.dart
+I'll tackle all of these in one batch, with the recurring settings section being the most substantial piece.
+
+Writing all remaining files in parallel now:
+
+
+Show less
+
+Created actions_section.dart
+Writing remaining files
+
+Writing remaining files
+Let me continue writing all the remaining files in parallel batches. I have many files left to write.
+
+Remaining:
+
+form/sections/recurring_settings_section.dart
+form/pickers/wallet_picker_sheet.dart
+form/pickers/allocation_picker_sheet.dart
+form/pickers/income_target_picker_sheet.dart
+form/pickers/category_add_dialog.dart
+screens/add_transaction_screen.dart (thin wrapper)
+Let me write all of these in parallel now.
+
+Writing all remaining files in parallel:
+
+
+Show less
+
+Created recurring_settings_section.dart
+Writing remaining files
+
+Writing remaining files
+Writing all remaining files in one parallel batch:
+
+
+Show less
+
+Created wallet_picker_sheet.dart
+Parallel file processing
+
+Parallel file processing
+Writing all remaining files in one batch:
+
+
+Show less
+
+Created allocation_picker_sheet.dart
+Writing remaining files
+
+Writing remaining files
+
+Created income_target_picker_sheet.dart
+You've reached your monthly free quota limit. It will reset on August 2, 2026.
+
+
+Worked for 13 minutes
+
+الكوته خلصت للساف وهو مرفعش بنفسه ولسة مخلصش قوي فالي هو عمله ده ارفعه تحت انهي عنوان وغالبا هيبقى في اجزاء مكسورة نكملها انا وانت 
