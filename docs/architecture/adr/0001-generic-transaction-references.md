@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # ADR-0001: Generic Transaction References (`referenceType` + `referenceId`)
 
 **الحالة:** مقترح (Proposed) — بانتظار تصميم مرحلة مراجعة نموذج البيانات القادمة.

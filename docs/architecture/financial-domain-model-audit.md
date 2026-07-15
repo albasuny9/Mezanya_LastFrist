@@ -1,3 +1,10 @@
+<!--
+Status: Reference
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Financial Domain Model Audit
 
 > وثيقة تدقيق معماري للكيانات المالية فقط: المسؤوليات، ملكية الحسابات، التسريبات، الازدواج، والمراجع غير المستقرة.

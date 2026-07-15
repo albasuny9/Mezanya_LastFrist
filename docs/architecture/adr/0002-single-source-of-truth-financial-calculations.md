@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # ADR-0002: Single Source of Truth for Financial Calculations
 
 **الحالة:** جزئيًا منفَّذ (Partially Implemented) — راجع قسم الحالة الحالية.

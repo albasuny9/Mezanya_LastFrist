@@ -1,3 +1,10 @@
+<!--
+Status: Reference
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 ---
 name: Money Distribution Domain Foundation
 description: Architecture decisions and non-obvious constraints for the Money Distribution domain and its relationship with Transaction/Budget domains.

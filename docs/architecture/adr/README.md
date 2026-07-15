@@ -1,3 +1,10 @@
+<!--
+Status: Reference
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Architecture Decision Records — Mezanya
 
 سجل قرارات معمارية مبنية على تدقيق مباشر للكود، لا تصور نظري. كل ADR

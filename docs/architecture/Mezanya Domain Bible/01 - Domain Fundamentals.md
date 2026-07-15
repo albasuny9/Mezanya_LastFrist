@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # الفصل الأول - المفاهيم الأساسية (Domain Fundamentals)
 
 > هذا الفصل يعرّف المفاهيم الأساسية التي يقوم عليها Mezanya. أي تطوير مستقبلي يجب أن يلتزم بهذه المفاهيم قبل التفكير في تفاصيل التنفيذ أو واجهات المستخدم.

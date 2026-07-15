@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # 02 - Financial Cycle
 
 ## Part 1 — Foundation of the Financial Cycle

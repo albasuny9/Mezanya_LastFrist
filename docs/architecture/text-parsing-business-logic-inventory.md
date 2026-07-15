@@ -1,3 +1,10 @@
+<!--
+Status: Historical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Text-Parsing Business Logic Inventory
 
 > جرد تشخيصي لمواضع منطق العمل المعتمد على تحليل النصوص داخل المشروع، مثل `notes.contains` و`startsWith` و`endsWith` ومطابقة النصوص داخل الحقول.

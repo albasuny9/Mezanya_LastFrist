@@ -1,3 +1,10 @@
+<!--
+Status: Implementation
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 ---
 name: Budget Phase 3 Service Extraction
 description: Phase 3 of budget feature refactor — pure business logic moved from budget_tracking_screen.dart into four domain services. Covers what was done, key decisions, and one behavioral nuance to carry forward.

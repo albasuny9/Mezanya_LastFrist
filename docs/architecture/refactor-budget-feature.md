@@ -1,3 +1,10 @@
+<!--
+Status: Implementation
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Architectural Refactor — Budget Feature
 
 ## What & Why

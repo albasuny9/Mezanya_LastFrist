@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Mezanya Financial Bible V2
 
 > **Version:** Draft V2.0\

@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # الفصل الثالث - تصنيف العمليات المالية بالمعنى التجاري (Business Semantics)
 
 > امتداد لـ `01 - Domain Fundamentals.md` و`02 - Financial Cycle`.

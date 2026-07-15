@@ -1,3 +1,10 @@
+<!--
+Status: Reference
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Money Location Engine v2 — Architecture Document
 
 > **Date:** 2026-07-07  

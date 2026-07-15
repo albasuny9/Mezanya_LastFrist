@@ -1,3 +1,10 @@
+<!--
+Status: Reference
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 ---
 name: Money Location Engine
 description: Key decisions and constraints for the MoneyLocationEngine redesign (walletSources domain)

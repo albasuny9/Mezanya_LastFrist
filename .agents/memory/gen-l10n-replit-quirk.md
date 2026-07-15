@@ -1,3 +1,10 @@
+<!--
+Status: Implementation
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 ---
 name: flutter gen-l10n Replit quirk
 description: flutter gen-l10n exits with code 1 on this Replit instance but the .dart files are written correctly — safe to ignore.

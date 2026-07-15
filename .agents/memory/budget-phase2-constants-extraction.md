@@ -1,3 +1,10 @@
+<!--
+Status: Implementation
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 ---
 name: Budget Phase 2 Constants Extraction
 description: What was done and key decisions from Phase 2 of the budget feature refactor — extracting named constants and date-format helpers.

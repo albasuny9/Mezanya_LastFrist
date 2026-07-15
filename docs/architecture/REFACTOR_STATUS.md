@@ -1,3 +1,10 @@
+<!--
+Status: Temporary
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Mezanya — Refactor Status & Gap Report
 
 > هذا الملف لا يكرر `MEZANYA-STRICT-ARCHITECTURAL-REFACTOR-SPECIFICATION.md` ولا

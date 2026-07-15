@@ -1,3 +1,10 @@
+<!--
+Status: Implementation
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # MEZANYA — STRICT ARCHITECTURAL REFACTOR SPECIFICATION (PRODUCTION SAFE)
 
 ## Mission

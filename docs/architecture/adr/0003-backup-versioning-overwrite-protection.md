@@ -1,3 +1,10 @@
+<!--
+Status: Canonical
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # ADR-0003: Backup Versioning and Overwrite Protection
 
 **الحالة:** مقترح (Proposed) — يوثّق فجوة أمان بيانات حقيقية غير محلولة.

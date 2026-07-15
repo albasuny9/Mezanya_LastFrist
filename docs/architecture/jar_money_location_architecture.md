@@ -1,3 +1,10 @@
+<!--
+Status: Implementation
+Owner: Mohamed Basuny
+Last Reviewed: 2026-07-15
+Superseded By: N/A
+-->
+
 # Jar Money Location / Reserved Money — Architectural Report
 
 > **Scope:** Read-only investigation. No code was modified.  
