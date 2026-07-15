@@ -1,2 +1,7 @@
 - [TransactionProcessor reverse backward-compat bug](tp-reverse-bc-fix.md) — OLD income sub-txns (parentId==null) had hasMatchingSourceChild hardcoded false → double-decrement → distributions wiped to 0.
 - [flutter gen-l10n Replit quirk](gen-l10n-replit-quirk.md) — crashes at dart format step (exit 1) but the three generated .dart files are written correctly; ignore the error.
+- [Money Location Engine](money-location-engine.md) — walletSources may only be mutated via MoneyLocationEngine; cited by ADR-0004 as one side of an unresolved money-ownership contradiction, flagged for future Domain Bible migration once resolved.
+- [Money Distribution Domain](money-distribution-domain.md) — TransactionProcessor must never call DistributionEngine/MoneyLocationEngine directly; cited by ADR-0004 as the other side of the same unresolved contradiction.
+- [Budget Phase 1 — Widget Extraction](budget-phase1-widget-extraction.md) — widgets extracted out of budget_tracking_screen.dart into individual files; status complete.
+- [Budget Phase 2 — Constants Extraction](budget-phase2-constants-extraction.md) — inline magic literals (colors, radii, durations, date formats) centralized into three new files.
+- [Budget Phase 3 — Service Extraction](budget-phase3-service-extraction.md) — pure business logic moved from budget_tracking_screen.dart into four domain services; one behavioral nuance to carry forward.

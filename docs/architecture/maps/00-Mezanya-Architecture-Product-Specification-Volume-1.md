@@ -2,13 +2,13 @@
 
 **Version:** 1.0 (Living Document)
 
-**Status:** Authoritative Source of Truth
+**Status:** Reference — Superseded as source of truth by the Domain Bible (`docs/architecture/Mezanya Domain Bible/`). See `.agents/DOCUMENTATION_MAP.md` for the current documentation authority hierarchy.
 
 ------------------------------------------------------------------------
 
 # PREFACE
 
-This document is the single source of truth for the Mezanya project.
+This document was originally written as the single source of truth for the Mezanya project, before the Domain Bible existed. It has since been superseded: the Domain Bible (`docs/architecture/Mezanya Domain Bible/`) is now the sole source of truth for business rules, per `.agents/DOCUMENTATION_MAP.md`. This document remains valuable as reference/implementation-angle material.
 
 It is intentionally written before implementation.
 

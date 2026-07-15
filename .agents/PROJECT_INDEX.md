@@ -35,7 +35,7 @@ Every entry below states: Purpose, Authority, Owner, Read When, Dependencies, Re
 ## Architecture Docs (Reference / Implementation)
 **Location:** `docs/architecture/` (root-level files) and `docs/architecture/maps/`
 **Purpose:** Technical audits, architecture maps, and implementation references — how the system works today, where it's inconsistent, and what a refactor should look like.
-**Authority:** Reference only — explicitly superseded by the Domain Bible where content overlaps (see `.agents/DOCUMENTATION_MAP.md` §Authority Resolution). `maps/` Volume 1 self-labels "Authoritative Source of Truth"; that self-claim is superseded, not honored.
+**Authority:** Reference only — explicitly superseded by the Domain Bible where content overlaps (see `.agents/DOCUMENTATION_MAP.md` §Authority Resolution). `maps/` Volume 1's status line and preface now state directly in the file that it is superseded by the Domain Bible (corrected; it no longer claims to be the "Authoritative Source of Truth").
 **Owner:** Investigation/audit agents, reviewed by project owner.
 **Read When:** When implementing or auditing a specific area (financial calculations, money distribution, recurring engine, text-parsing business logic) (Workflow Step 7).
 **Dependencies:** Assumes the Domain Bible and ADRs as the ground truth they audit against; several files here directly informed ADR-0001 through ADR-0004.
@@ -93,7 +93,7 @@ Every entry below states: Purpose, Authority, Owner, Read When, Dependencies, Re
 **Dependencies:** None formally, but ADR-0004 cites `money-location-engine.md` and `money-distribution-domain.md` as source evidence, creating an informal dependency from architecture docs back onto memory — flagged as a filing concern in the audit report.
 **Related Documents:** See `.agents/DOCUMENTATION_MIGRATION_PLAN.md` for proposed (not yet executed) migrations of specific memory files into `docs/architecture/`.
 **Permanent or temporary:** Temporary by design, though in practice some entries document durable domain concepts that arguably belong in the Domain Bible/architecture docs instead (see audit report §Agent Memory Review).
-**Files:** `MEMORY.md` (index — currently indexes only 2 of the 7 topic files present, see audit report), `tp-reverse-bc-fix.md`, `gen-l10n-replit-quirk.md`, `budget-phase1-widget-extraction.md`, `budget-phase2-constants-extraction.md`, `budget-phase3-service-extraction.md`, `money-distribution-domain.md`, `money-location-engine.md`.
+**Files:** `MEMORY.md` (index — now indexes all 7 topic files present), `tp-reverse-bc-fix.md`, `gen-l10n-replit-quirk.md`, `budget-phase1-widget-extraction.md`, `budget-phase2-constants-extraction.md`, `budget-phase3-service-extraction.md`, `money-distribution-domain.md`, `money-location-engine.md`.
 
 ---
 
@@ -105,5 +105,5 @@ Every entry below states: Purpose, Authority, Owner, Read When, Dependencies, Re
 **Read When:** `replit.md` always (Replit loads it automatically). The rest only if specifically relevant.
 **Dependencies:** `replit.md`'s "User preferences" section references `docs/project/Task Plan - Replit.md` and `docs/project/Bug_Backlog.md` directly.
 **Related Documents:** `project_documentation.md` overlaps with `docs/architecture/Mezanya Domain Bible/` and `docs/architecture/maps/` content; `TRANSACTION_ARCHITECTURE_AUDIT.md` overlaps with `docs/architecture/financial-domain-model-audit.md` and `docs/architecture/unified-recurring-engine-review.md` (not cross-linked; overlap not yet verified line-by-line — flagged as Unknown extent of duplication).
-**Permanent or temporary:** `replit.md` permanent/living. `README.md` — Historical (describes a different app name, "Korassa"; stale). `project_documentation.md` — Reference (overlaps with Domain Bible/MAPS; not authoritative). `FLUTTER_AI_HANDOFF_AR.md` — Historical (greenfield handoff brief). `TRANSACTION_ARCHITECTURE_AUDIT.md` — Reference (standalone investigation, not integrated into `docs/`).
+**Permanent or temporary:** `replit.md` permanent/living. `README.md` — Reference (rewritten as a short, accurate pointer to Mezanya's docs; no longer describes the unrelated "Korassa" app). `project_documentation.md` — Reference (overlaps with Domain Bible/MAPS; not authoritative). `FLUTTER_AI_HANDOFF_AR.md` — Historical (greenfield handoff brief). `TRANSACTION_ARCHITECTURE_AUDIT.md` — Reference (standalone investigation, not integrated into `docs/`).
 **Files:** `replit.md`, `README.md`, `project_documentation.md`, `FLUTTER_AI_HANDOFF_AR.md`, `TRANSACTION_ARCHITECTURE_AUDIT.md`.
