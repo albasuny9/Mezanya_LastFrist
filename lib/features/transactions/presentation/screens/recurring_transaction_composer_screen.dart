@@ -4,7 +4,7 @@ import 'package:mezanya_app/core/constants/transaction_types.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../data/subscription_service_presets.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
-import 'add_transaction_screen.dart';
+import '../form/transaction_entry_form.dart';
 
 // ---------------------------------------------------------------------------
 // Result type — kept for backward compat with all existing callers that use
@@ -28,9 +28,10 @@ class RecurringTransactionComposerResult {
 }
 
 // ---------------------------------------------------------------------------
-// Screen — thin Scaffold wrapper around AddTransactionScreen.
+// Screen — thin Scaffold wrapper around TransactionEntryForm.
 // Only the lent form is handled here (it is a completely different UX with
-// its own fields and submit path, not duplicated in AddTransactionScreen).
+// its own fields and submit path — a separate domain concept per the
+// Transaction Lifecycle chapter, not part of the shared entry form).
 // ---------------------------------------------------------------------------
 class RecurringTransactionComposerScreen extends StatefulWidget {
   const RecurringTransactionComposerScreen({
@@ -136,14 +137,14 @@ class _RecurringTransactionComposerScreenState
     return isNew ? 'إضافة مصروف متكرر' : 'تعديل مصروف متكرر';
   }
 
-  // Build the initialRecurring to pass to AddTransactionScreen, optionally
+  // Build the initialRecurring to pass to TransactionEntryForm, optionally
   // patched with subscription preset icon/color.
   RecurringTransactionEntity? get _effectiveInitialRecurring {
     final r = widget.initialRecurring;
     if (r != null) return r;
     if (_presetIconName == null) return null;
     // Return a shell entity just to carry the icon/color defaults.
-    // AddTransactionScreen reads icon/iconColor from initialRecurring when set.
+    // TransactionEntryForm reads icon/iconColor from initialRecurring when set.
     return RecurringTransactionEntity(
       id: '',
       name: '',
@@ -198,7 +199,7 @@ class _RecurringTransactionComposerScreenState
       );
     }
 
-    // All other modes: delegate entirely to AddTransactionScreen.
+    // All other modes: delegate entirely to the shared entry form.
     return Column(
       children: [
         // Debt/lent toggle (only shown in debtOnlyMode)
@@ -209,7 +210,7 @@ class _RecurringTransactionComposerScreenState
           ),
         ],
         Expanded(
-          child: AddTransactionScreen(
+          child: TransactionEntryForm(
             cubit: widget.cubit,
             recurringMode: true,
             recurringType: widget.initialType,

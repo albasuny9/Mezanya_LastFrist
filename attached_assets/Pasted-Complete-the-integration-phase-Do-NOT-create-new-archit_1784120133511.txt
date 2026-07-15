@@ -1,0 +1,95 @@
+Complete the integration phase.
+
+Do NOT create new architecture.
+
+Do NOT start another refactor.
+
+Do NOT optimize.
+
+Your goal is to finish the interrupted refactor that was left incomplete by the previous session.
+
+The architecture has already been approved.
+
+=========================================================
+INTEGRATION
+=========================================================
+
+Connect the already-built TransactionEntryForm to the application.
+
+Priority:
+
+1. Replace AddTransactionScreen with a thin wrapper that delegates to TransactionEntryForm.
+
+2. Update RecurringTransactionComposer to use the shared TransactionEntryForm while preserving the existing Lent Money flow.
+
+=========================================================
+COMPILATION STABILIZATION
+=========================================================
+
+Before any cleanup work:
+
+Fix every compilation error introduced by the interrupted refactor.
+
+This explicitly includes:
+
+- Implement the missing category_add_dialog.dart using the previous implementation from the monolithic screen.
+
+- Restore showCategoryAddDialog().
+
+- Fix broken imports.
+
+- Fix broken references.
+
+- Resolve any analyzer errors introduced by the unfinished extraction.
+
+The refactor is NOT complete until these errors are resolved.
+
+=========================================================
+VERIFICATION
+=========================================================
+
+Run flutter analyze.
+
+Then launch the application.
+
+Verify that:
+
+- Manual transaction entry works.
+
+- Recurring transaction entry works.
+
+- Category creation works.
+
+- Existing behavior is unchanged.
+
+If any runtime issue appears, fix it before continuing.
+
+=========================================================
+CLEANUP
+=========================================================
+
+Only after the application is confirmed working:
+
+Remove duplicated code from the old monolithic implementation that has already been replaced.
+
+Do NOT remove anything that is still required.
+
+=========================================================
+FINAL REPORT
+=========================================================
+
+Report:
+
+- Files completed.
+
+- Files modified.
+
+- Files removed.
+
+- Analyzer status.
+
+- Runtime verification status.
+
+- Remaining technical debt (if any).
+
+Stop only after the new transaction-entry pipeline is actually in use and the project builds successfully.
