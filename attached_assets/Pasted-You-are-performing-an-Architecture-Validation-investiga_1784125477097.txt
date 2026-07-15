@@ -1,0 +1,262 @@
+You are performing an Architecture Validation investigation.
+
+This is a READ-ONLY investigation.
+
+Do NOT modify any code.
+
+Do NOT refactor.
+
+Do NOT optimize.
+
+Do NOT fix bugs.
+
+Do NOT create new documentation.
+
+Your only goal is to determine whether the current implementation matches the approved Mezanya domain.
+
+=========================================================
+FIRST
+=========================================================
+
+Read these documents completely before inspecting the code:
+
+1.
+.agents/CURRENT_STATE.md
+
+2.
+docs/architecture/Mezanya Domain Bible/03 - Transfers.md
+
+3.
+docs/architecture/Mezanya Domain Bible/04 - Financial Engine.md
+
+4.
+docs/architecture/Mezanya Domain Bible/10 - Transaction Lifecycle.md
+
+Do not assume anything outside these documents.
+
+=========================================================
+INVESTIGATION SCOPE
+=========================================================
+
+Investigate ONLY these movement types:
+
+1.
+
+Wallet → Wallet
+
+2.
+
+Jar → Jar
+
+3.
+
+Allocation → Jar
+
+Ignore every other feature.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+Determine whether each movement is implemented according to the Domain Bible.
+
+Trace each movement completely.
+
+Start from the UI.
+
+Continue through:
+
+- screen
+- cubit
+- services
+- processor
+- persistence
+- editing
+- deletion
+- reverse
+- history
+- transaction details
+
+Follow the entire lifecycle.
+
+=========================================================
+FOR EACH MOVEMENT
+=========================================================
+
+Answer all of the following.
+
+1.
+
+What is the business meaning?
+
+2.
+
+Which objects actually change?
+
+Examples:
+
+Actual Wallet Balance
+
+Jar Balance
+
+Allocation
+
+Money Location
+
+Budget
+
+Reservation
+
+Distribution
+
+3.
+
+Does it create a Transaction?
+
+If yes:
+
+What Transaction Type?
+
+4.
+
+Does it create sub-transactions?
+
+5.
+
+How is it stored?
+
+6.
+
+How is it edited?
+
+7.
+
+How is it deleted?
+
+8.
+
+How is it reversed?
+
+9.
+
+Does editing preserve its Business Identity?
+
+10.
+
+Does editing accidentally convert it into another transaction type?
+
+11.
+
+Does any part of the implementation depend on:
+
+- notes
+
+- labels
+
+- localized text
+
+- UI strings
+
+instead of explicit domain fields?
+
+If yes:
+
+show exact evidence.
+
+12.
+
+Is there any place where the implementation violates:
+
+Chapter 03
+
+Chapter 04
+
+Chapter 10
+
+Provide exact evidence.
+
+=========================================================
+SPECIAL INVESTIGATION
+=========================================================
+
+Investigate the Wallet → Wallet edit flow carefully.
+
+There is a reported behavior:
+
+After editing a wallet transfer, it opens as a normal transaction.
+
+Changing the notes can break the transfer.
+
+Determine EXACTLY why.
+
+Find the root cause.
+
+Do NOT suggest fixes yet.
+
+=========================================================
+OUTPUT
+=========================================================
+
+Produce a report only.
+
+Use this format.
+
+--------------------------------
+
+Movement:
+
+Wallet → Wallet
+
+Domain Meaning
+
+Implementation Trace
+
+Business Identity
+
+Storage
+
+Edit
+
+Delete
+
+Reverse
+
+Violations
+
+Evidence
+
+Conclusion
+
+--------------------------------
+
+Repeat for:
+
+Jar → Jar
+
+Allocation → Jar
+
+--------------------------------
+
+Finally produce:
+
+Architecture Risk Assessment
+
+List every mismatch between the Domain Bible and the implementation.
+
+Classify each one as:
+
+- Bug
+
+- Architecture Violation
+
+- Implementation Limitation
+
+- Documentation Gap
+
+No fixes.
+
+No implementation suggestions.
+
+No code changes.
+
+Stop after the investigation.
