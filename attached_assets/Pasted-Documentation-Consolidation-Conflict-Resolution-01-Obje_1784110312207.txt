@@ -1,0 +1,247 @@
+Documentation Consolidation – Conflict Resolution 01
+
+Objective
+
+Resolve the first documented Domain Bible conflict regarding Transaction Deletion and Financial History.
+
+This is NOT a migration batch.
+
+This is a Domain Bible consistency task.
+
+==================================================
+SCOPE
+==================================================
+
+Review ONLY:
+
+- Chapter 10 - Transaction Lifecycle
+- Chapter 11 - Financial Ledger
+
+Use previous migration reports only as context.
+
+Do NOT inspect code.
+
+Do NOT inspect implementation.
+
+Do NOT inspect Flutter.
+
+Do NOT inspect Dart.
+
+Do NOT inspect ADR implementation proposals.
+
+==================================================
+BACKGROUND
+==================================================
+
+The current Bible contains an unresolved conflict.
+
+Chapter 10 currently describes:
+
+Delete
+
+↓
+
+Reverse Financial Effects
+
+↓
+
+Remove Transaction
+
+Chapter 11 introduces the idea that financial history should remain explainable and references archival instead.
+
+Both cannot remain as written.
+
+==================================================
+DOMAIN DECISION
+==================================================
+
+The Mezanya domain model is now defined as follows.
+
+There are THREE completely different concepts.
+
+--------------------------------------------------
+
+1.
+
+Financial Transaction
+
+This is the financial truth.
+
+It changes balances.
+
+It participates in reports.
+
+It participates in budgets.
+
+It participates in analytics.
+
+Once deleted, its financial effect is reversed.
+
+After deletion it no longer exists as an active transaction.
+
+--------------------------------------------------
+
+2.
+
+Recovery History (Undo History)
+
+This is NOT financial history.
+
+This is NOT part of the Financial Ledger.
+
+Its only purpose is:
+
+- temporary recovery
+- undo
+- rollback
+- recent edits
+
+It stores snapshots of:
+
+- edited transactions
+- deleted transactions
+- important temporary recovery information
+
+It exists only for a limited retention period.
+
+Example:
+
+14 days.
+
+After expiration it is permanently deleted.
+
+Recovery History never participates in:
+
+- balances
+- reports
+- analytics
+- budgeting
+
+--------------------------------------------------
+
+3.
+
+Activity Log
+
+Activity Log is separate from Recovery History.
+
+It records only important administrative events.
+
+Examples:
+
+Budget created.
+
+Budget modified.
+
+Jar created.
+
+Jar deleted.
+
+Goal modified.
+
+It is NOT intended to log every UI action or application setting.
+
+It also follows its own retention policy.
+
+==================================================
+REQUIRED CHANGES
+==================================================
+
+Update Chapter 10.
+
+Replace the Delete concept so it becomes:
+
+Reverse Financial Effect
+
+↓
+
+Remove Active Transaction
+
+↓
+
+Create Temporary Recovery Snapshot
+
+Do NOT describe snapshots as permanent archives.
+
+--------------------------------------------------
+
+Update Chapter 11.
+
+Clarify that:
+
+Financial Ledger contains only committed financial truth.
+
+Recovery History is outside the Financial Ledger.
+
+Recovery snapshots are temporary operational data.
+
+Financial Ledger never depends on Recovery History.
+
+--------------------------------------------------
+
+Clarify throughout both chapters:
+
+Financial Ledger
+
+≠
+
+Recovery History
+
+≠
+
+Activity Log
+
+==================================================
+DO NOT ADD
+==================================================
+
+Do NOT invent database tables.
+
+Do NOT invent entities.
+
+Do NOT invent implementation.
+
+Do NOT invent retention mechanisms.
+
+Do NOT invent synchronization.
+
+Do NOT describe storage.
+
+Keep everything at the Domain level only.
+
+==================================================
+OUTPUT
+==================================================
+
+Produce a Conflict Resolution Report containing:
+
+1.
+
+Conflict summary.
+
+2.
+
+Changes made to Chapter 10.
+
+3.
+
+Changes made to Chapter 11.
+
+4.
+
+Final domain definitions for:
+
+- Financial Transaction
+- Financial Ledger
+- Recovery History
+- Activity Log
+
+5.
+
+Cross references added.
+
+6.
+
+Remaining unresolved conflicts (if any).
+
+Stop after completing Conflict Resolution 01.
