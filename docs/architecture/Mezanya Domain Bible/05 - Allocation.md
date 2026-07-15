@@ -252,55 +252,150 @@ Allocation (Monthly Plan)
 
 ---
 
-# 12. خريطة ذهنية مبسطة
+# 12. Money Location as a reconciliation map
 
-```text
-Wallet
-  ↓
-Actual Money
+Money Location in Mezanya is not a physical place by itself.
 
-Allocation
-  ↓
-Budget Plan
+It is a reconciliation-oriented mapping that explains how reserved money is currently backed.
 
-Jar
-  ↓
-Permanent Purpose
+This mapping can point to a physical wallet, or it can be temporarily incomplete while the user is still recording what actually happened in real life.
 
-Allocation → Jar
-  = Budget Reservation
+The application must always allow the user to record the real event first.
+The money-location map may be corrected later.
 
-Jar → Allocation
-  = Reservation Release
+That means Money Location is allowed to be temporarily inconsistent with the jar balance or with the recorded event history.
 
-Wallet → Jar
-  = Physical Deposit to Jar
-```
+This is not a failure of the domain.
+It is a reflection of real life.
 
 ---
 
-# 13. ما الذي لا يشرحه هذا الفصل
+# 13. Money Location with negative jar balance
 
-هذا الفصل لا يشرح:
+A jar may temporarily go negative.
 
-- كيفية تنفيذ الحركات برمجيًا.
-- كيف تُخزن المعاملات.
-- كيف تُعاد العملية أو تُحذف.
-- كيف يتم الإظهار في الواجهة.
-- كيف تتعامل المعاملات المتكررة مع هذه الكيانات.
+When that happens, a later deposit cannot be treated as if the entire deposited amount is newly available to the jar location map.
 
-هذه التفاصيل مكانها الفصول الأخرى، خصوصًا Financial Engine وTransfers وRecurring Operations.
+The deposit must first cover the negative part, and only the remaining positive portion may become available as mapped reserved money.
+
+Example:
+
+- Jar balance = -300
+- Deposit = 1000 from Cash Wallet
+
+Then:
+
+- 300 covers the deficit
+- 700 remains as positive jar-backed value
+
+This prevents Money Location from becoming larger than the jar's real effective balance.
+
+The money-location layer must therefore obey balance-aware reconciliation rules, not just simple labels.
 
 ---
 
-# 14. الخلاصة
+# 14. Reconciliation-oriented behavior
 
-الـ Allocation هو خطة مالية داخل الدورة.
+The Money Location layer should behave like a reconciliation layer, not a strict enforcement layer.
 
-والـ Jar هو هدف دائم لحجز المال.
+That means it should:
 
-والمال الحقيقي لا يخرج من Wallet إلا عندما توجد حركة فعلية.
+- detect inconsistencies
+- surface them to the user
+- help the user review them
+- allow later correction
+- optionally support automatic reconciliation if a policy exists
 
-أما التحويل بين Allocation وJar فهو إعادة توزيع للملكية أو الحجز أو الهدف داخل النظام المالي، لا مجرد نقل بين محافظ.
+It should not reject real user history.
+It should not rewrite the event into something else just to satisfy the map.
 
-هذا الفصل يثبت أن Jar كيان واحد، وأن الاختلاف الحقيقي يكون في المعاملة التي أثرت عليه، وليس في نوع الحصالة نفسها.
+---
+
+# 15. Real life is not deterministic
+
+Real financial behavior is often messy.
+
+The same jar may be funded from one wallet, then later spent from another wallet, then corrected later, then reviewed again.
+
+The domain must reflect that reality.
+
+So the application should preserve the recorded transaction as the truth of what happened, while the Money Location Map can be reviewed, corrected, or reconciled later.
+
+---
+
+# 16. Candidate rules for future migration into the Bible
+
+The following ideas look strong enough to become canonical later, but they are not finalized here:
+
+- Jar is a single entity with no physical/virtual subtype.
+- Allocation is budget-cycle planning.
+- Budget Reservation moves money from cycle-planned to jar-reserved state.
+- Reservation Release moves it back.
+- Physical Deposit to Jar decreases a real wallet.
+- Money Location is a mapping layer, not a physical location.
+- Money Location must allow temporary inconsistency.
+- Reconciliation should be possible after recording the real event.
+- Shared jars should be supported as a future workspace extension.
+- Money Location must be balance-aware when a jar can temporarily go negative.
+
+---
+
+# 17. Open questions
+
+- Is Money Location part of domain state or a derived reconciliation model?
+- Which exact rules should govern temporary inconsistency?
+- What is the right user-facing name for the money location concept?
+- How should shared jars expose ownership or participation?
+- Should reconciliation be automatic, manual, or hybrid?
+- Which operations require strict consistency and which operations can remain loose until review?
+
+---
+
+# 18. Postponed topics
+
+The following topics are intentionally postponed and should not be solved inside this document:
+
+- full transaction implementation
+- UI design for money location editing
+- automatic reconciliation algorithms
+- workspace membership rules
+- ownership sharing formulas
+- budget-to-jar UI flows
+- transfer refactors
+
+---
+
+# 19. Candidate chapters that may eventually receive this content
+
+Likely target chapters in the Bible:
+
+- Chapter 03 — Transfers
+- Chapter 04 — Financial Engine
+- Chapter 05 — Allocation
+- Chapter 09 — Recurring Operations
+
+This exploration may also require a dedicated money-location chapter later if the concept grows further.
+
+---
+
+# 20. Existing chapters that may need revision
+
+The following chapters may need review if this exploration becomes canonical:
+
+- Chapter 01 — Domain Fundamentals
+- Chapter 03 — Transfers
+- Chapter 04 — Financial Engine
+- Chapter 05 — Allocation
+
+---
+
+# 21. Summary
+
+Money Location should be treated as a reconciliation-aware mapping over real financial reality, not as a rigid enforcement gate.
+
+The domain must preserve the recorded real event even if the current map is imperfect.
+
+Jar remains one entity.
+Allocation remains cycle planning.
+Wallet remains the real balance holder.
+The Money Location layer helps explain, reconcile, and review how jar-backed money is currently sourced.
