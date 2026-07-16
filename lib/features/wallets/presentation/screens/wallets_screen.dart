@@ -1,7 +1,7 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/utils/transaction_display_format.dart';
@@ -1600,8 +1600,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             }
                           },
                           icon: const Icon(Icons.calendar_month_outlined),
-                          label: Text(
-                              DateFormat('d MMM yyyy', 'ar').format(selectedDate)),
+                          label: Text(DateFormat('d MMM yyyy', 'ar')
+                              .format(selectedDate)),
                         ),
                       ),
                       const SizedBox(width: 8),
