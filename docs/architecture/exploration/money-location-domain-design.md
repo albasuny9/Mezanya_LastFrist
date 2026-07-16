@@ -257,6 +257,67 @@ The following chapters may need review if this exploration becomes canonical:
 
 ---
 
+# 16. Candidate rules for future migration into the Bible
+
+The following ideas look strong enough to become canonical later, but they are not finalized here:
+
+- Jar is a single entity with no physical/virtual subtype.
+- Allocation is budget-cycle planning.
+- Budget Reservation moves money from cycle-planned to jar-reserved state.
+- Reservation Release moves it back.
+- Physical Deposit to Jar decreases a real wallet.
+- Money Location is a reconciliation-aware mapping, not a physical location.
+- Money Location must allow temporary inconsistency.
+- Reconciliation should be possible after recording the real event.
+- Money Location must be balance-aware when a jar can temporarily go negative.
+
+---
+
+# 17. Open questions
+
+- Is Money Location part of domain state or a derived reconciliation model?
+- Which exact rules should govern temporary inconsistency?
+- What is the right user-facing name for the money location concept?
+- Should reconciliation be automatic, manual, or hybrid?
+- Which operations require strict consistency and which operations can remain loose until review?
+
+---
+
+# 18. Postponed topics
+
+The following topics are intentionally postponed and should not be solved inside this document:
+
+- full transaction implementation
+- UI design for money location editing
+- automatic reconciliation algorithms
+- budget-to-jar UI flows
+- transfer refactors
+
+---
+
+# 19. Candidate chapters that may eventually receive this content
+
+Likely target chapters in the Bible:
+
+- Chapter 03 — Transfers
+- Chapter 04 — Financial Engine
+- Chapter 05 — Allocation
+
+This exploration may also require a dedicated money-location chapter later if the concept grows further.
+
+---
+
+# 20. Existing chapters that may require revision
+
+The following chapters may need review if this exploration becomes canonical:
+
+- Chapter 01 — Domain Fundamentals
+- Chapter 03 — Transfers
+- Chapter 04 — Financial Engine
+- Chapter 05 — Allocation
+
+---
+
 ## 16. Summary
 
 Money Location should be treated as a reconciliation-aware mapping over real financial reality, not as a rigid enforcement gate.
