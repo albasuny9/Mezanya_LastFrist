@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/utils/transaction_display_format.dart';
 import '../transaction_form_controller.dart';
 import '../widgets/amount_calculator_sheet.dart';
 
@@ -79,7 +80,8 @@ class _AmountField extends StatelessWidget {
                   final result = await showAmountCalculatorSheet(context);
                   if (!context.mounted) return;
                   if (result != null) {
-                    controller.text = result.toStringAsFixed(2);
+                    // Use the canonical amount formatter — same as manual entry
+                    controller.text = formatAmountInput(result);
                     // Place cursor at end, keep field unfocused (no autofocus)
                     controller.selection = TextSelection.fromPosition(
                       TextPosition(offset: controller.text.length),

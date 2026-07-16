@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../../core/utils/transaction_display_format.dart';
+
 // ---------------------------------------------------------------------------
 // Amount Calculator Sheet
 //
 // Opens as a modal bottom sheet. Returns the computed double on confirm,
 // or null on cancel (swipe down / dismiss).
-// No scientific functions — basic arithmetic only.
+//
+// Operator precedence: × and ÷ are evaluated before + and − (standard
+// arithmetic precedence). A two-pass evaluator handles this without
+// requiring a full expression parser.
 // ---------------------------------------------------------------------------
 
 Future<double?> showAmountCalculatorSheet(BuildContext context) {
@@ -26,38 +31,98 @@ class _CalculatorSheet extends StatefulWidget {
 }
 
 class _CalculatorSheetState extends State<_CalculatorSheet> {
-  // ── Calculator state ─────────────────────────────────────────────────────
-  String _currentToken = ''; // digits being typed right now
-  double _accumulated = 0;
-  String? _pendingOp; // +  −  ×  ÷
-  bool _freshAfterEquals = false; // next digit starts a new token after =
+  // ── Expression state ──────────────────────────────────────────────────────
+  // The expression is stored as parallel lists so precedence can be applied
+  // correctly on evaluation: first pass resolves × / ÷, second pass + / −.
+  //
+  // Example:  100 + 20 × 3
+  //   _values    = [100, 20]   after typing 3
+  //   _operators = ['+', '×']
+  //   _currentToken = '3'
+  //   → evaluate: 20×3=60, then 100+60=160  ✓
+  List<double> _values = [];
+  List<String> _operators = [];
+  String _currentToken = ''; // digits the user is currently typing
+  bool _freshAfterEquals = false; // next digit starts a new expression
+
+  // ── Evaluator ─────────────────────────────────────────────────────────────
+  /// Two-pass evaluation respecting standard operator precedence.
+  /// Pass 1 resolves × and ÷ (left-to-right).
+  /// Pass 2 resolves + and − (left-to-right).
+  static double _evaluateExpression(
+    List<double> values,
+    List<String> operators,
+  ) {
+    if (values.isEmpty) return 0;
+    if (operators.isEmpty) return values.first;
+
+    final vals = List<double>.from(values);
+    final ops = List<String>.from(operators);
+
+    // Pass 1: × and ÷
+    int i = 0;
+    while (i < ops.length) {
+      if (ops[i] == '×' || ops[i] == '÷') {
+        final a = vals[i];
+        final b = vals[i + 1];
+        final result = ops[i] == '×' ? a * b : (b != 0 ? a / b : a);
+        vals[i] = result;
+        vals.removeAt(i + 1);
+        ops.removeAt(i);
+        // stay at same index to check the next operator
+      } else {
+        i++;
+      }
+    }
+
+    // Pass 2: + and −
+    double result = vals[0];
+    for (int j = 0; j < ops.length; j++) {
+      if (ops[j] == '+') {
+        result += vals[j + 1];
+      } else if (ops[j] == '−') {
+        result -= vals[j + 1];
+      }
+    }
+    return result;
+  }
 
   // ── Display helpers ───────────────────────────────────────────────────────
+  /// Compact string for showing intermediate values in the expression hint.
   String _fmt(double v) {
-    if (v == v.truncateToDouble() && v.abs() < 1e12) {
-      return v.toInt().toString();
+    final rounded = double.parse(v.toStringAsFixed(10));
+    if (rounded == rounded.truncateToDouble() && rounded.abs() < 1e12) {
+      return rounded.toInt().toString();
     }
-    // Strip floating-point dust, remove trailing zeros
-    final s = double.parse(v.toStringAsFixed(10)).toString();
-    return s.endsWith('.0') ? s.replaceAll('.0', '') : s;
+    return rounded.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
   }
 
   String get _displayValue {
     if (_currentToken.isNotEmpty) return _currentToken;
-    return _fmt(_accumulated);
+    if (_values.isNotEmpty) return _fmt(_values.last);
+    return '0';
   }
 
+  /// Shows the accumulated expression above the current input, e.g. "100 + 20 ×"
   String get _expressionHint {
-    if (_pendingOp == null) return '';
-    final lhs = _fmt(_accumulated);
-    final rhs = _currentToken.isNotEmpty ? ' $_currentToken' : '';
-    return '$lhs $_pendingOp$rhs';
+    if (_values.isEmpty) return '';
+    final sb = StringBuffer();
+    for (int i = 0; i < _values.length; i++) {
+      sb.write(_fmt(_values[i]));
+      if (i < _operators.length) {
+        sb.write(' ${_operators[i]} ');
+      }
+    }
+    return sb.toString().trimRight();
   }
 
   // ── Button handlers ───────────────────────────────────────────────────────
   void _onDigit(String d) {
     setState(() {
       if (_freshAfterEquals) {
+        // Start a fresh expression after =
+        _values = [];
+        _operators = [];
         _currentToken = '';
         _freshAfterEquals = false;
       }
@@ -72,27 +137,41 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
 
   void _onOperator(String op) {
     setState(() {
+      _freshAfterEquals = false;
       final current = double.tryParse(_currentToken);
       if (current != null) {
-        if (_pendingOp != null) {
-          _accumulated = _compute(_accumulated, _pendingOp!, current);
-        } else {
-          _accumulated = current;
-        }
+        _values.add(current);
         _currentToken = '';
+      } else if (_values.isEmpty) {
+        // Nothing typed yet — treat as 0
+        _values.add(0);
       }
-      _pendingOp = op;
-      _freshAfterEquals = false;
+      // Replace the last operator if the user presses two operators in a row
+      if (_operators.length == _values.length) {
+        _operators[_operators.length - 1] = op;
+      } else {
+        _operators.add(op);
+      }
     });
   }
 
   void _onEquals() {
     setState(() {
       final current = double.tryParse(_currentToken);
-      if (_pendingOp != null && current != null) {
-        _accumulated = _compute(_accumulated, _pendingOp!, current);
+      if (_operators.isEmpty) {
+        // Nothing to evaluate — leave as-is
+        _freshAfterEquals = true;
+        return;
+      }
+      if (current != null) {
+        _values.add(current);
         _currentToken = '';
-        _pendingOp = null;
+      }
+      if (_values.length > _operators.length) {
+        final result = _evaluateExpression(_values, _operators);
+        _values = [];
+        _operators = [];
+        _currentToken = _fmt(result);
         _freshAfterEquals = true;
       }
     });
@@ -100,9 +179,9 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
 
   void _onClear() {
     setState(() {
+      _values = [];
+      _operators = [];
       _currentToken = '';
-      _accumulated = 0;
-      _pendingOp = null;
       _freshAfterEquals = false;
     });
   }
@@ -111,32 +190,28 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
     setState(() {
       if (_currentToken.isNotEmpty) {
         _currentToken = _currentToken.substring(0, _currentToken.length - 1);
-      } else if (_pendingOp != null) {
-        // Cancel pending operator, restore accumulated as editable token
-        _currentToken = _fmt(_accumulated);
-        _accumulated = 0;
-        _pendingOp = null;
+      } else if (_operators.isNotEmpty) {
+        // Remove the last operator; restore its left-hand value as editable
+        _operators.removeLast();
+        if (_values.isNotEmpty) {
+          _currentToken = _fmt(_values.removeLast());
+        }
       }
     });
   }
 
-  double _compute(double a, String op, double b) {
-    return switch (op) {
-      '+' => a + b,
-      '−' => a - b,
-      '×' => a * b,
-      '÷' => b != 0 ? a / b : a,
-      _ => b,
-    };
-  }
-
+  // ── Result for confirm ────────────────────────────────────────────────────
   double get _result {
     final current = double.tryParse(_currentToken);
-    if (current != null && _pendingOp != null) {
-      return _compute(_accumulated, _pendingOp!, current);
+    if (_operators.isEmpty) return current ?? (_values.isEmpty ? 0 : _values.first);
+    if (current != null) {
+      return _evaluateExpression([..._values, current], _operators);
     }
-    if (current != null) return current;
-    return _accumulated;
+    // Operator pressed but no RHS typed yet — evaluate what we have
+    if (_values.length > _operators.length) {
+      return _evaluateExpression(_values, _operators);
+    }
+    return _values.isEmpty ? 0 : _values.last;
   }
 
   void _handleButton(String label) {
@@ -159,7 +234,9 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
   }
 
   void _confirm() {
-    Navigator.of(context).pop(_result);
+    // Use the canonical amount formatter — identical output to manual entry
+    final formatted = formatAmountInput(_result);
+    Navigator.of(context).pop(double.tryParse(formatted) ?? _result);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────

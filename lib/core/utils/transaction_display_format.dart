@@ -1,5 +1,25 @@
 import 'package:intl/intl.dart';
 
+// ---------------------------------------------------------------------------
+// Amount field formatting
+//
+// Canonical format for writing a computed double back into the Amount
+// TextField.  Matches what a user would type by hand:
+//   160.0   → "160"
+//   160.5   → "160.5"
+//   160.25  → "160.25"
+//   0.3333… → "0.33"  (capped at 2 decimal places, trailing zeros stripped)
+// ---------------------------------------------------------------------------
+String formatAmountInput(double value) {
+  // Round to 2 decimal places to remove floating-point dust
+  final rounded = double.parse(value.toStringAsFixed(2));
+  if (rounded == rounded.truncateToDouble()) {
+    return rounded.toInt().toString(); // e.g. "160" not "160.00"
+  }
+  // toStringAsFixed gives "160.50"; strip the trailing zero to get "160.5"
+  return rounded.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
+}
+
 /// وقت 12 ساعة (ص/م) ثم التاريخ: `3:30 م | 5 يونيو`
 String formatTransactionDateTime(DateTime dateTime) {
   final time = DateFormat('h:mm', 'ar').format(dateTime);
