@@ -9,12 +9,16 @@ class DateTimeSection extends StatelessWidget {
     required this.time,
     required this.onDateChanged,
     required this.onTimeChanged,
+    this.onBeforeOpen,
   });
 
   final DateTime date;
   final TimeOfDay time;
   final void Function(DateTime) onDateChanged;
   final void Function(TimeOfDay) onTimeChanged;
+  /// Called immediately before a date or time picker is opened, and again
+  /// after it closes. Use to dismiss the keyboard / clear field focus.
+  final VoidCallback? onBeforeOpen;
 
   static const _accent = Color(0xFF2F6F5E);
 
@@ -28,12 +32,14 @@ class DateTimeSection extends StatelessWidget {
           label: 'التاريخ',
           value: _dateLabel,
           onTap: () async {
+            onBeforeOpen?.call();
             final picked = await showDatePicker(
               context: context,
               initialDate: date,
               firstDate: DateTime(2023),
               lastDate: DateTime(2100),
             );
+            onBeforeOpen?.call(); // ensure focus stays dismissed after close
             if (picked != null) onDateChanged(picked);
           },
           flex: 1,
@@ -45,8 +51,10 @@ class DateTimeSection extends StatelessWidget {
           label: 'الوقت',
           value: _timeLabel,
           onTap: () async {
+            onBeforeOpen?.call();
             final picked =
                 await showTimePicker(context: context, initialTime: time);
+            onBeforeOpen?.call(); // ensure focus stays dismissed after close
             if (picked != null) onTimeChanged(picked);
           },
           flex: 1,

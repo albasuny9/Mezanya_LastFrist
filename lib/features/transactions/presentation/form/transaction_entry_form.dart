@@ -94,6 +94,14 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     if (mounted) setState(() {});
   }
 
+  // ── Focus helpers ────────────────────────────────────────────────────────
+  /// Removes focus from the amount field and dismisses the keyboard.
+  /// Call before opening any picker, selector, dialog, or bottom sheet.
+  /// Call again after the picker closes to prevent focus restoration.
+  void _unfocusAmount() {
+    if (mounted) _ctrl.amountFocusNode.unfocus();
+  }
+
   @override
   void dispose() {
     _ctrl.amountController.removeListener(_rebuild);
@@ -210,10 +218,12 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     required List<CategoryEntity> existing,
     String scope = 'expense',
   }) async {
+    _unfocusAmount();
     final draft = await showCategoryAddDialog(
       context,
       nameController: _ctrl.newCategoryController,
     );
+    _unfocusAmount();
     if (draft == null) return;
     final name = draft.name;
     if (name.isEmpty) return;
@@ -790,6 +800,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                     AmountSection(
                       ctrl: _ctrl,
                       recurringMode: widget.recurringMode,
+                      focusNode: _ctrl.amountFocusNode,
                     ),
 
                     // Expense: allocation
@@ -801,20 +812,23 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                             ? 'خارج الميزانية'
                             : selectedAllocationName,
                         incomeTargetLabel: incomeTargetLabel,
-                        onOpenAllocationPicker: () => showAllocationPickerSheet(
-                          context,
-                          budget: budget,
-                          selectedTargetId: _ctrl.budgetTargetId,
-                          onSelected: (targetId, budgetScope) {
-                            setState(() {
-                              _ctrl.budgetTargetId = targetId;
-                              _ctrl.budgetScope = budgetScope;
-                            });
-                            if (targetId.isNotEmpty) {
-                              _autoSetWalletFromAllocation(targetId);
-                            }
-                          },
-                        ),
+                        onOpenAllocationPicker: () {
+                          _unfocusAmount();
+                          showAllocationPickerSheet(
+                            context,
+                            budget: budget,
+                            selectedTargetId: _ctrl.budgetTargetId,
+                            onSelected: (targetId, budgetScope) {
+                              setState(() {
+                                _ctrl.budgetTargetId = targetId;
+                                _ctrl.budgetScope = budgetScope;
+                              });
+                              if (targetId.isNotEmpty) {
+                                _autoSetWalletFromAllocation(targetId);
+                              }
+                            },
+                          );
+                        },
                         onOpenIncomeTargetPicker: () {},
                       ),
                     ],
@@ -823,13 +837,16 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                     const SizedBox(height: 8),
                     WalletSection(
                       walletName: selectedWalletName,
-                      onOpenPicker: () => showWalletPickerSheet(
-                        context,
-                        wallets: wallets,
-                        currentWalletId: _ctrl.walletId,
-                        onSelected: (id) =>
-                            setState(() => _ctrl.walletId = id),
-                      ),
+                      onOpenPicker: () {
+                        _unfocusAmount();
+                        showWalletPickerSheet(
+                          context,
+                          wallets: wallets,
+                          currentWalletId: _ctrl.walletId,
+                          onSelected: (id) =>
+                              setState(() => _ctrl.walletId = id),
+                        );
+                      },
                     ),
 
                     // Categories
@@ -873,23 +890,25 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                         allocationName: selectedAllocationName,
                         incomeTargetLabel: incomeTargetLabel,
                         onOpenAllocationPicker: () {},
-                        onOpenIncomeTargetPicker: () =>
-                            showIncomeTargetPickerSheet(
-                          context,
-                          budget: budget,
-                          walletName: selectedWalletName,
-                          currentIncomeBudgetScope: _ctrl.incomeBudgetScope,
-                          currentIncomeSourceId: _ctrl.incomeSourceId,
-                          currentIncomeJarId: _ctrl.incomeJarId,
-                          onSelected: (incomeBudgetScope, incomeSourceId,
-                              incomeJarId) {
-                            setState(() {
-                              _ctrl.incomeBudgetScope = incomeBudgetScope;
-                              _ctrl.incomeSourceId = incomeSourceId;
-                              _ctrl.incomeJarId = incomeJarId;
-                            });
-                          },
-                        ),
+                        onOpenIncomeTargetPicker: () {
+                          _unfocusAmount();
+                          showIncomeTargetPickerSheet(
+                            context,
+                            budget: budget,
+                            walletName: selectedWalletName,
+                            currentIncomeBudgetScope: _ctrl.incomeBudgetScope,
+                            currentIncomeSourceId: _ctrl.incomeSourceId,
+                            currentIncomeJarId: _ctrl.incomeJarId,
+                            onSelected: (incomeBudgetScope, incomeSourceId,
+                                incomeJarId) {
+                              setState(() {
+                                _ctrl.incomeBudgetScope = incomeBudgetScope;
+                                _ctrl.incomeSourceId = incomeSourceId;
+                                _ctrl.incomeJarId = incomeJarId;
+                              });
+                            },
+                          );
+                        },
                       ),
                       const SizedBox(height: 8),
                       CategorySection(
@@ -929,6 +948,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                         time: _ctrl.time,
                         onDateChanged: (d) => setState(() => _ctrl.date = d),
                         onTimeChanged: (t) => setState(() => _ctrl.time = t),
+                        onBeforeOpen: _unfocusAmount,
                       ),
                       const SizedBox(height: 10),
                     ],

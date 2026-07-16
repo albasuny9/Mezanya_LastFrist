@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../transaction_form_controller.dart';
+import '../widgets/amount_calculator_sheet.dart';
 
 /// Amount input area.
-/// In normal mode: large centered amount field.
+/// In normal mode: large centered amount field with inline calculator.
 /// In recurring installment mode: principal + count + down-payment + installment
 /// amount (with riba warning).
 class AmountSection extends StatelessWidget {
@@ -11,16 +12,21 @@ class AmountSection extends StatelessWidget {
     super.key,
     required this.ctrl,
     required this.recurringMode,
+    required this.focusNode,
   });
 
   final TransactionFormController ctrl;
   final bool recurringMode;
+  final FocusNode focusNode;
 
   @override
   Widget build(BuildContext context) {
     if (!recurringMode || ctrl.showAmount) {
       if (!recurringMode || !ctrl.isExpenseInstallment) {
-        return _AmountField(controller: ctrl.amountController);
+        return _AmountField(
+          controller: ctrl.amountController,
+          focusNode: focusNode,
+        );
       }
     }
 
@@ -34,8 +40,13 @@ class AmountSection extends StatelessWidget {
 
 // ── Large centred amount field ─────────────────────────────────────────────
 class _AmountField extends StatelessWidget {
-  const _AmountField({required this.controller});
+  const _AmountField({
+    required this.controller,
+    required this.focusNode,
+  });
+
   final TextEditingController controller;
+  final FocusNode focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -51,18 +62,64 @@ class _AmountField extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            'المبلغ',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
+          // ── Label row with calculator icon ──────────────────────────────
+          Row(
+            children: [
+              // Calculator icon — far left, visually subtle
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  // Dismiss keyboard before opening calculator
+                  focusNode.unfocus();
+                  // Small delay so keyboard hides cleanly before sheet opens
+                  await Future<void>.delayed(
+                    const Duration(milliseconds: 80),
+                  );
+                  if (!context.mounted) return;
+                  final result = await showAmountCalculatorSheet(context);
+                  if (!context.mounted) return;
+                  if (result != null) {
+                    controller.text = result.toStringAsFixed(2);
+                    // Place cursor at end, keep field unfocused (no autofocus)
+                    controller.selection = TextSelection.fromPosition(
+                      TextPosition(offset: controller.text.length),
+                    );
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(
+                    Icons.calculate_outlined,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.55),
+                  ),
+                ),
+              ),
+              // Centred label
+              Expanded(
+                child: Text(
+                  'المبلغ',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              // Invisible spacer to keep the label truly centred
+              const SizedBox(width: 22),
+            ],
           ),
+          // ── Amount text field ───────────────────────────────────────────
           TextField(
             controller: controller,
+            focusNode: focusNode,
             autofocus: false,
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => focusNode.unfocus(),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
             decoration: const InputDecoration(

@@ -85,6 +85,9 @@ class TransactionFormController {
   final TextEditingController installmentCountController;
   final TextEditingController downPaymentController;
 
+  // ── Focus nodes ───────────────────────────────────────────────────────────
+  final FocusNode amountFocusNode = FocusNode();
+
   // ── Computed: pattern helpers ─────────────────────────────────────────────
   bool get isWeekPattern =>
       recurrencePattern == RecurrencePattern.weekly.value ||
@@ -189,6 +192,7 @@ class TransactionFormController {
   }
 
   void dispose() {
+    amountFocusNode.dispose();
     amountController.dispose();
     notesController.dispose();
     recurringNameController.dispose();
