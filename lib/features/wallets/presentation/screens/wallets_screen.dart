@@ -1,6 +1,7 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/utils/transaction_display_format.dart';
@@ -1493,6 +1494,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
     var fromId = wallets.first.id;
     var toId = wallets[1].id;
     final amountController = TextEditingController();
+    final notesController = TextEditingController();
+    var selectedDate = DateTime.now();
+    var selectedTime = TimeOfDay.now();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1579,12 +1583,67 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     onChanged: (_) => setDialogState(() {}),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDate,
+                              firstDate: DateTime(2023),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setDialogState(() => selectedDate = picked);
+                            }
+                          },
+                          icon: const Icon(Icons.calendar_month_outlined),
+                          label: Text(
+                              DateFormat('d MMM yyyy', 'ar').format(selectedDate)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: selectedTime,
+                            );
+                            if (picked != null) {
+                              setDialogState(() => selectedTime = picked);
+                            }
+                          },
+                          icon: const Icon(Icons.schedule_outlined),
+                          label: Text(selectedTime.format(context)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظات',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () async {
                       final amount =
                           double.tryParse(amountController.text.trim()) ?? 0;
                       if (amount <= 0 || fromId == toId) return;
+                      final createdAt = DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                        selectedTime.hour,
+                        selectedTime.minute,
+                      );
                       Navigator.of(context).pop();
                       await widget.cubit.addTransaction(
                         type: TransactionType.transfer.value,
@@ -1592,7 +1651,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
                         fromWalletId: fromId,
                         toWalletId: toId,
                         transferType: 'wallet-to-wallet',
-                        notes: 'تحويل بين المحافظ',
+                        createdAt: createdAt,
+                        notes: notesController.text.trim().isEmpty
+                            ? null
+                            : notesController.text.trim(),
                       );
                     },
                     style: FilledButton.styleFrom(
