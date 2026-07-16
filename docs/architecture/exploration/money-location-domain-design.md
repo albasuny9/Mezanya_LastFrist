@@ -11,14 +11,14 @@ Superseded By: N/A
 > It captures the discussion about Money Location, Allocation, Jar, budget reservation,
 > physical deposit, and reconciliation.
 >
-> It is intentionally narrower than the full original discussion: shared-workspace design,
+> It is intentionally narrower than the original discussion: shared-workspace design,
 > multi-user ownership, and implementation-specific bug analysis are deferred elsewhere.
 
 ---
 
 ## 1. Current understanding
 
-Mezanya records financial reality first, then interprets it through domain structures that describe money, ownership, purpose, and location.
+Mezanya records financial reality first, then interprets it through domain structures that describe money, purpose, and location.
 
 The discussion established that the app must not try to force real life into a perfect deterministic model. Users may record what actually happened even when the system cannot yet reconcile every location or reservation detail. The domain should therefore support recording, later review, and later reconciliation.
 
