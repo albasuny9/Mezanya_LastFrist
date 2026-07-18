@@ -13,6 +13,10 @@ class IncomeSourceEntity {
     this.isVariable = false,
     this.isDefault = false,
     this.snoozedUntil,
+    this.icon,
+    this.iconColor,
+    this.companyName,
+    this.notes,
   });
 
   final String id;
@@ -26,6 +30,12 @@ class IncomeSourceEntity {
 
   /// تأجيل مؤقت — ISO string، فارغ = مش مأجل
   final String? snoozedUntil;
+
+  // Identity (Step 2 — schema extension only، لا واجهة بعد):
+  final String? icon;
+  final String? iconColor;
+  final String? companyName;
+  final String? notes;
 
   bool get isSnoozed {
     if (snoozedUntil == null || snoozedUntil!.isEmpty) return false;
@@ -48,6 +58,10 @@ class IncomeSourceEntity {
     bool? isVariable,
     bool? isDefault,
     String? snoozedUntil,
+    String? icon,
+    String? iconColor,
+    String? companyName,
+    String? notes,
   }) =>
       IncomeSourceEntity(
         id: id ?? this.id,
@@ -59,6 +73,10 @@ class IncomeSourceEntity {
         isVariable: isVariable ?? this.isVariable,
         isDefault: isDefault ?? this.isDefault,
         snoozedUntil: snoozedUntil ?? this.snoozedUntil,
+        icon: icon ?? this.icon,
+        iconColor: iconColor ?? this.iconColor,
+        companyName: companyName ?? this.companyName,
+        notes: notes ?? this.notes,
       );
 
   Map<String, dynamic> toMap() => {
@@ -71,6 +89,10 @@ class IncomeSourceEntity {
         'isVariable': isVariable,
         'isDefault': isDefault,
         'snoozedUntil': snoozedUntil,
+        'icon': icon,
+        'iconColor': iconColor,
+        'companyName': companyName,
+        'notes': notes,
       };
 
   factory IncomeSourceEntity.fromMap(Map<String, dynamic> map) =>
@@ -84,6 +106,10 @@ class IncomeSourceEntity {
         isVariable: map['isVariable'] as bool? ?? false,
         isDefault: map['isDefault'] as bool? ?? false,
         snoozedUntil: map['snoozedUntil'] as String?,
+        icon: map['icon'] as String?,
+        iconColor: map['iconColor'] as String?,
+        companyName: map['companyName'] as String?,
+        notes: map['notes'] as String?,
       );
 }
 
