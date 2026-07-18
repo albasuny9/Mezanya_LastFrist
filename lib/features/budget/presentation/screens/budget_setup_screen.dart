@@ -9,6 +9,7 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
+import '../../../transactions/presentation/screens/income_source_editor_screen.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/screens/subscription_preset_selection_screen.dart';
 import '../../../wallets/presentation/screens/jar_editor_screen.dart';
@@ -601,13 +602,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   Future<void> _openIncomeComposer() async {
     final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
+        await Navigator.of(context).push<IncomeSourceEditorResult>(
       MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
+        builder: (_) => IncomeSourceEditorScreen(
           cubit: widget.cubit,
-          initialType: TransactionType.income.value,
-          initialWithinBudget: true,
-          returnOnSave: true,
         ),
         fullscreenDialog: true,
       ),
@@ -689,14 +687,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         );
 
     final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
+        await Navigator.of(context).push<IncomeSourceEditorResult>(
       MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
+        builder: (_) => IncomeSourceEditorScreen(
           cubit: widget.cubit,
-          initialType: TransactionType.income.value,
-          initialWithinBudget: true,
           initialRecurring: draftRecurring,
-          returnOnSave: true,
           allowDelete: true,
         ),
         fullscreenDialog: true,

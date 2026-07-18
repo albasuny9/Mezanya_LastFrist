@@ -9,6 +9,7 @@ import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
+import '../../../transactions/presentation/screens/income_source_editor_screen.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
@@ -2298,14 +2299,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         );
 
     final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
+        await Navigator.of(context).push<IncomeSourceEditorResult>(
       MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
+        builder: (_) => IncomeSourceEditorScreen(
           cubit: widget.cubit,
-          initialType: TransactionType.income.value,
-          initialWithinBudget: true,
           initialRecurring: draftRecurring,
-          returnOnSave: true,
           allowDelete: true,
         ),
         fullscreenDialog: true,
