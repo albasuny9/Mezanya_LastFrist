@@ -7,22 +7,29 @@ import '../../domain/entities/recurring_transaction_entity.dart';
 import '../form/_shared/row_card.dart';
 import '../form/_shared/shared_amount_field.dart';
 import '../form/pickers/wallet_picker_sheet.dart';
+import '../form/sections/scheduling_section.dart';
+import '../form/transaction_form_controller.dart';
 
 // ---------------------------------------------------------------------------
-// Step 3 of the Budget Income extraction migration (see Decisions Log).
-// IncomeSourceEditorScreen is now the real, dedicated Budget Income editor:
-// Identity (icon, color, name, company name) + Financial Defaults (wallet,
-// fixed/variable, default amount). Scheduling is intentionally NOT handled
-// here yet — a separate section is planned for the next step.
+// Steps 1, 3 & 4 of the Budget Income extraction migration (see Decisions Log).
+// IncomeSourceEditorScreen — the dedicated Budget Income editor:
+//   1. Identity        (icon, color, name, company name)
+//   2. Financial Defaults (wallet, fixed/variable, default amount)
+//   3. Scheduling       (recurrence, execution policy, reminder — reused
+//                        as-is from the shared TransactionFormController /
+//                        SchedulingSection, zero behavior change)
 //
-// Behavior bridge (temporary, documented): on save this screen still
-// produces a RecurringTransactionEntity-shaped result so the three existing
-// caller sites (budget_setup_screen.dart x2, budget_tracking_screen.dart x1)
-// continue deriving IncomeSourceEntity exactly as before — zero change to
-// that derivation logic in this step. companyName/notes are captured in
-// local state but have nowhere to persist yet (RecurringTransactionEntity
-// has no such fields) — known limitation, to be resolved when the
-// ownership flip (IncomeSource as source of truth) is implemented.
+// Behavior bridge (temporary, documented — unchanged from Step 3): on save
+// this screen still produces a RecurringTransactionEntity-shaped result so
+// the three existing caller sites continue deriving IncomeSourceEntity
+// exactly as before. companyName/notes remain captured locally with no
+// persistence target yet (known limitation, unchanged from Step 3).
+//
+// Scheduling state lives entirely inside a real TransactionFormController
+// instance (via TransactionFormController.create) so SchedulingSection —
+// and the field-derivation logic on save — are the EXACT same code used by
+// the normal recurring-transaction flow. No scheduling logic is duplicated
+// or reimplemented here.
 // ---------------------------------------------------------------------------
 
 class IncomeSourceEditorResult {
@@ -58,15 +65,18 @@ class IncomeSourceEditorScreen extends StatefulWidget {
 }
 
 class _IncomeSourceEditorScreenState extends State<IncomeSourceEditorScreen> {
+  // Identity (owned locally by this screen — not part of the shared
+  // recurring-transaction controller, per the Step 3 ownership split).
   late final TextEditingController _nameController;
   late final TextEditingController _companyController;
-  late final TextEditingController _amountController;
-  final FocusNode _amountFocus = FocusNode();
-
   late String _iconName;
   late String _iconColorHex;
-  late String _walletId;
-  late bool _isVariable;
+
+  // Financial Defaults + Scheduling — both live on a real
+  // TransactionFormController so all scheduling UI/logic is 100% shared,
+  // zero duplication.
+  late final TransactionFormController _ctrl;
+  final FocusNode _amountFocus = FocusNode();
 
   @override
   void initState() {
@@ -76,31 +86,29 @@ class _IncomeSourceEditorScreenState extends State<IncomeSourceEditorScreen> {
     // لا يوجد حقل companyName على RecurringTransactionEntity بعد — يبدأ فارغًا
     // دائمًا حاليًا (قيد معروف، راجع التعليق أعلى الملف).
     _companyController = TextEditingController();
-    _isVariable = r?.isVariableIncome ?? false;
-    _amountController = TextEditingController(
-      text: (r == null || _isVariable || r.amount == 0)
-          ? ''
-          : r.amount.toStringAsFixed(2),
-    );
     _iconName = r?.icon ?? 'cash';
     _iconColorHex = r?.iconColor ?? '#2F6F5E';
-    final wallets = widget.cubit.state.wallets;
-    _walletId = r?.walletId ??
-        (wallets.isNotEmpty ? wallets.first.id : '');
+
+    _ctrl = TransactionFormController.create(
+      wallets: widget.cubit.state.wallets,
+      recurringMode: true,
+      recurringType: TransactionType.income.value,
+      initialRecurring: r,
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _companyController.dispose();
-    _amountController.dispose();
     _amountFocus.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   String _walletName() {
     final wallets = widget.cubit.state.wallets;
-    final match = wallets.where((w) => w.id == _walletId).toList();
+    final match = wallets.where((w) => w.id == _ctrl.walletId).toList();
     return match.isNotEmpty ? match.first.name : 'اختر محفظة';
   }
 
@@ -126,46 +134,72 @@ class _IncomeSourceEditorScreenState extends State<IncomeSourceEditorScreen> {
     showWalletPickerSheet(
       context,
       wallets: widget.cubit.state.wallets,
-      currentWalletId: _walletId,
+      currentWalletId: _ctrl.walletId,
       onSelected: (id) {
-        if (mounted) setState(() => _walletId = id);
+        if (mounted) setState(() => _ctrl.walletId = id);
       },
     );
   }
 
+  // نفس منطق اشتقاق حقول الجدولة الموجود في TransactionEntryForm._submitRecurring
+  // (فرع الدخل تحديدًا) — بلا أي تغيير في السلوك أو إعادة تنفيذ منطق مختلف.
+  RecurringTransactionEntity _buildResult() {
+    final amount = _ctrl.showAmount
+        ? (double.tryParse(_ctrl.amountController.text.trim()) ?? 0)
+        : 0.0;
+
+    final effectivePattern = _ctrl.isVariableIncome
+        ? RecurrencePattern.manualVariable.value
+        : _ctrl.recurrencePattern;
+    final effectiveExecutionType =
+        _ctrl.isVariableIncome ? 'manual' : _ctrl.executionType;
+    final effectiveDayOfMonth =
+        _ctrl.recurrencePattern == RecurrencePattern.yearly.value
+            ? _ctrl.yearlyDay
+            : (_ctrl.isMonthPattern ? _ctrl.monthlyDay : 1);
+
+    return RecurringTransactionEntity(
+      id: widget.initialRecurring?.id ??
+          'rec-${DateTime.now().microsecondsSinceEpoch}',
+      name: _nameController.text.trim(),
+      type: TransactionType.income.value,
+      amount: amount,
+      dayOfMonth: effectiveDayOfMonth,
+      executionType: effectiveExecutionType,
+      walletId: _ctrl.walletId == 'no-wallet' ? '' : _ctrl.walletId,
+      budgetScope: BudgetScope.withinBudget.value,
+      recurrencePattern: effectivePattern,
+      icon: _iconName,
+      iconColor: _iconColorHex,
+      weekday:
+          _ctrl.selectedWeekdays.isEmpty ? null : _ctrl.selectedWeekdays.first,
+      weekdays: _ctrl.selectedWeekdays.toList()..sort(),
+      monthOfYear: _ctrl.recurrencePattern == RecurrencePattern.yearly.value
+          ? _ctrl.yearlyMonth
+          : null,
+      anchorDate: widget.initialRecurring?.anchorDate,
+      scheduledTime: _ctrl.showRecurrenceDetails
+          ? TransactionFormController.formatTime(_ctrl.scheduledTime)
+          : null,
+      reminderLeadDays: effectiveExecutionType == AutomationType.confirm.value
+          ? _ctrl.reminderLeadDays
+          : null,
+      incomeSourceId: widget.initialRecurring?.incomeSourceId,
+      categoryIds: _ctrl.selectedCategoryIds.toList(),
+      isVariableIncome: _ctrl.isVariableIncome,
+      isActive: widget.initialRecurring?.isActive ?? true,
+    );
+  }
+
   void _save() {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
+    if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('اكتب اسم مصدر الدخل')),
       );
       return;
     }
-    final amount = _isVariable
-        ? 0.0
-        : (double.tryParse(_amountController.text.trim()) ?? 0);
-
-    final r = widget.initialRecurring;
-    final result = RecurringTransactionEntity(
-      id: r?.id ?? '',
-      name: name,
-      type: TransactionType.income.value,
-      amount: amount,
-      dayOfMonth: r?.dayOfMonth ?? DateTime.now().day.clamp(1, 28),
-      executionType: r?.executionType ?? AutomationType.confirm.value,
-      walletId: _walletId,
-      budgetScope: BudgetScope.withinBudget.value,
-      recurrencePattern: r?.recurrencePattern ?? RecurrencePattern.monthly.value,
-      icon: _iconName,
-      iconColor: _iconColorHex,
-      isVariableIncome: _isVariable,
-      allocationId: r?.allocationId,
-      targetJarId: r?.targetJarId,
-      incomeSourceId: r?.incomeSourceId,
-      categoryIds: r?.categoryIds ?? const [],
-      isActive: r?.isActive ?? true,
-    );
-    Navigator.of(context).pop(IncomeSourceEditorResult.saved(result));
+    Navigator.of(context)
+        .pop(IncomeSourceEditorResult.saved(_buildResult()));
   }
 
   void _delete() {
@@ -245,17 +279,35 @@ class _IncomeSourceEditorScreenState extends State<IncomeSourceEditorScreen> {
               contentPadding: EdgeInsets.zero,
               title: const Text('دخل متغيّر'),
               subtitle: const Text('المبلغ يختلف كل مرة، لا يوجد مبلغ ثابت'),
-              value: _isVariable,
-              onChanged: (v) => setState(() => _isVariable = v),
+              value: _ctrl.isVariableIncome,
+              onChanged: (v) {
+                setState(() {
+                  _ctrl.isVariableIncome = v;
+                  if (v) {
+                    _ctrl.executionType = 'manual';
+                    _ctrl.amountController.clear();
+                  }
+                });
+              },
             ),
-            if (!_isVariable) ...[
+            if (_ctrl.showAmount) ...[
               const SizedBox(height: 10),
               SharedAmountField(
-                controller: _amountController,
+                controller: _ctrl.amountController,
                 focusNode: _amountFocus,
                 label: 'المبلغ الافتراضي',
               ),
             ],
+            const SizedBox(height: 24),
+
+            // ── Scheduling ─────────────────────────────────────────────
+            const _SectionLabel('الجدولة'),
+            const SizedBox(height: 10),
+            SchedulingSection(
+              ctrl: _ctrl,
+              onChanged: () => setState(() {}),
+            ),
+
             const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,
