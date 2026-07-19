@@ -13,6 +13,7 @@ import '../../../transactions/presentation/screens/subscription_preset_selection
 import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../widgets/budget_details_blocks.dart';
 import '../widgets/budget_start_day_picker_tile.dart';
 import 'allocation_editor_screen.dart';
 
@@ -855,15 +856,15 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     child: ListView(
                       padding: const EdgeInsets.all(14),
                       children: [
-                        _detailsBlocks(
+                        BudgetDetailsBlocks(
                           blocks: [
-                            _DetailsBlock.wide('اسم المخصص', allocation.name),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.wide('اسم المخصص', allocation.name),
+                            BudgetDetailsBlock.narrow(
                               'إجمالي المخطط',
                               planned.toStringAsFixed(2),
                             ),
-                            _DetailsBlock.narrow('سلوك المتبقي', rolloverLabel),
-                            _DetailsBlock.wide(
+                            BudgetDetailsBlock.narrow('سلوك المتبقي', rolloverLabel),
+                            BudgetDetailsBlock.wide(
                               'مصادر التمويل',
                               _fundingBreakdownText(
                                 allocation.funding
@@ -872,9 +873,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                                     .toList(),
                               ),
                             ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                                 'عدد الفئات', '$categoryCount'),
-                            _DetailsBlock.wide(
+                            BudgetDetailsBlock.wide(
                               'الأيقونة واللون',
                               '${allocation.icon} • ${allocation.iconColor}',
                             ),
@@ -990,22 +991,22 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     child: ListView(
                       padding: const EdgeInsets.all(14),
                       children: [
-                        _detailsBlocks(
+                        BudgetDetailsBlocks(
                           blocks: [
-                            _DetailsBlock.wide('اسم الحصالة', jar.name),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.wide('اسم الحصالة', jar.name),
+                            BudgetDetailsBlock.narrow(
                               'الرصيد الحالي',
                               jar.balance.toStringAsFixed(2),
                             ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                               'المخصص الشهري',
                               jar.monthlyAmount.toStringAsFixed(2),
                             ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                                 'يوم التحويل', '${jar.executionDay}'),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                                 'نوع التنفيذ', automationLabel),
-                            _DetailsBlock.wide('مصادر التمويل', fundingText),
+                            BudgetDetailsBlock.wide('مصادر التمويل', fundingText),
                           ],
                         ),
                       ],
@@ -1488,36 +1489,36 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     child: ListView(
                       padding: const EdgeInsets.all(14),
                       children: [
-                        _detailsBlocks(
+                        BudgetDetailsBlocks(
                           blocks: [
-                            _DetailsBlock.wide(nameLabel, debt.name),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.wide(nameLabel, debt.name),
+                            BudgetDetailsBlock.narrow(
                               amountLabel,
                               debt.amount.toStringAsFixed(2),
                             ),
                             if (recurring?.debtPrincipalTotal != null)
-                              _DetailsBlock.narrow(
+                              BudgetDetailsBlock.narrow(
                                 'إجمالي الدين',
                                 recurring!.debtPrincipalTotal!
                                     .toStringAsFixed(2),
                               ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                               'يوم الاستحقاق',
                               '${debt.executionDay}',
                             ),
-                            _DetailsBlock.narrow('مصدر التمويل', fundingName),
-                            _DetailsBlock.narrow('محفظة السداد', walletName),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow('مصدر التمويل', fundingName),
+                            BudgetDetailsBlock.narrow('محفظة السداد', walletName),
+                            BudgetDetailsBlock.narrow(
                               'طريقة التنفيذ',
                               _incomeTypeLabel(
                                   recurring?.executionType ?? debt.type),
                             ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                                 'نوع التكرار', recurrenceLabel),
-                            _DetailsBlock.narrow('اليوم الشهري', monthlyDay),
-                            _DetailsBlock.narrow('الوقت', timeLabel),
-                            _DetailsBlock.narrow('وقت الإشعار', reminderLabel),
-                            _DetailsBlock.wide(
+                            BudgetDetailsBlock.narrow('اليوم الشهري', monthlyDay),
+                            BudgetDetailsBlock.narrow('الوقت', timeLabel),
+                            BudgetDetailsBlock.narrow('وقت الإشعار', reminderLabel),
+                            BudgetDetailsBlock.wide(
                               'الملاحظات',
                               recurring?.notes?.isNotEmpty == true
                                   ? recurring!.notes!
@@ -2680,24 +2681,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     child: ListView(
                       padding: const EdgeInsets.all(14),
                       children: [
-                        _detailsBlocks(
+                        BudgetDetailsBlocks(
                           blocks: [
-                            _DetailsBlock.wide('اسم الدخل', income.name),
-                            _DetailsBlock.narrow('نوع الدخل', incomeTypeLabel),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.wide('اسم الدخل', income.name),
+                            BudgetDetailsBlock.narrow('نوع الدخل', incomeTypeLabel),
+                            BudgetDetailsBlock.narrow(
                               'قيمة الدخل',
                               income.isVariable
                                   ? 'متغير'
                                   : income.amount.toStringAsFixed(2),
                             ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                               'محفظة الإيداع',
                               resolveWalletName(),
                             ),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.narrow(
                                 'نوع التكرار', recurrenceLabel),
-                            _DetailsBlock.wide('يوم التنفيذ', executionDayLine),
-                            _DetailsBlock.narrow(
+                            BudgetDetailsBlock.wide('يوم التنفيذ', executionDayLine),
+                            BudgetDetailsBlock.narrow(
                                 'طريقة التنفيذ', executionLabel),
                           ],
                         ),
@@ -2723,69 +2724,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _detailsBlocks({required List<_DetailsBlock> blocks}) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        const spacing = 10.0;
-
-        // Force a 2-column layout (even on phones) to reduce scrolling.
-        double itemWidth() {
-          return ((w - spacing) / 2).clamp(140.0, w);
-        }
-
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: [
-            for (final block in blocks)
-              SizedBox(
-                width: itemWidth(),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        block.label,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: colorScheme.onSurface,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        block.value,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.15,
-                          fontSize: 12.5,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
         );
       },
     );
@@ -3196,18 +3134,4 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   //   }
   //   return Duration(days: value.clamp(0, 3));
   // }
-}
-
-enum _DetailsBlockSize { narrow, wide }
-
-class _DetailsBlock {
-  const _DetailsBlock(this.size, this.label, this.value);
-  final _DetailsBlockSize size;
-  final String label;
-  final String value;
-
-  static _DetailsBlock narrow(String label, String value) =>
-      _DetailsBlock(_DetailsBlockSize.narrow, label, value);
-  static _DetailsBlock wide(String label, String value) =>
-      _DetailsBlock(_DetailsBlockSize.wide, label, value);
 }
