@@ -19,7 +19,7 @@ import '../sheets/jar_info_sheet.dart';
 import '../sheets/lent_setup_management_sheet.dart';
 import '../sheets/linked_dialog.dart';
 import '../utils/budget_setup_display_helpers.dart';
-import '../widgets/budget_start_day_picker_tile.dart';
+import '../widgets/budget_setup_cycle_cards.dart';
 import '../widgets/budget_setup_planner_section.dart';
 import '../widgets/budget_setup_plan_tiles.dart';
 import '../widgets/budget_setup_summary_card.dart';
@@ -812,207 +812,35 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-          decoration: BoxDecoration(
-            color: _isFutureMonthSetup
-                ? const Color(0xFFFFF4E8)
-                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: _isFutureMonthSetup
-                  ? const Color(0xFFE6B36A)
-                  : colorScheme.outlineVariant.withValues(alpha: 0.45),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _isFutureMonthSetup
-                      ? const Color(0xFFF3D4A4)
-                      : const Color(0xFFDDEFEA),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  _isFutureMonthSetup
-                      ? Icons.schedule_rounded
-                      : Icons.calendar_month_rounded,
-                  color: _isFutureMonthSetup
-                      ? const Color(0xFF9A5A11)
-                      : const Color(0xFF0E5A47),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _screenHeading,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _screenSubheading,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        BudgetSetupHeaderCard(
+          isFutureMonthSetup: _isFutureMonthSetup,
+          heading: _screenHeading,
+          subheading: _screenSubheading,
         ),
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: _unallocated >= 0
-                  ? const [Color(0xFF0E5A47), Color(0xFF197C64)]
-                  : const [Color(0xFF8F3E2A), Color(0xFFBE5A35)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.14),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'غير المخصص',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _unallocated.toStringAsFixed(2),
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _summaryMini(
-                      label: 'إجمالي الدخل',
-                      value: _totalIncome,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _summaryMini(
-                      label: 'إجمالي المخصص',
-                      value: _committed,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        BudgetSetupUnallocatedCard(
+          unallocated: _unallocated,
+          totalIncome: _totalIncome,
+          committed: _committed,
         ),
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.55),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'إعداد الدورة',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'حدد يوم بداية الدورة وطريقة تجديد الخطة ونهاية المبلغ غير المخصص.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 10),
-              BudgetStartDayPickerTile(
-                selectedDay: _budget.startDay,
-                onDaySelected: (day) async {
-                  if (day == _budget.startDay) return;
-                  await _handleStartDayChange(day);
-                },
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _budget.cycleMode,
-                decoration: const InputDecoration(
-                  labelText: 'تجديد الخطة',
-                  prefixIcon: Icon(Icons.autorenew_rounded),
-                ),
-                items: [
-                  DropdownMenuItem(
-                      value: AutomationType.auto.value, child: Text('تلقائي')),
-                  DropdownMenuItem(
-                    value: AutomationType.confirm.value,
-                    child: Text('بعد التأكيد'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _saveBudget(_budget.copyWith(cycleMode: value));
-                  }
-                },
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _budget.bufferEndBehavior,
-                decoration: const InputDecoration(
-                  labelText: 'المبلغ غير المخصص آخر الدورة',
-                  prefixIcon: Icon(Icons.monetization_on_rounded),
-                ),
-                items: [
-                  DropdownMenuItem(
-                      value: RolloverBehavior.toSavings.value,
-                      child: Text('يتحول للتوفير')),
-                  DropdownMenuItem(
-                      value: RolloverBehavior.keep.value,
-                      child: Text('يبقى للدورة الجديدة')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _saveBudget(_budget.copyWith(bufferEndBehavior: value));
-                  }
-                },
-              ),
-            ],
-          ),
+        BudgetSetupCycleSettingsCard(
+          startDay: _budget.startDay,
+          cycleMode: _budget.cycleMode,
+          bufferEndBehavior: _budget.bufferEndBehavior,
+          onStartDaySelected: (day) async {
+            if (day == _budget.startDay) return;
+            await _handleStartDayChange(day);
+          },
+          onCycleModeChanged: (value) {
+            _saveBudget(_budget.copyWith(cycleMode: value));
+          },
+          onBufferEndBehaviorChanged: (value) {
+            _saveBudget(_budget.copyWith(bufferEndBehavior: value));
+          },
         ),
         const SizedBox(height: 18),
         BudgetSetupPlannerSection(
@@ -1346,41 +1174,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               setState(() => _summaryExpanded = !_summaryExpanded),
         ),
       ],
-    );
-  }
-
-  Widget _summaryMini({
-    required String label,
-    required double value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value.toStringAsFixed(2),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
