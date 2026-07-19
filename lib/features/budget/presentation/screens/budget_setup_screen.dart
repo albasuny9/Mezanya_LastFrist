@@ -1,7 +1,7 @@
-﻿import 'package:mezanya_app/core/constants/transaction_types.dart';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
@@ -13,6 +13,13 @@ import '../../../transactions/presentation/screens/subscription_preset_selection
 import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../sheets/allocation_info_sheet.dart';
+import '../sheets/debt_dialog.dart';
+import '../sheets/debt_info_sheet.dart';
+import '../sheets/income_info_sheet.dart';
+import '../sheets/jar_info_sheet.dart';
+import '../sheets/linked_dialog.dart';
+import '../utils/budget_setup_display_helpers.dart';
 import '../widgets/budget_details_blocks.dart';
 import '../widgets/budget_start_day_picker_tile.dart';
 import 'allocation_editor_screen.dart';
@@ -101,7 +108,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   List<DebtEntity> get _visibleDebtsForDisplayCycle =>
       _budget.debts.where((debt) {
-        final recurring = _linkedRecurringDebt(debt);
+        final recurring = budgetLinkedRecurringDebt(
+          widget.cubit.state.recurringTransactions,
+          debt,
+        );
         return BudgetRecurringPlanService.isDueInCycle(
           debt: debt,
           recurring: recurring,
@@ -546,7 +556,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     DateTime cycleStart,
     DateTime cycleEnd,
   ) {
-    final recurring = _linkedRecurringDebtFromSetup(setup, debt);
+    final recurring = budgetLinkedRecurringDebt(
+      widget.cubit.state.recurringTransactions,
+      debt,
+    );
     return BudgetRecurringPlanService.amountDueInCycle(
       debt: debt,
       recurring: recurring,
@@ -558,34 +571,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   String _id(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}';
 
-  Future<bool> _confirmDeletion({
-    required String title,
-    required String message,
-    String confirmLabel = 'حذف',
-  }) async {
-    final approved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(confirmLabel),
-          ),
-        ],
-      ),
-    );
-    return approved == true;
-  }
-
   Future<void> _openIncomeComposer() async {
-    final result =
-        await Navigator.of(context).push<IncomeSourceEditorResult>(
+    final result = await Navigator.of(context).push<IncomeSourceEditorResult>(
       MaterialPageRoute(
         builder: (_) => IncomeSourceEditorScreen(
           cubit: widget.cubit,
@@ -648,7 +635,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     final wallets = widget.cubit.state.wallets;
     final fallbackWalletId =
         wallets.isNotEmpty ? wallets.first.id : 'wallet-cash-default';
-    final linkedRecurring = _linkedRecurringIncome(current);
+    final linkedRecurring = budgetLinkedRecurringIncome(
+      widget.cubit.state.recurringTransactions,
+      current,
+    );
     final draftRecurring = linkedRecurring ??
         RecurringTransactionEntity(
           id: '',
@@ -669,8 +659,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           isDebtOrSubscription: false,
         );
 
-    final result =
-        await Navigator.of(context).push<IncomeSourceEditorResult>(
+    final result = await Navigator.of(context).push<IncomeSourceEditorResult>(
       MaterialPageRoute(
         builder: (_) => IncomeSourceEditorScreen(
           cubit: widget.cubit,
@@ -858,12 +847,14 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       children: [
                         BudgetDetailsBlocks(
                           blocks: [
-                            BudgetDetailsBlock.wide('اسم المخصص', allocation.name),
+                            BudgetDetailsBlock.wide(
+                                'اسم المخصص', allocation.name),
                             BudgetDetailsBlock.narrow(
                               'إجمالي المخطط',
                               planned.toStringAsFixed(2),
                             ),
-                            BudgetDetailsBlock.narrow('سلوك المتبقي', rolloverLabel),
+                            BudgetDetailsBlock.narrow(
+                                'سلوك المتبقي', rolloverLabel),
                             BudgetDetailsBlock.wide(
                               'مصادر التمويل',
                               _fundingBreakdownText(
@@ -952,7 +943,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     final fundingText = _fundingBreakdownText(
       jar.funding.map((f) => (f.incomeSourceId, f.plannedAmount)).toList(),
     );
-    final automationLabel = _incomeTypeLabel(jar.automationType);
+    final automationLabel = budgetIncomeTypeLabel(jar.automationType);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1006,7 +997,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                                 'يوم التحويل', '${jar.executionDay}'),
                             BudgetDetailsBlock.narrow(
                                 'نوع التنفيذ', automationLabel),
-                            BudgetDetailsBlock.wide('مصادر التمويل', fundingText),
+                            BudgetDetailsBlock.wide(
+                                'مصادر التمويل', fundingText),
                           ],
                         ),
                       ],
@@ -1192,7 +1184,14 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     }
 
     // دين → فتح composer مباشرة
-    await _showDebtDialog();
+    await showDebtDialog(
+      context,
+      cubit: widget.cubit,
+      budget: _budget,
+      current: null,
+      idFactory: _id,
+      onSaveBudget: _saveBudget,
+    );
   }
 
   Future<void> _openLentSetupManagementSheet(
@@ -1376,7 +1375,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () async {
                         Navigator.of(sheetCtx).pop();
-                        final confirmed = await _confirmDeletion(
+                        final confirmed = await confirmBudgetDeletion(
+                          context,
                           title: 'حذف السلفة',
                           message:
                               'سيتم حذف سلفة "$personName" نهائيًا بدون تسجيل. هل تريد المتابعة؟',
@@ -1412,7 +1412,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   Future<void> _openDebtInfoSheet(DebtEntity debt) async {
-    final recurring = _linkedRecurringDebt(debt);
+    final recurring = budgetLinkedRecurringDebt(
+      widget.cubit.state.recurringTransactions,
+      debt,
+    );
     final walletName = () {
       final id = recurring?.walletId ?? '';
       if (id.isEmpty) return 'غير محدد';
@@ -1506,18 +1509,22 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                               'يوم الاستحقاق',
                               '${debt.executionDay}',
                             ),
-                            BudgetDetailsBlock.narrow('مصدر التمويل', fundingName),
-                            BudgetDetailsBlock.narrow('محفظة السداد', walletName),
+                            BudgetDetailsBlock.narrow(
+                                'مصدر التمويل', fundingName),
+                            BudgetDetailsBlock.narrow(
+                                'محفظة السداد', walletName),
                             BudgetDetailsBlock.narrow(
                               'طريقة التنفيذ',
-                              _incomeTypeLabel(
+                              budgetIncomeTypeLabel(
                                   recurring?.executionType ?? debt.type),
                             ),
                             BudgetDetailsBlock.narrow(
                                 'نوع التكرار', recurrenceLabel),
-                            BudgetDetailsBlock.narrow('اليوم الشهري', monthlyDay),
+                            BudgetDetailsBlock.narrow(
+                                'اليوم الشهري', monthlyDay),
                             BudgetDetailsBlock.narrow('الوقت', timeLabel),
-                            BudgetDetailsBlock.narrow('وقت الإشعار', reminderLabel),
+                            BudgetDetailsBlock.narrow(
+                                'وقت الإشعار', reminderLabel),
                             BudgetDetailsBlock.wide(
                               'الملاحظات',
                               recurring?.notes?.isNotEmpty == true
@@ -1551,12 +1558,17 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       Navigator.of(sheetCtx).pop();
-                      final approved = await _confirmDeletion(
+                      final approved = await confirmBudgetDeletion(
+                        context,
                         title: deleteTitle,
                         message: deleteMessage,
                       );
+
                       if (!approved) return;
-                      final rec = _linkedRecurringDebt(debt);
+                      final rec = budgetLinkedRecurringDebt(
+                        widget.cubit.state.recurringTransactions,
+                        debt,
+                      );
                       if (rec != null) {
                         await widget.cubit.deleteRecurringTransaction(rec.id);
                       }
@@ -1824,14 +1836,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             return <Widget>[
               ..._budget.incomeSources.map(
                 (income) {
-                  final linkedRecurring = _linkedRecurringIncome(income);
+                  final linkedRecurring = budgetLinkedRecurringIncome(
+                    widget.cubit.state.recurringTransactions,
+                    income,
+                  );
                   final iconName = linkedRecurring?.icon ?? 'cash';
                   final iconColorHex = linkedRecurring?.iconColor ?? '#0f9d7a';
                   return _incomePlanTile(
                     income: income,
                     iconName: iconName,
                     iconColorHex: iconColorHex,
-                    onTap: () => _openIncomeInfoSheet(income),
+                    onTap: () => showIncomeInfoSheet(
+                      context,
+                      income: income,
+                      recurringTransactions:
+                          widget.cubit.state.recurringTransactions,
+                      wallets: widget.cubit.state.wallets,
+                      onEdit: () => _showIncomeDialog(current: income),
+                    ),
                   );
                 },
               ),
@@ -1871,7 +1893,13 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                         size: 42,
                       ),
                       tint: _colorFromHex(allocation.iconColor),
-                      onTap: () => _openAllocationInfoSheet(allocation),
+                      onTap: () => showAllocationInfoSheet(
+                        context,
+                        allocation: allocation,
+                        incomeSources: _budget.incomeSources,
+                        onEdit: () =>
+                            _showAllocationDialog(current: allocation),
+                      ),
                       onDelete: null,
                     ),
                   )
@@ -1884,11 +1912,23 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           icon: Icons.monetization_on_rounded,
           accent: const Color(0xFFE09F1F),
           actionLabel: 'إضافة حصالة',
-          onAction: () => _showLinkedDialog(),
+          onAction: () => showLinkedWalletDialog(
+            context,
+            budget: _budget,
+            current: null,
+            idFactory: _id,
+            onSaveBudget: _saveBudget,
+          ),
           showHeaderAction: false,
           footerAction: _thinAddButton(
             label: 'إضافة حصالة',
-            onPressed: () => _showLinkedDialog(),
+            onPressed: () => showLinkedWalletDialog(
+              context,
+              budget: _budget,
+              current: null,
+              idFactory: _id,
+              onSaveBudget: _saveBudget,
+            ),
             tint: const Color(0xFFE09F1F),
           ),
           children: _budget.linkedWallets.isEmpty
@@ -1905,7 +1945,18 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                         size: 42,
                       ),
                       tint: _colorFromHex(wallet.iconColor),
-                      onTap: () => _openJarInfoSheet(wallet),
+                      onTap: () => showJarInfoSheet(
+                        context,
+                        jar: wallet,
+                        incomeSources: _budget.incomeSources,
+                        onEdit: () => showLinkedWalletDialog(
+                          context,
+                          budget: _budget,
+                          current: wallet,
+                          idFactory: _id,
+                          onSaveBudget: _saveBudget,
+                        ),
+                      ),
                       onDelete: null,
                     ),
                   )
@@ -1948,7 +1999,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 return [
                   // الأقساط والديون
                   ...installments.map((debt) {
-                    final recurring = _linkedRecurringDebt(debt);
+                    final recurring = budgetLinkedRecurringDebt(
+                      widget.cubit.state.recurringTransactions,
+                      debt,
+                    );
                     final iconColor = recurring?.iconColor ?? '#c65d2e';
                     return _planTile(
                       title: debt.name,
@@ -1960,7 +2014,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                         size: 42,
                       ),
                       tint: _colorFromHex(iconColor),
-                      onTap: () => _openDebtInfoSheet(debt),
+                      onTap: () => showDebtInfoSheet(
+                        context,
+                        debt: debt,
+                        budget: _budget,
+                        recurringTransactions:
+                            widget.cubit.state.recurringTransactions,
+                        wallets: widget.cubit.state.wallets,
+                        cubit: widget.cubit,
+                        onSaveBudget: _saveBudget,
+                        onEdit: () => showDebtDialog(
+                          context,
+                          cubit: widget.cubit,
+                          budget: _budget,
+                          current: debt,
+                          idFactory: _id,
+                          onSaveBudget: _saveBudget,
+                        ),
+                      ),
                       onDelete: null,
                     );
                   }),
@@ -2018,12 +2089,15 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               return [_emptyState('لا توجد اشتراكات مستحقة في هذه الدورة.')];
             }
             return subscriptions.map((debt) {
-              final recurring = _linkedRecurringDebt(debt);
+              final recurring = budgetLinkedRecurringDebt(
+                widget.cubit.state.recurringTransactions,
+                debt,
+              );
               final iconColor = recurring?.iconColor ?? '#4a7c59';
               return _planTile(
                 title: debt.name,
                 amountText: debt.amount.toStringAsFixed(2),
-                detailText: _recurrenceLabel(
+                detailText: budgetRecurrenceLabel(
                     recurring?.recurrencePattern ?? debt.recurrencePattern),
                 leadingWidget: _iconBadge(
                   iconName: recurring?.icon ?? 'subscriptions',
@@ -2031,7 +2105,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   size: 42,
                 ),
                 tint: _colorFromHex(iconColor),
-                onTap: () => _openDebtInfoSheet(debt),
+                onTap: () => showDebtInfoSheet(
+                  context,
+                  debt: debt,
+                  budget: _budget,
+                  recurringTransactions:
+                      widget.cubit.state.recurringTransactions,
+                  wallets: widget.cubit.state.wallets,
+                  cubit: widget.cubit,
+                  onSaveBudget: _saveBudget,
+                  onEdit: () => showDebtDialog(
+                    context,
+                    cubit: widget.cubit,
+                    budget: _budget,
+                    current: debt,
+                    idFactory: _id,
+                    onSaveBudget: _saveBudget,
+                  ),
+                ),
                 onDelete: null,
               );
             }).toList();
@@ -2164,14 +2255,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       if (allocations > 0)
         (allocations, Colors.white.withValues(alpha: 0.92), 'المخصصات'),
       if (jars > 0) (jars, const Color(0xFFFCD34D), 'الحصالات'),
-      if (installments > 0)
-        (installments, const Color(0xFFF87171), 'الأقساط'),
+      if (installments > 0) (installments, const Color(0xFFF87171), 'الأقساط'),
       if (subscriptions > 0)
         (subscriptions, const Color(0xFFC4B5FD), 'الاشتراكات'),
       if (freeSpace > 0)
         (freeSpace, Colors.white.withValues(alpha: 0.18), 'غير مخصص'),
-      if (overage > 0)
-        (overage, const Color(0xFFDC2626), 'تجاوز الميزانية'),
+      if (overage > 0) (overage, const Color(0xFFDC2626), 'تجاوز الميزانية'),
     ];
 
     return Column(
@@ -2259,8 +2348,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         GestureDetector(
           onTap: () => setState(() => _summaryExpanded = !_summaryExpanded),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
@@ -2513,7 +2601,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     final tint = _colorFromHex(iconColorHex);
     final meta = income.isVariable
         ? 'دخل متغير • يدوي'
-        : 'يوم ${income.date} • ${_incomeTypeLabel(income.type)}';
+        : 'يوم ${income.date} • ${budgetIncomeTypeLabel(income.type)}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -2620,7 +2708,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   Future<void> _openIncomeInfoSheet(IncomeSourceEntity income) async {
     final theme = Theme.of(context);
     final state = widget.cubit.state;
-    final recurring = _linkedRecurringIncome(income);
+    final recurring = budgetLinkedRecurringIncome(
+      widget.cubit.state.recurringTransactions,
+      income,
+    );
 
     String resolveWalletName() {
       final wallets = state.wallets;
@@ -2632,8 +2723,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
     final incomeTypeLabel = income.isVariable ? 'متغير' : 'ثابت';
     final executionLabel = recurring == null
-        ? _incomeTypeLabel(income.type)
-        : _incomeTypeLabel(recurring.executionType);
+        ? budgetIncomeTypeLabel(income.type)
+        : budgetIncomeTypeLabel(recurring.executionType);
     final recurrenceLabel = _recurrenceLabel(
         recurring?.recurrencePattern ?? RecurrencePattern.monthly.value);
     final monthlyDay = (recurring?.dayOfMonth ?? income.date).clamp(1, 28);
@@ -2684,7 +2775,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                         BudgetDetailsBlocks(
                           blocks: [
                             BudgetDetailsBlock.wide('اسم الدخل', income.name),
-                            BudgetDetailsBlock.narrow('نوع الدخل', incomeTypeLabel),
+                            BudgetDetailsBlock.narrow(
+                                'نوع الدخل', incomeTypeLabel),
                             BudgetDetailsBlock.narrow(
                               'قيمة الدخل',
                               income.isVariable
@@ -2697,7 +2789,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                             ),
                             BudgetDetailsBlock.narrow(
                                 'نوع التكرار', recurrenceLabel),
-                            BudgetDetailsBlock.wide('يوم التنفيذ', executionDayLine),
+                            BudgetDetailsBlock.wide(
+                                'يوم التنفيذ', executionDayLine),
                             BudgetDetailsBlock.narrow(
                                 'طريقة التنفيذ', executionLabel),
                           ],
@@ -2968,7 +3061,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     );
   }
 
-  String _incomeTypeLabel(String type) {
+  String budgetIncomeTypeLabel(String type) {
     if (type == AutomationType.auto.value) return 'تلقائي';
     if (type == AutomationType.confirm.value) return 'تأكيد';
     if (type == 'manual') return 'يدوي';
@@ -3033,7 +3126,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     BudgetSetupEntity setup,
     DebtEntity debt,
   ) {
-    return _linkedRecurringDebt(debt);
+    return budgetLinkedRecurringDebt(
+      widget.cubit.state.recurringTransactions,
+      debt,
+    );
   }
 
   // DateTime? _parseClockTime(String? value) {
