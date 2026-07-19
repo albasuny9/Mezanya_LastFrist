@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:mezanya_app/core/constants/transaction_types.dart';
@@ -18,6 +18,7 @@ import '../sheets/debt_dialog.dart';
 import '../sheets/debt_info_sheet.dart';
 import '../sheets/income_info_sheet.dart';
 import '../sheets/jar_info_sheet.dart';
+import '../sheets/lent_setup_management_sheet.dart';
 import '../sheets/linked_dialog.dart';
 import '../utils/budget_setup_display_helpers.dart';
 import '../widgets/budget_details_blocks.dart';
@@ -1196,217 +1197,28 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   Future<void> _openLentSetupManagementSheet(
       RecurringTransactionEntity record) async {
-    final personName = record.lentPersonName ?? record.name;
-    final returnDate = record.anchorDate != null
-        ? DateTime.tryParse(record.anchorDate!)
-        : null;
-    final isOverdue = returnDate != null &&
-        DateTime(returnDate.year, returnDate.month, returnDate.day).isBefore(
-            DateTime(
-                DateTime.now().year, DateTime.now().month, DateTime.now().day));
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setSt) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                  16, 8, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color:
-                              const Color(0xFF1a7a4a).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.handshake_rounded,
-                            color: Color(0xFF1a7a4a)),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              personName,
-                              style: Theme.of(ctx)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                            Text(
-                              '${record.amount.toStringAsFixed(2)}'
-                              '${returnDate != null ? ' • ${returnDate.day}/${returnDate.month}/${returnDate.year}' : ''}'
-                              '${isOverdue ? ' ⚠️ متأخر' : ''}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: isOverdue
-                                    ? const Color(0xFFC65D2E)
-                                    : Theme.of(ctx)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        Navigator.of(sheetCtx).pop();
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (dCtx) => AlertDialog(
-                            title: const Text('تأكيد الاسترداد'),
-                            content: Text(
-                                'هل استردّيت السلفة من $personName؟\nسيتم إضافة المبلغ لمحفظتك.'),
-                            actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(dCtx, false),
-                                  child: const Text('إلغاء')),
-                              FilledButton(
-                                  onPressed: () => Navigator.pop(dCtx, true),
-                                  child: const Text('تم الاسترداد')),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true && mounted) {
-                          await widget.cubit.settleLentRecord(record.id);
-                          setState(() {});
-                        }
-                      },
-                      icon: const Icon(Icons.check_circle_outline_rounded),
-                      label: const Text('تم الاسترداد'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        backgroundColor: const Color(0xFF1a7a4a),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            Navigator.of(sheetCtx).pop();
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: returnDate ??
-                                  DateTime.now().add(const Duration(days: 7)),
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now()
-                                  .add(const Duration(days: 365 * 5)),
-                              helpText: 'اختر تاريخ الاسترداد الجديد',
-                            );
-                            if (picked != null && mounted) {
-                              await widget.cubit
-                                  .postponeLentRecord(record.id, picked);
-                              setState(() {});
-                            }
-                          },
-                          icon: const Icon(Icons.schedule_rounded),
-                          label: const Text('تأجيل'),
-                          style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(44)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            Navigator.of(sheetCtx).pop();
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (dCtx) => AlertDialog(
-                                title: const Text('تنازل عن السلفة'),
-                                content: Text(
-                                    'هل متأكد إنك هتتنازل عن ${record.amount.toStringAsFixed(2)} من $personName؟\n\nلن يُضاف المبلغ لمحفظتك.'),
-                                actions: [
-                                  TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dCtx, false),
-                                      child: const Text('إلغاء')),
-                                  FilledButton(
-                                    onPressed: () => Navigator.pop(dCtx, true),
-                                    style: FilledButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFF7B4FBF)),
-                                    child: const Text('تنازل'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirmed == true && mounted) {
-                              await widget.cubit.writeOffLentRecord(record.id);
-                              setState(() {});
-                            }
-                          },
-                          icon: const Icon(Icons.remove_circle_outline_rounded,
-                              color: Color(0xFF7B4FBF)),
-                          label: const Text('تنازل',
-                              style: TextStyle(color: Color(0xFF7B4FBF))),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(44),
-                            side: const BorderSide(
-                                color: Color(0xFF7B4FBF), width: 1),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        Navigator.of(sheetCtx).pop();
-                        final confirmed = await confirmBudgetDeletion(
-                          context,
-                          title: 'حذف السلفة',
-                          message:
-                              'سيتم حذف سلفة "$personName" نهائيًا بدون تسجيل. هل تريد المتابعة؟',
-                        );
-                        if (confirmed && mounted) {
-                          await widget.cubit
-                              .deleteRecurringTransaction(record.id);
-                          setState(() {});
-                        }
-                      },
-                      icon: Icon(Icons.delete_outline_rounded,
-                          color: Theme.of(ctx).colorScheme.error),
-                      label: Text('حذف',
-                          style: TextStyle(
-                              color: Theme.of(ctx).colorScheme.error)),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(44),
-                        side: BorderSide(
-                            color: Theme.of(ctx)
-                                .colorScheme
-                                .error
-                                .withValues(alpha: 0.4)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
+    await showLentSetupManagementSheet(
+      context,
+      record: record,
+      onSettle: () async {
+        if (!mounted) return;
+        await widget.cubit.settleLentRecord(record.id);
+        if (mounted) setState(() {});
+      },
+      onPostpone: (picked) async {
+        if (!mounted) return;
+        await widget.cubit.postponeLentRecord(record.id, picked);
+        if (mounted) setState(() {});
+      },
+      onWriteOff: () async {
+        if (!mounted) return;
+        await widget.cubit.writeOffLentRecord(record.id);
+        if (mounted) setState(() {});
+      },
+      onDelete: () async {
+        if (!mounted) return;
+        await widget.cubit.deleteRecurringTransaction(record.id);
+        if (mounted) setState(() {});
       },
     );
   }
