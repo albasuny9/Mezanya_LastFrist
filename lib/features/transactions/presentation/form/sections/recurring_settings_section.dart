@@ -12,9 +12,11 @@ class RecurringSettingsSection extends StatelessWidget {
     super.key,
     required this.ctrl,
     required this.onChanged,
+    this.allowVariableIncomeToggle = true,
   });
 
   final TransactionFormController ctrl;
+  final bool allowVariableIncomeToggle;
 
   /// Call this after mutating any field on [ctrl] to trigger a rebuild in
   /// the parent form widget.
@@ -64,7 +66,8 @@ class RecurringSettingsSection extends StatelessWidget {
         const SizedBox(height: 12),
 
         // ── Variable income toggle ───────────────────────────────────────
-        if (ctrl.type == TransactionType.income.value &&
+        if (allowVariableIncomeToggle &&
+            ctrl.type == TransactionType.income.value &&
             ctrl.withinBudgetIncome) ...[
           _surfaceSection(
             theme: theme,

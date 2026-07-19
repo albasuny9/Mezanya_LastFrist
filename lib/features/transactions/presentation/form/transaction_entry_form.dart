@@ -84,6 +84,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
       debtOnlyMode: widget.debtOnlyMode,
       initialExpensePlanKind: widget.initialExpensePlanKind,
     );
+    _ensureRecurringIncomeSourceSelected();
     _ctrl.amountController.addListener(_rebuild);
     _ctrl.debtPrincipalController.addListener(_rebuild);
     _ctrl.installmentCountController.addListener(_rebuild);
@@ -92,6 +93,39 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
 
   void _rebuild() {
     if (mounted) setState(() {});
+  }
+
+  bool get _requiresExistingIncomeSource =>
+      widget.recurringMode && _ctrl.type == TransactionType.income.value;
+
+  void _ensureRecurringIncomeSourceSelected() {
+    if (!_requiresExistingIncomeSource) return;
+    final sources = widget.cubit.state.budgetSetup.incomeSources;
+    final selected = sources.where((s) => s.id == _ctrl.incomeSourceId);
+
+    _ctrl.incomeBudgetScope = BudgetScope.withinBudget.value;
+    _ctrl.incomeJarId = '';
+    if (selected.isNotEmpty) {
+      _applyIncomeSourceDefaults(selected.first);
+      return;
+    }
+    if (sources.isEmpty) {
+      _ctrl.incomeSourceId = 'wallet-only';
+      return;
+    }
+    _ctrl.incomeSourceId = sources.first.id;
+    _applyIncomeSourceDefaults(sources.first);
+  }
+
+  void _applyIncomeSourceDefaults(IncomeSourceEntity source) {
+    _ctrl.incomeBudgetScope = BudgetScope.withinBudget.value;
+    _ctrl.incomeSourceId = source.id;
+    _ctrl.incomeJarId = '';
+    _ctrl.isVariableIncome = source.isVariable;
+    if (source.isVariable) {
+      _ctrl.executionType = 'manual';
+      _ctrl.amountController.clear();
+    }
   }
 
   // ── Focus helpers ────────────────────────────────────────────────────────
@@ -369,6 +403,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
         if (!approved) return;
       }
     }
+
 
     final selectedJarId = _ctrl.budgetTargetId.startsWith('jar:')
         ? _ctrl.budgetTargetId.replaceFirst('jar:', '')
@@ -784,6 +819,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                       _ctrl.selectedCategoryId = null;
                       _ctrl.isDebtOrSubscription = false;
                       _ctrl.expensePlanKind = 'normal';
+                      _ensureRecurringIncomeSourceSelected();
                     } else {
                       _ctrl.selectedIncomeCategoryId = null;
                     }
@@ -899,12 +935,22 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                             currentIncomeBudgetScope: _ctrl.incomeBudgetScope,
                             currentIncomeSourceId: _ctrl.incomeSourceId,
                             currentIncomeJarId: _ctrl.incomeJarId,
+                            incomeSourcesOnly: _requiresExistingIncomeSource,
                             onSelected: (incomeBudgetScope, incomeSourceId,
                                 incomeJarId) {
                               setState(() {
                                 _ctrl.incomeBudgetScope = incomeBudgetScope;
                                 _ctrl.incomeSourceId = incomeSourceId;
                                 _ctrl.incomeJarId = incomeJarId;
+                                if (_requiresExistingIncomeSource) {
+                                  final selectedSource = budget.incomeSources
+                                      .where((s) => s.id == incomeSourceId);
+                                  if (selectedSource.isNotEmpty) {
+                                    _applyIncomeSourceDefaults(
+                                      selectedSource.first,
+                                    );
+                                  }
+                                }
                               });
                             },
                           );
@@ -962,6 +1008,8 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                       RecurringSettingsSection(
                         ctrl: _ctrl,
                         onChanged: () => setState(() {}),
+                        allowVariableIncomeToggle:
+                            !_requiresExistingIncomeSource,
                       ),
                       const SizedBox(height: 18),
                     ],

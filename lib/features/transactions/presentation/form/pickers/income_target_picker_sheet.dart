@@ -14,6 +14,7 @@ void showIncomeTargetPickerSheet(
   required String currentIncomeBudgetScope,
   required String currentIncomeSourceId,
   required String currentIncomeJarId,
+  bool incomeSourcesOnly = false,
   required void Function(
     String incomeBudgetScope,
     String incomeSourceId,
@@ -33,7 +34,8 @@ void showIncomeTargetPickerSheet(
         padding: const EdgeInsets.all(14),
         children: [
           // Wallet-only option
-          AllocationOptionCard(
+          if (!incomeSourcesOnly)
+            AllocationOptionCard(
             isSelected: currentIncomeBudgetScope ==
                     BudgetScope.outsideBudget.value &&
                 currentIncomeSourceId == 'wallet-only' &&
@@ -92,7 +94,7 @@ void showIncomeTargetPickerSheet(
                       color: Color(0xFF1E7F5C)),
               ],
             ),
-          ),
+            ),
 
           // Income sources
           if (budget.incomeSources.isNotEmpty) ...[
@@ -165,10 +167,32 @@ void showIncomeTargetPickerSheet(
                 ),
               );
             }),
+          ] else if (incomeSourcesOnly) ...[
+            const SizedBox(height: 14),
+            const SheetSectionLabel(label: 'ظ…طµط§ط¯ط± ط§ظ„ط¯ط®ظ„'),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(sheetCtx)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                'ط£ط¶ظپ ظ…طµط§ط¯ط± ط§ظ„ط¯ط®ظ„ ظ…ظ† ط¥ط¹ط¯ط§ط¯ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ط£ظˆظ„ط§ظ‹.',
+                style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
           ],
 
           // Jars
-          if (jars.isNotEmpty) ...[
+          if (!incomeSourcesOnly && jars.isNotEmpty) ...[
             const SizedBox(height: 14),
             const SheetSectionLabel(label: 'الحصالات'),
             const SizedBox(height: 10),
