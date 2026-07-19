@@ -477,6 +477,18 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
       return;
     }
 
+    if (_ctrl.type == TransactionType.income.value) {
+      final selectedIncomeSource = budget.incomeSources
+          .where((source) => source.id == _ctrl.incomeSourceId);
+      if (_ctrl.incomeSourceId == 'wallet-only' ||
+          _ctrl.incomeSourceId.isEmpty ||
+          selectedIncomeSource.isEmpty) {
+        _showError('Select an existing Budget Income source from Budget Setup.');
+        return;
+      }
+      _applyIncomeSourceDefaults(selectedIncomeSource.first);
+    }
+
     final selectedJarId = _ctrl.budgetTargetId.startsWith('jar:')
         ? _ctrl.budgetTargetId.replaceFirst('jar:', '')
         : null;
