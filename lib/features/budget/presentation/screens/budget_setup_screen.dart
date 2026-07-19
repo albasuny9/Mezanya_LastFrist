@@ -13,6 +13,7 @@ import '../../../transactions/presentation/screens/subscription_preset_selection
 import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../dialogs/budget_setup_dialogs.dart';
 import '../sheets/allocation_info_sheet.dart';
 import '../sheets/debt_dialog.dart';
 import '../sheets/debt_info_sheet.dart';
@@ -230,32 +231,16 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       return;
     }
     _futureMonthNoticeShown = true;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('خطة شهر قادم: $_displayMonthName'),
-        content: const Text(
-          'هذه الصفحة خاصة بإعداد شهر قادم وليست للشهر الحالي. يمكنك المتابعة أو التحويل مباشرة إلى إعداد الشهر الحالي.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              setState(() {
-                final now = DateTime.now();
-                _displayMonth = DateTime(now.year, now.month, 1);
-              });
-            },
-            child: const Text('خطة الشهر الحالي'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('أوكي'),
-          ),
-        ],
-      ),
+    final switchToCurrentMonth = await showFutureMonthBudgetNoticeDialog(
+      context,
+      displayMonthName: _displayMonthName,
     );
+    if (switchToCurrentMonth && mounted) {
+      setState(() {
+        final now = DateTime.now();
+        _displayMonth = DateTime(now.year, now.month, 1);
+      });
+    }
   }
 
   Future<void> _saveBudget(BudgetSetupEntity next) async {
@@ -511,38 +496,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       final nextCycleStart = DateTime(now.year, now.month + 1, newDay);
       final currentEnd = nextCycleStart.subtract(const Duration(days: 1));
 
-      final choice = await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('يوم بداية الدورة'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'أنت حاليًا في منتصف الدورة المحددة.\n\n'
-                '• الدورة الحالية: ${now.day}/${now.month} — ${currentEnd.day}/${currentEnd.month}\n'
-                '• الدورة الكاملة القادمة تبدأ يوم $newDay/${nextCycleStart.month}',
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'هتبدأ الإعداد ده من النهارده ولا هتطبقه من الدورة الجاية؟',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop('next'),
-              child: const Text('من الدورة الجاية'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop('now'),
-              child: const Text('من النهارده'),
-            ),
-          ],
-        ),
+      final choice = await showBudgetStartDayTimingDialog(
+        context,
+        now: now,
+        currentEnd: currentEnd,
+        nextCycleStart: nextCycleStart,
+        newDay: newDay,
       );
 
       if (choice == null) return; // ألغى
