@@ -24,6 +24,7 @@ import '../sheets/linked_dialog.dart';
 import '../utils/budget_setup_display_helpers.dart';
 import '../widgets/budget_details_blocks.dart';
 import '../widgets/budget_start_day_picker_tile.dart';
+import '../widgets/budget_setup_planner_section.dart';
 import '../widgets/budget_setup_summary_card.dart';
 import 'allocation_editor_screen.dart';
 
@@ -1584,7 +1585,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        _plannerSection(
+        BudgetSetupPlannerSection(
           title: 'مصادر الدخل',
           subtitle:
               'أضف الدخل الثابت أو المتغير الذي يدخل في ميزانيتك الشهرية.',
@@ -1593,7 +1594,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           actionLabel: 'إضافة دخل',
           onAction: _openIncomeComposer,
           showHeaderAction: false,
-          footerAction: _thinAddButton(
+          footerAction: BudgetSetupThinAddButton(
             label: 'إضافة دخل',
             onPressed: _openIncomeComposer,
             tint: const Color(0xFF0F9D7A),
@@ -1633,7 +1634,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           }(),
         ),
         const SizedBox(height: 14),
-        _plannerSection(
+        BudgetSetupPlannerSection(
           title: 'المخصصات',
           subtitle: 'قسّم ميزانيتك على بنود واضحة قبل بداية الصرف.',
           icon: Icons.grid_view_rounded,
@@ -1641,7 +1642,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           actionLabel: 'إضافة مخصص',
           onAction: () => _showAllocationDialog(),
           showHeaderAction: false,
-          footerAction: _thinAddButton(
+          footerAction: BudgetSetupThinAddButton(
             label: 'إضافة مخصص',
             onPressed: () => _showAllocationDialog(),
             tint: const Color(0xFF296BFF),
@@ -1678,7 +1679,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   .toList(),
         ),
         const SizedBox(height: 14),
-        _plannerSection(
+        BudgetSetupPlannerSection(
           title: 'الحصالات',
           subtitle: 'مبالغ ثابتة تتحول لأهدافك أو محافظك المرتبطة.',
           icon: Icons.monetization_on_rounded,
@@ -1692,7 +1693,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             onSaveBudget: _saveBudget,
           ),
           showHeaderAction: false,
-          footerAction: _thinAddButton(
+          footerAction: BudgetSetupThinAddButton(
             label: 'إضافة حصالة',
             onPressed: () => showLinkedWalletDialog(
               context,
@@ -1744,7 +1745,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             final lents =
                 appState.recurringTransactions.where((r) => r.isLent).toList();
 
-            return _plannerSection(
+            return BudgetSetupPlannerSection(
               title: 'الديون والأقساط',
               subtitle: 'أقساط شهرية وديون مربوطة بالميزانية، بالإضافة للسلف.',
               icon: Icons.receipt_long_rounded,
@@ -1752,7 +1753,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               actionLabel: '',
               onAction: () {},
               showHeaderAction: false,
-              footerAction: _thinAddButton(
+              footerAction: BudgetSetupThinAddButton(
                 label: 'إضافة دين',
                 onPressed: () =>
                     _showAddRecurringOrDebtComposer(subscriptionOnly: false),
@@ -1839,7 +1840,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           },
         ),
         const SizedBox(height: 14),
-        _plannerSection(
+        BudgetSetupPlannerSection(
           title: 'الاشتراكات',
           subtitle: 'اشتراكات متكررة مثل خدمات البث والأدوات الدورية.',
           icon: Icons.subscriptions_rounded,
@@ -1847,7 +1848,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           actionLabel: '',
           onAction: () {},
           showHeaderAction: false,
-          footerAction: _thinAddButton(
+          footerAction: BudgetSetupThinAddButton(
             label: 'إضافة اشتراك',
             onPressed: () =>
                 _showAddRecurringOrDebtComposer(subscriptionOnly: true),
@@ -1915,122 +1916,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               setState(() => _summaryExpanded = !_summaryExpanded),
         ),
       ],
-    );
-  }
-
-  Widget _plannerSection({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color accent,
-    required String actionLabel,
-    required VoidCallback onAction,
-    required List<Widget> children,
-    bool showHeaderAction = true,
-    Widget? footerAction,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.45),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (showHeaderAction) ...[
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onAction,
-                icon: const Icon(Icons.add_rounded),
-                label: Text(actionLabel),
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-          ...children,
-          if (footerAction != null) ...[
-            const SizedBox(height: 10),
-            footerAction,
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _thinAddButton({
-    required String label,
-    required VoidCallback onPressed,
-    required Color tint,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(Icons.add_rounded, color: tint, size: 18),
-        label: Text(
-          label,
-          style: TextStyle(
-            color: tint,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(42),
-          side: BorderSide(color: tint.withValues(alpha: 0.45)),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-      ),
     );
   }
 
