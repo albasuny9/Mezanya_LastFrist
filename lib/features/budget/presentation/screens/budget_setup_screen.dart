@@ -7,9 +7,7 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/presentation/screens/income_source_editor_screen.dart';
-import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/screens/subscription_preset_selection_screen.dart';
-import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
 import '../dialogs/budget_setup_dialogs.dart';
@@ -756,186 +754,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             .map((e) => e.id == current.id ? allocation : e)
             .toList();
     await _saveBudget(_budget.copyWith(allocations: next));
-  }
-
-  Future<void> _showLinkedDialog({LinkedWalletEntity? current}) async {
-    if (_budget.incomeSources.isEmpty && current == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يُنصح بإضافة مصدر دخل أولاً لتفعيل التمويل'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-    final result = await Navigator.of(context).push<JarEditorResult>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => JarEditorScreen(
-          current: current,
-          incomeSources: _budget.incomeSources,
-          idFactory: _id,
-        ),
-      ),
-    );
-    if (result == null) {
-      return;
-    }
-    if (result.deleteRequested && current != null) {
-      final next =
-          _budget.linkedWallets.where((e) => e.id != current.id).toList();
-      await _saveBudget(_budget.copyWith(linkedWallets: next));
-      return;
-    }
-    final entity = result.entity;
-    if (entity == null) {
-      return;
-    }
-    final next = current == null
-        ? [..._budget.linkedWallets, entity]
-        : _budget.linkedWallets
-            .map((e) => e.id == current.id ? entity : e)
-            .toList();
-    await _saveBudget(_budget.copyWith(linkedWallets: next));
-  }
-
-  Future<void> _showDebtDialog({DebtEntity? current}) async {
-    final linkedRecurring =
-        current == null ? null : _linkedRecurringDebt(current);
-    final draftRecurring = (linkedRecurring ??
-            RecurringTransactionEntity(
-              id: current?.recurringTransactionId ?? '',
-              name: current?.name ?? '',
-              type: TransactionType.expense.value,
-              amount: current?.amount ?? 0,
-              dayOfMonth: (current?.executionDay ?? 1).clamp(1, 28),
-              executionType: current?.type ?? AutomationType.confirm.value,
-              walletId: widget.cubit.state.wallets.isNotEmpty
-                  ? widget.cubit.state.wallets.first.id
-                  : '',
-              budgetScope: BudgetScope.withinBudget.value,
-              recurrencePattern:
-                  current?.recurrencePattern ?? RecurrencePattern.monthly.value,
-              icon: 'receipt',
-              iconColor: '#c65d2e',
-              monthOfYear: current?.monthOfYear,
-              incomeSourceId: null,
-              isDebtOrSubscription: true,
-              expensePlanKind: current?.isSubscription == true
-                  ? ExpensePlanKind.subscription.value
-                  : ExpensePlanKind.installment.value,
-              debtPrincipalTotal: current?.principalTotal ??
-                  (current?.isInstallment == true ? current!.amount : null),
-            ))
-        .copyWith(
-      recurrencePattern: current?.recurrencePattern != null &&
-              current!.recurrencePattern != RecurrencePattern.monthly.value
-          ? current.recurrencePattern
-          : (linkedRecurring?.recurrencePattern ??
-              RecurrencePattern.monthly.value),
-      monthOfYear: current?.monthOfYear ?? linkedRecurring?.monthOfYear,
-      expensePlanKind: linkedRecurring?.expensePlanKind ??
-          (current?.isSubscription == true
-              ? ExpensePlanKind.subscription.value
-              : ExpensePlanKind.installment.value),
-      debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
-          current?.principalTotal ??
-          (current?.isInstallment == true ? current!.amount : null),
-    );
-
-    final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
-      MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
-          initialType: TransactionType.expense.value,
-          initialWithinBudget: true,
-          initialRecurring: draftRecurring,
-          initialExpensePlanKind: draftRecurring.expensePlanKind ??
-              ExpensePlanKind.installment.value,
-          debtOnlyMode: true,
-          returnOnSave: true,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
-    final recurring = result?.recurring;
-    if (recurring == null) {
-      return;
-    }
-
-    final recurringId =
-        linkedRecurring?.id ?? current?.recurringTransactionId ?? _id('rec');
-    final isSubscription =
-        recurring.expensePlanKind == ExpensePlanKind.subscription.value;
-    final principal = recurring.debtPrincipalTotal;
-    final debt = DebtEntity(
-      id: current?.id ?? _id('debt'),
-      name: recurring.name,
-      amount: recurring.amount,
-      executionDay: recurring.dayOfMonth.clamp(1, 31),
-      type: recurring.executionType,
-      fundingSource: current?.fundingSource ??
-          (_budget.incomeSources.isNotEmpty
-              ? _budget.incomeSources.first.id
-              : ''),
-      recurringTransactionId: recurringId,
-      kind: isSubscription
-          ? ExpensePlanKind.subscription.value
-          : ExpensePlanKind.installment.value,
-      principalTotal: isSubscription
-          ? null
-          : (principal != null && principal > 0 ? principal : null),
-      installmentCount: isSubscription ? null : recurring.installmentCount,
-      downPayment: isSubscription ? null : recurring.installmentDownPayment,
-      recurrencePattern: recurring.recurrencePattern,
-      monthOfYear: recurring.monthOfYear,
-    );
-
-    final nextDebts = current == null
-        ? [..._budget.debts, debt]
-        : _budget.debts
-            .map((item) => item.id == current.id ? debt : item)
-            .toList();
-    await _saveBudget(_budget.copyWith(debts: nextDebts));
-
-    final recurringToSave = recurring.copyWith(
-      id: recurringId,
-      type: TransactionType.expense.value,
-      budgetScope: BudgetScope.withinBudget.value,
-      isDebtOrSubscription: true,
-      allocationId: null,
-      targetJarId: null,
-    );
-
-    if (linkedRecurring == null) {
-      await widget.cubit.addRecurringTransaction(
-        id: recurringId,
-        name: recurringToSave.name,
-        type: recurringToSave.type,
-        amount: recurringToSave.amount,
-        dayOfMonth: recurringToSave.dayOfMonth,
-        executionType: recurringToSave.executionType,
-        walletId: recurringToSave.walletId,
-        budgetScope: recurringToSave.budgetScope,
-        recurrencePattern: recurringToSave.recurrencePattern,
-        icon: recurringToSave.icon,
-        iconColor: recurringToSave.iconColor,
-        weekday: recurringToSave.weekday,
-        weekdays: recurringToSave.weekdays,
-        monthOfYear: recurringToSave.monthOfYear,
-        anchorDate: recurringToSave.anchorDate,
-        scheduledTime: recurringToSave.scheduledTime,
-        reminderLeadDays: recurringToSave.reminderLeadDays,
-        isDebtOrSubscription: true,
-        expensePlanKind: recurringToSave.expensePlanKind,
-        debtPrincipalTotal: recurringToSave.debtPrincipalTotal,
-        installmentCount: recurringToSave.installmentCount,
-        installmentDownPayment: recurringToSave.installmentDownPayment,
-        notes: recurringToSave.notes,
-      );
-    } else {
-      await widget.cubit.updateRecurringTransaction(recurringToSave);
-    }
   }
 
   Future<void> _showAddRecurringOrDebtComposer(
@@ -1705,13 +1523,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           fontWeight: FontWeight.w600,
         ),
       ),
-    );
-  }
-
-  RecurringTransactionEntity? _linkedRecurringDebt(DebtEntity debt) {
-    return BudgetRecurringPlanService.linkedRecurring(
-      widget.cubit.state.recurringTransactions,
-      debt,
     );
   }
 
