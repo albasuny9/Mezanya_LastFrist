@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
-import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
@@ -25,6 +24,7 @@ import '../utils/budget_setup_display_helpers.dart';
 import '../widgets/budget_details_blocks.dart';
 import '../widgets/budget_start_day_picker_tile.dart';
 import '../widgets/budget_setup_planner_section.dart';
+import '../widgets/budget_setup_plan_tiles.dart';
 import '../widgets/budget_setup_summary_card.dart';
 import 'allocation_editor_screen.dart';
 
@@ -1615,7 +1615,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   );
                   final iconName = linkedRecurring?.icon ?? 'cash';
                   final iconColorHex = linkedRecurring?.iconColor ?? '#0f9d7a';
-                  return _incomePlanTile(
+                  return BudgetIncomePlanTile(
                     income: income,
                     iconName: iconName,
                     iconColorHex: iconColorHex,
@@ -1660,12 +1660,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                               RolloverBehavior.keep.value
                           ? 'يرحل للدورة التالية'
                           : 'يرجع للتوفير',
-                      leadingWidget: _iconBadge(
+                      leadingWidget: BudgetSetupIconBadge(
                         iconName: allocation.icon,
                         colorHex: allocation.iconColor,
                         size: 42,
                       ),
-                      tint: _colorFromHex(allocation.iconColor),
+                      tint: budgetSetupColorFromHex(allocation.iconColor),
                       onTap: () => showAllocationInfoSheet(
                         context,
                         allocation: allocation,
@@ -1712,12 +1712,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       title: wallet.name,
                       amountText: wallet.monthlyAmount.toStringAsFixed(2),
                       detailText: 'يوم ${wallet.executionDay}',
-                      leadingWidget: _iconBadge(
+                      leadingWidget: BudgetSetupIconBadge(
                         iconName: wallet.icon,
                         colorHex: wallet.iconColor,
                         size: 42,
                       ),
-                      tint: _colorFromHex(wallet.iconColor),
+                      tint: budgetSetupColorFromHex(wallet.iconColor),
                       onTap: () => showJarInfoSheet(
                         context,
                         jar: wallet,
@@ -1781,12 +1781,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       title: debt.name,
                       amountText: debt.amount.toStringAsFixed(2),
                       detailText: 'يوم ${debt.executionDay}',
-                      leadingWidget: _iconBadge(
+                      leadingWidget: BudgetSetupIconBadge(
                         iconName: recurring?.icon ?? 'receipt',
                         colorHex: iconColor,
                         size: 42,
                       ),
-                      tint: _colorFromHex(iconColor),
+                      tint: budgetSetupColorFromHex(iconColor),
                       onTap: () => showDebtInfoSheet(
                         context,
                         debt: debt,
@@ -1825,7 +1825,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       title: name,
                       amountText: record.amount.toStringAsFixed(2),
                       detailText: dateText,
-                      leadingWidget: _iconBadge(
+                      leadingWidget: BudgetSetupIconBadge(
                           iconName: 'handshake', colorHex: '#1a7a4a', size: 42),
                       tint: overdue
                           ? const Color(0xFFC65D2E)
@@ -1872,12 +1872,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 amountText: debt.amount.toStringAsFixed(2),
                 detailText: budgetRecurrenceLabel(
                     recurring?.recurrencePattern ?? debt.recurrencePattern),
-                leadingWidget: _iconBadge(
+                leadingWidget: BudgetSetupIconBadge(
                   iconName: recurring?.icon ?? 'subscriptions',
                   colorHex: iconColor,
                   size: 42,
                 ),
-                tint: _colorFromHex(iconColor),
+                tint: budgetSetupColorFromHex(iconColor),
                 onTap: () => showDebtInfoSheet(
                   context,
                   debt: debt,
@@ -1916,120 +1916,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               setState(() => _summaryExpanded = !_summaryExpanded),
         ),
       ],
-    );
-  }
-
-  Widget _incomePlanTile({
-    required IncomeSourceEntity income,
-    required String iconName,
-    required String iconColorHex,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    final tint = _colorFromHex(iconColorHex);
-    final meta = income.isVariable
-        ? 'دخل متغير • يدوي'
-        : 'يوم ${income.date} • ${budgetIncomeTypeLabel(income.type)}';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: tint.withValues(alpha: 0.14),
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _iconBadge(
-                iconName: iconName,
-                colorHex: iconColorHex,
-                size: 42,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      income.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: FittedBox(
-                            alignment: AlignmentDirectional.centerStart,
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              income.isVariable
-                                  ? 'متغير'
-                                  : income.amount.toStringAsFixed(2),
-                              maxLines: 1,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: const Color(0xFF165B47),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: tint.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              income.isVariable
-                                  ? 'غير ثابت'
-                                  : 'يوم ${income.date}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      meta,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -2394,36 +2280,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     if (type == AutomationType.confirm.value) return 'تأكيد';
     if (type == 'manual') return 'يدوي';
     return type;
-  }
-
-  Widget _iconBadge({
-    required String iconName,
-    required String colorHex,
-    double size = 48,
-  }) {
-    final color = _colorFromHex(colorHex);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(size * 0.34),
-      ),
-      child: Center(
-        child: AppIconPickerDialog.iconWidgetForName(
-          iconName,
-          color: color,
-          size: size * 0.48,
-        ),
-      ),
-    );
-  }
-
-  Color _colorFromHex(String value) {
-    final hex = value.replaceAll('#', '');
-    final normalized = hex.length == 6 ? 'FF$hex' : hex;
-    final intColor = int.tryParse(normalized, radix: 16) ?? 0xFF165B47;
-    return Color(intColor);
   }
 
   RecurringTransactionEntity? _linkedRecurringIncome(
