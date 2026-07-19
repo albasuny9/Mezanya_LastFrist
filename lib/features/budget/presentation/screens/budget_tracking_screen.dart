@@ -25,6 +25,7 @@ import '../../domain/utils/budget_date_format.dart';
 import '../constants/budget_colors.dart';
 import '../constants/budget_layout.dart';
 import 'budget_setup_screen.dart';
+import 'allocation_editor_screen.dart';
 import 'cycle_analysis_screen.dart';
 import '../widgets/budget_static_info_card.dart';
 import '../widgets/budget_section_title.dart';
