@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
-import '../../../app_state/presentation/cubits/app_cubit.dart';
-import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/budget_setup_entity.dart';

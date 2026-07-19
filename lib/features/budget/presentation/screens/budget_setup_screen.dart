@@ -2282,35 +2282,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     return type;
   }
 
-  RecurringTransactionEntity? _linkedRecurringIncome(
-      IncomeSourceEntity source) {
-    final linked = widget.cubit.state.recurringTransactions.where(
-      (item) =>
-          item.type == TransactionType.income.value &&
-          item.budgetScope == BudgetScope.withinBudget.value &&
-          (item.incomeSourceId == source.id ||
-              ((item.incomeSourceId ?? '').isEmpty &&
-                  item.name == source.name &&
-                  item.walletId == source.targetWalletId)),
-    );
-    if (linked.isEmpty) {
-      return null;
-    }
-    return linked.first;
-  }
-
   RecurringTransactionEntity? _linkedRecurringDebt(DebtEntity debt) {
     return BudgetRecurringPlanService.linkedRecurring(
-      widget.cubit.state.recurringTransactions,
-      debt,
-    );
-  }
-
-  RecurringTransactionEntity? _linkedRecurringDebtFromSetup(
-    BudgetSetupEntity setup,
-    DebtEntity debt,
-  ) {
-    return budgetLinkedRecurringDebt(
       widget.cubit.state.recurringTransactions,
       debt,
     );
