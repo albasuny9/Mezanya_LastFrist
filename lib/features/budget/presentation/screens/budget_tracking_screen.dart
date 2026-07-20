@@ -208,22 +208,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           children: [
             BudgetMonthBar(
               rangeLabel: rangeLabel,
-              isCurrent: _isCurrentCycle(budget),
+              isCurrent: isCurrentMonthView,
               isPast: _isPastCycle(budget),
               isFuture: _isFutureCycle(budget),
               onPrevious: () => _goToPreviousCycle(budget),
               onNext: () => _goToNextCycle(budget),
             ),
             const SizedBox(height: 12),
-            // TODO(debug): remove before release
-            () {
-              debugPrint('── BudgetHeroSummaryCard inputs ──────────────────');
-              debugPrint('  totalIncomeActual  : $totalIncomeActual');
-              debugPrint('  totalExpenseActual : $totalExpenseActual');
-              debugPrint('  remainingIncome    : $remainingIncome');
-              debugPrint('──────────────────────────────────────────────────');
-              return const SizedBox.shrink();
-            }(),
             BudgetHeroSummaryCard(
               totalIncomeActual: totalIncomeActual,
               totalExpenseActual: totalExpenseActual,
@@ -475,13 +466,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     List<TransactionEntity> incomeTx,
     List<TransactionEntity> monthTx,
   ) {
+    final isCurrentMonthView = _isCurrentMonthView();
     final children = <Widget>[
       ...budget.incomeSources.map((source) {
         final sourceTx =
             incomeTx.where((t) => t.incomeSourceId == source.id).toList();
         final received = sourceTx.fold<double>(0, (s, t) => s + t.amount);
         final recurring = BudgetCycleService.linkedRecurringIncome(state, source);
-        final pendingMeta = BudgetCycleService.incomePendingMeta(state, source, sourceTx, _isCurrentMonthView(), _month);
+        final pendingMeta = BudgetCycleService.incomePendingMeta(state, source, sourceTx, isCurrentMonthView, _month);
         final isSnoozed = pendingMeta?['snoozed'] == true;
         final displayedAmount = received <= 0 ? source.amount : received;
         final pool = BudgetIncomeMetricsService.incomeDisplayPool(source, received);

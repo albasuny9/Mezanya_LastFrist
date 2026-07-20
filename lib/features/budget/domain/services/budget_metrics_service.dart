@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:mezanya_app/features/transactions/domain/entities/transaction_entity.dart';
 
@@ -45,8 +44,6 @@ class BudgetMetricsService {
   /// This ensures jar spending is never double-counted: the budget is debited
   /// when income funds the jar, not again when the user spends from the jar.
   static double computeActualBudgetExpense(List<TransactionEntity> txList) {
-    // TODO(debug): remove before release
-    debugPrint('── computeActualBudgetExpense (${txList.length} txns) ───────');
     double total = 0;
     for (final t in txList) {
       final isWithinBudget = t.budgetScope == BudgetScope.withinBudget.value;
@@ -57,20 +54,10 @@ class BudgetMetricsService {
           t.transferType == TransferType.jarFunding.value &&
           isWithinBudget;
       final included = isExpenseWithinBudget || isVirtualJarFunding;
-      // TODO(debug): remove before release
-      debugPrint(
-        '  [${included ? 'INCLUDED' : 'EXCLUDED'}]'
-        '  amount=${t.amount}'
-        '  type=${t.type}'
-        '  budgetScope=${t.budgetScope ?? 'null'}'
-        '  transferType=${t.transferType ?? 'null'}',
-      );
       if (included) {
         total += t.amount;
       }
     }
-    debugPrint('  → total: $total');
-    debugPrint('────────────────────────────────────────────────────────────');
     return total;
   }
 }

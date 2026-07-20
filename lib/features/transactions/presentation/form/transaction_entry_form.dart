@@ -69,6 +69,7 @@ class TransactionEntryForm extends StatefulWidget {
 class _TransactionEntryFormState extends State<TransactionEntryForm> {
   late final TransactionFormController _ctrl;
   bool _isSaving = false;
+  bool _budgetTargetResetScheduled = false;
 
   @override
   void initState() {
@@ -93,6 +94,19 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
 
   void _rebuild() {
     if (mounted) setState(() {});
+  }
+
+  // Schedules the stale budgetTargetId reset for after the current frame.
+  // Guarded so a callback is only ever registered once per pending reset,
+  // instead of once per build() call while the invalid state persists.
+  void _scheduleBudgetTargetReset() {
+    if (_budgetTargetResetScheduled) return;
+    _budgetTargetResetScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _budgetTargetResetScheduled = false;
+      if (!mounted) return;
+      setState(() => _ctrl.budgetTargetId = '');
+    });
   }
 
   bool get _requiresExistingIncomeSource =>
@@ -804,10 +818,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     ].toSet();
     if (_ctrl.budgetTargetId.isNotEmpty &&
         !allocationItems.contains(_ctrl.budgetTargetId)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() => _ctrl.budgetTargetId = '');
-      });
+      _scheduleBudgetTargetReset();
     }
 
     return Container(
