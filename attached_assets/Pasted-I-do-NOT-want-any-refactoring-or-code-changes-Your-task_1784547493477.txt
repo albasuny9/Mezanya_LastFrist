@@ -1,0 +1,114 @@
+I do NOT want any refactoring or code changes.
+
+Your task is ONLY to perform a complete PERFORMANCE AUDIT of the Flutter project.
+
+===========================================================
+MISSION
+===========================================================
+
+The application feels very slow.
+
+Examples:
+
+- Opening Add Transaction is slow.
+- Pressing Save takes noticeable time before responding.
+- Navigation between screens feels sluggish.
+- The whole app sometimes feels like it freezes for a moment.
+
+I do NOT want guesses.
+
+I want measurements.
+
+===========================================================
+CHECK EVERYTHING
+===========================================================
+
+Measure and identify:
+
+1. App startup time.
+
+2. Time to open:
+- Home
+- Budget Setup
+- Budget Tracking
+- Wallets
+- Transactions
+- Add Transaction
+- Recurring Transactions
+
+3. Time to save:
+- Transaction
+- Recurring Transaction
+- Budget changes
+
+4. Heavy synchronous work on the UI thread.
+
+5. Expensive build() methods.
+
+6. Widgets rebuilding too often.
+
+7. Bloc/Cubit emit frequency.
+
+8. Firestore reads/writes.
+
+9. Hive reads/writes.
+
+10. Expensive loops.
+
+11. Repeated calculations.
+
+12. Large object allocations.
+
+13. Any method taking more than 16ms.
+
+14. Any method taking more than 50ms.
+
+15. Any method taking more than 100ms.
+
+===========================================================
+SPECIAL ATTENTION
+===========================================================
+
+Inspect carefully:
+
+- TransactionProcessor
+- AppCubit
+- Budget calculations
+- Budget Setup
+- Budget Tracking
+- TransactionEntryForm
+- Add Transaction flow
+- Save Transaction flow
+- Recurring processing
+
+===========================================================
+OUTPUT
+===========================================================
+
+Produce ONE report.
+
+For every issue include:
+
+- File
+- Method
+- Estimated execution cost
+- Why it is slow
+- Expected impact
+- Priority:
+  Critical / High / Medium / Low
+
+At the end include:
+
+1. Top 10 slowest places.
+2. Top 10 easiest performance wins.
+3. Recommended execution order.
+
+IMPORTANT:
+
+DO NOT MODIFY ANY CODE.
+
+DO NOT REFACTOR.
+
+DO NOT OPTIMIZE.
+
+ONLY INVESTIGATE AND REPORT.
