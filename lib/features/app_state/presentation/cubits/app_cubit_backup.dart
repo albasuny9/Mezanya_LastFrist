@@ -5,7 +5,7 @@ mixin AppCubitBackupMixin on AppCubitBase {
 
   Future<void> importStateJson(String jsonString) async {
     final map = jsonDecode(jsonString) as Map<String, dynamic>;
-    final next = _normalizeMoneyLocationState(AppStateEntity.fromMap(map));
+    final next = MigrationService.normalizeMoneyLocationState(AppStateEntity.fromMap(map));
     await _applyAndLog(
       action: 'import',
       entityType: 'backup',
@@ -17,7 +17,7 @@ mixin AppCubitBackupMixin on AppCubitBase {
 
   Future<void> mergeStateJson(String remoteJson) async {
     final remoteMap = jsonDecode(remoteJson) as Map<String, dynamic>;
-    final remote = _normalizeMoneyLocationState(AppStateEntity.fromMap(remoteMap));
+    final remote = MigrationService.normalizeMoneyLocationState(AppStateEntity.fromMap(remoteMap));
     final local = state;
 
     final mergedWallets = {
@@ -50,7 +50,7 @@ mixin AppCubitBackupMixin on AppCubitBase {
         0;
     final budget = localBudgetNewer ? local.budgetSetup : remote.budgetSetup;
 
-    final next = _normalizeMoneyLocationState(local.copyWith(
+    final next = MigrationService.normalizeMoneyLocationState(local.copyWith(
       wallets: mergedWallets,
       transactions: mergedTx,
       recurringTransactions: mergedRecurring,

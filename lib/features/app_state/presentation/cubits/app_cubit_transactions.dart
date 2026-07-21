@@ -199,7 +199,7 @@ mixin AppCubitTransactionsMixin on AppCubitBase {
       entityType: 'transaction',
       entityId: transactionId,
       details:
-          'تم حذف معاملة ${_transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
+          'تم حذف معاملة ${AuditLogService.transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
       apply: () async => next,
     );
   }

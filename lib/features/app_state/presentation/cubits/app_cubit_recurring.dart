@@ -365,7 +365,7 @@ mixin AppCubitRecurringMixin on AppCubitBase {
     String action,
     RecurringTransactionEntity recurring,
   ) {
-    final type = _transactionTypeLabel(recurring.type);
+    final type = AuditLogService.transactionTypeLabel(recurring.type);
     final amount = recurring.isVariableIncome
         ? 'دخل متغير'
         : recurring.amount.toStringAsFixed(2);

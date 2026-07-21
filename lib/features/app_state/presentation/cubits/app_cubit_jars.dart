@@ -165,7 +165,7 @@ mixin AppCubitJarsMixin on AppCubitBase {
   }
 
   Future<void> ensureDefaultSavingsJar() async {
-    final next = _ensureDefaultSavingsJarSync(state);
+    final next = MigrationService.ensureDefaultSavingsJarSync(state);
     if (identical(next, state)) return;
     await _repository.saveState(next);
     emit(next);

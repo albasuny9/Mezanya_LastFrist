@@ -56,7 +56,7 @@ mixin AppCubitMoneyLocationMixin on AppCubitBase {
       entityType: 'money-distribution',
       entityId: jarId,
       details: 'تم تعديل مكان الفلوس',
-      apply: () async => _withMoneyDistributions(
+      apply: () async => MoneyDistributionService.withMoneyDistributions(
         state,
         DistributionEngine.addReservation(
           entries: state.moneyDistributions,
@@ -81,7 +81,7 @@ mixin AppCubitMoneyLocationMixin on AppCubitBase {
       entityType: 'money-distribution',
       entityId: jarId,
       details: 'تم تعديل مكان الفلوس',
-      apply: () async => _withMoneyDistributions(
+      apply: () async => MoneyDistributionService.withMoneyDistributions(
         state,
         DistributionEngine.removeReservation(
           entries: state.moneyDistributions,
@@ -110,7 +110,7 @@ mixin AppCubitMoneyLocationMixin on AppCubitBase {
       entityType: 'money-distribution',
       entityId: jarId,
       details: 'تم نقل مكان الفلوس',
-      apply: () async => _withMoneyDistributions(
+      apply: () async => MoneyDistributionService.withMoneyDistributions(
         state,
         DistributionEngine.transferReservation(
           entries: state.moneyDistributions,
@@ -134,7 +134,7 @@ mixin AppCubitMoneyLocationMixin on AppCubitBase {
       entityType: 'money-distribution',
       entityId: entryId,
       details: 'تم نقل مكان الفلوس',
-      apply: () async => _withMoneyDistributions(
+      apply: () async => MoneyDistributionService.withMoneyDistributions(
         state,
         DistributionEngine.moveEntry(
           entries: state.moneyDistributions,
@@ -163,7 +163,7 @@ mixin AppCubitMoneyLocationMixin on AppCubitBase {
       entityType: 'money-distribution',
       entityId: entryId,
       details: 'تم تعديل مكان الفلوس',
-      apply: () async => _withMoneyDistributions(
+      apply: () async => MoneyDistributionService.withMoneyDistributions(
         state,
         DistributionEngine.editEntryAmount(
           entries: state.moneyDistributions,
@@ -181,7 +181,7 @@ mixin AppCubitMoneyLocationMixin on AppCubitBase {
       entityType: 'money-distribution',
       entityId: entryId,
       details: 'تم حذف مكان الفلوس',
-      apply: () async => _withMoneyDistributions(
+      apply: () async => MoneyDistributionService.withMoneyDistributions(
         state,
         DistributionEngine.deleteEntry(
           entries: state.moneyDistributions,
