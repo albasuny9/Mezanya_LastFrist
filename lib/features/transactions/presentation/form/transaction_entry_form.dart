@@ -23,6 +23,7 @@ import 'sections/target_section.dart';
 import 'sections/type_section.dart';
 import 'sections/wallet_section.dart';
 import 'transaction_form_controller.dart';
+import 'package:mezanya_app/core/perf/txn_timing.dart'; // Sprint #2 — remove when done
 
 // ---------------------------------------------------------------------------
 // TransactionEntryForm
@@ -70,11 +71,19 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
   late final TransactionFormController _ctrl;
   bool _isSaving = false;
   bool _budgetTargetResetScheduled = false;
+  // Sprint #2 — timing fields; remove with txn_timing.dart when sprint ends.
+  int _formOpenMs = 0;
+  int _formInitMs = 0;
 
   @override
   void initState() {
     super.initState();
+    // ── Sprint #2: form open + init timing ───────────────────────────────
+    final _swOpen = Stopwatch()..start();
+
     final state = widget.cubit.state;
+
+    final _swCtrl = Stopwatch()..start();
     _ctrl = TransactionFormController.create(
       wallets: state.wallets,
       recurringMode: widget.recurringMode,
@@ -85,11 +94,18 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
       debtOnlyMode: widget.debtOnlyMode,
       initialExpensePlanKind: widget.initialExpensePlanKind,
     );
+    _swCtrl.stop();
+    _formInitMs = _swCtrl.elapsedMilliseconds;
+
     _ensureRecurringIncomeSourceSelected();
     _ctrl.amountController.addListener(_rebuild);
     _ctrl.debtPrincipalController.addListener(_rebuild);
     _ctrl.installmentCountController.addListener(_rebuild);
     _ctrl.downPaymentController.addListener(_rebuild);
+
+    _swOpen.stop();
+    _formOpenMs = _swOpen.elapsedMilliseconds;
+    // ─────────────────────────────────────────────────────────────────────
   }
 
   void _rebuild() {
@@ -378,6 +394,11 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     BudgetSetupEntity budget,
     List<WalletEntity> wallets,
   ) async {
+    // ── Sprint #2: start save-cycle timing + time sync validation ─────────
+    TxnTimingCollector.startSave();
+    final _swVal = Stopwatch()..start();
+    // ─────────────────────────────────────────────────────────────────────
+
     if (amount <= 0) {
       _showError('أدخل مبلغًا صحيحًا أكبر من صفر.');
       return;
@@ -404,6 +425,13 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
       _showError('اختر مصدر دخل أو حصالة للدخل داخل الميزانية.');
       return;
     }
+
+    // ── Sprint #2: sync validation done; record pre-save entries ──────────
+    _swVal.stop();
+    TxnTimingCollector.current.record('01 | Form open (initState)', _formOpenMs);
+    TxnTimingCollector.current.record('02 | Form init (ctrl.create)', _formInitMs);
+    TxnTimingCollector.current.record('03 | Validation (sync checks)', _swVal.elapsedMilliseconds);
+    // ─────────────────────────────────────────────────────────────────────
 
     if (_ctrl.type == TransactionType.expense.value &&
         _ctrl.walletId != 'no-wallet') {
@@ -472,6 +500,10 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
           ? _ctrl.selectedIncomeCategoryId
           : _ctrl.selectedCategoryId,
     );
+
+    // ── Sprint #2: emit is done, UI is responsive — print sync report ─────
+    TxnTimingCollector.current.printSyncReport();
+    // ─────────────────────────────────────────────────────────────────────
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
