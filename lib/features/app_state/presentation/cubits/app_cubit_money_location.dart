@@ -1,20 +1,6 @@
 part of 'app_cubit.dart';
 
 mixin AppCubitMoneyLocationMixin on AppCubitBase {
-  AppStateEntity _withMoneyDistributions(
-    AppStateEntity source,
-    List<DistributionEntry> entries,
-  ) {
-    final positiveEntries = entries.where((entry) => entry.amount > 0).toList();
-    final jars = source.budgetSetup.linkedWallets
-        .map((jar) => jar.copyWith(walletSources: const []))
-        .toList();
-    return source.copyWith(
-      moneyDistributions: positiveEntries,
-      budgetSetup: source.budgetSetup.copyWith(linkedWallets: jars),
-    );
-  }
-
   /// يعدّل تصنيف مكان فلوس محفظة في الحصالة (walletSources فقط).
   ///
   /// ## التغيير المعماري

@@ -1,6 +1,7 @@
 part of 'app_cubit.dart';
 
 mixin AppCubitTransactionsMixin on AppCubitBase {
+  @override
   Future<void> addTransaction({
     String? walletId,
     String? fromWalletId,
@@ -201,12 +202,5 @@ mixin AppCubitTransactionsMixin on AppCubitBase {
           'تم حذف معاملة ${_transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
       apply: () async => next,
     );
-  }
-
-  String _transactionTypeLabel(String type) {
-    if (type == TransactionType.income.value) return 'دخل';
-    if (type == TransactionType.expense.value) return 'مصروف';
-    if (type == TransactionType.transfer.value) return 'تحويل';
-    return type;
   }
 }

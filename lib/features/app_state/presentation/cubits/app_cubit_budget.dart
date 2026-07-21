@@ -1,18 +1,7 @@
 part of 'app_cubit.dart';
 
 mixin AppCubitBudgetMixin on AppCubitBase {
-  AppStateEntity _withMonthlySnapshot(
-    AppStateEntity source,
-    BudgetSetupEntity setup, [
-    DateTime? month,
-  ]) {
-    final snapshots = Map<String, Map<String, dynamic>>.from(
-      source.monthlyBudgetSnapshots,
-    );
-    snapshots[_monthKey(month)] = setup.toMap();
-    return source.copyWith(monthlyBudgetSnapshots: snapshots);
-  }
-
+  @override
   Future<void> updateBudgetSetup(
     BudgetSetupEntity setup, {
     String? detailsOverride,
