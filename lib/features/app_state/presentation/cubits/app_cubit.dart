@@ -103,9 +103,7 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
   }
 
   Map<String, dynamic> _coreMap(AppStateEntity appState) {
-    final map = appState.toMap();
-    map.remove('logs');
-    return map;
+    return appState.toMap(includeLogs: false);
   }
 
   AppStateEntity _withMonthlySnapshot(

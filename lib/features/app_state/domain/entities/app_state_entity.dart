@@ -151,7 +151,7 @@ class AppStateEntity {
       budgetSetup.allocations.isEmpty &&
       wallets.every((w) => w.balance == 0);
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toMap({bool includeLogs = true}) {
     return <String, dynamic>{
       'wallets': wallets.map((wallet) => wallet.toMap()).toList(),
       'transactions':
@@ -162,7 +162,7 @@ class AppStateEntity {
       'currencyCode': currencyCode,
       'notificationsEnabled': notificationsEnabled,
       'googleEmail': googleEmail,
-      'logs': logs.map((item) => item.toMap()).toList(),
+      if (includeLogs) 'logs': logs.map((item) => item.toMap()).toList(),
       'recurringTransactions':
           recurringTransactions.map((item) => item.toMap()).toList(),
       'goals': goals.map((item) => item.toMap()).toList(),
