@@ -24,9 +24,11 @@ class SharedPrefsAppRepository implements AppRepository {
       final decoded = jsonDecode(payload) as Map<String, dynamic>;
       return AppStateEntity.fromMap(decoded);
     } catch (_) {
-      final fallback = AppStateEntity.initial();
-      await saveState(fallback);
-      return fallback;
+      // لا نكتب فوق الـ payload المعطوب على الديسك — القراءة الفاشلة قد
+      // تكون عارضة (race, عطل مؤقت في الـ plugin...)، والكتابة هنا كانت
+      // بتحوّلها لمسح دائم لبيانات المستخدم. نرجّع حالة ابتدائية للجلسة
+      // الحالية فقط، ونترك البيانات الأصلية كما هي على الديسك.
+      return AppStateEntity.initial();
     }
   }
 
