@@ -98,18 +98,15 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     _formInitMs = _swCtrl.elapsedMilliseconds;
 
     _ensureRecurringIncomeSourceSelected();
-    _ctrl.amountController.addListener(_rebuild);
-    _ctrl.debtPrincipalController.addListener(_rebuild);
-    _ctrl.installmentCountController.addListener(_rebuild);
-    _ctrl.downPaymentController.addListener(_rebuild);
+    // NOTE: amountController/debtPrincipalController/installmentCountController/
+    // downPaymentController no longer trigger a full-form setState here.
+    // AmountSection and ActionsSection react to them locally via
+    // AnimatedBuilder in build() (Phase 1 rebuild-scope isolation) so the
+    // other 7 sections stop rebuilding on every keystroke.
 
     _swOpen.stop();
     _formOpenMs = _swOpen.elapsedMilliseconds;
     // ─────────────────────────────────────────────────────────────────────
-  }
-
-  void _rebuild() {
-    if (mounted) setState(() {});
   }
 
   // Schedules the stale budgetTargetId reset for after the current frame.
@@ -168,10 +165,6 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
 
   @override
   void dispose() {
-    _ctrl.amountController.removeListener(_rebuild);
-    _ctrl.debtPrincipalController.removeListener(_rebuild);
-    _ctrl.installmentCountController.removeListener(_rebuild);
-    _ctrl.downPaymentController.removeListener(_rebuild);
     _ctrl.dispose();
     super.dispose();
   }
@@ -774,7 +767,6 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     final state = widget.cubit.state;
     final wallets = state.wallets;
     final budget = state.budgetSetup;
-    final amount = double.tryParse(_ctrl.amountController.text.trim()) ?? 0;
     final theme = Theme.of(context);
     final locked = widget.subscriptionOnlyMode || widget.debtOnlyMode;
 
@@ -888,10 +880,18 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                   children: [
                     // Amount
-                    AmountSection(
-                      ctrl: _ctrl,
-                      recurringMode: widget.recurringMode,
-                      focusNode: _ctrl.amountFocusNode,
+                    AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _ctrl.amountController,
+                        _ctrl.debtPrincipalController,
+                        _ctrl.installmentCountController,
+                        _ctrl.downPaymentController,
+                      ]),
+                      builder: (context, _) => AmountSection(
+                        ctrl: _ctrl,
+                        recurringMode: widget.recurringMode,
+                        focusNode: _ctrl.amountFocusNode,
+                      ),
                     ),
 
                     // Expense: allocation
@@ -1070,37 +1070,55 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
                     ],
 
                     // Actions
-                    ActionsSection(
-                      isSaving: _isSaving,
-                      canSubmit: _ctrl.canSubmit(
-                        recurringMode: widget.recurringMode,
-                        subscriptionOnlyMode: widget.subscriptionOnlyMode,
-                      ),
-                      recurringMode: widget.recurringMode,
-                      hasInitialRecurring: widget.initialRecurring != null,
-                      hasInitialTransaction:
-                          widget.initialTransaction != null,
-                      allowDelete: widget.allowDelete,
-                      type: _ctrl.type,
-                      onSubmit: () async {
-                        if (_isSaving) return;
-                        setState(() => _isSaving = true);
-                        try {
-                          if (widget.recurringMode) {
-                            await _submitRecurring(amount, budget);
-                          } else {
-                            await _submitNormal(amount, budget, wallets);
-                          }
-                        } finally {
-                          if (mounted) setState(() => _isSaving = false);
-                        }
-                      },
-                      onDeleteRecurring: _deleteRecurring,
-                      onDeleteTransaction: () async {
-                        await widget.cubit.deleteTransaction(
-                            widget.initialTransaction!.id);
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                    AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _ctrl.amountController,
+                        _ctrl.debtPrincipalController,
+                        _ctrl.installmentCountController,
+                        _ctrl.downPaymentController,
+                      ]),
+                      builder: (context, _) {
+                        // إعادة حساب المبلغ هنا (مش الاعتماد على `amount` من
+                        // نطاق build() الخارجي) لأن build() الخارجية لم تعد
+                        // تُعاد تلقائيًا مع كل حرف — لازم تفضل قيمة "amount"
+                        // المستخدَمة وقت الحفظ مطابقة تمامًا لآخر نص مكتوب.
+                        final liveAmount = double.tryParse(
+                                _ctrl.amountController.text.trim()) ??
+                            0;
+                        return ActionsSection(
+                          isSaving: _isSaving,
+                          canSubmit: _ctrl.canSubmit(
+                            recurringMode: widget.recurringMode,
+                            subscriptionOnlyMode: widget.subscriptionOnlyMode,
+                          ),
+                          recurringMode: widget.recurringMode,
+                          hasInitialRecurring: widget.initialRecurring != null,
+                          hasInitialTransaction:
+                              widget.initialTransaction != null,
+                          allowDelete: widget.allowDelete,
+                          type: _ctrl.type,
+                          onSubmit: () async {
+                            if (_isSaving) return;
+                            setState(() => _isSaving = true);
+                            try {
+                              if (widget.recurringMode) {
+                                await _submitRecurring(liveAmount, budget);
+                              } else {
+                                await _submitNormal(
+                                    liveAmount, budget, wallets);
+                              }
+                            } finally {
+                              if (mounted) setState(() => _isSaving = false);
+                            }
+                          },
+                          onDeleteRecurring: _deleteRecurring,
+                          onDeleteTransaction: () async {
+                            await widget.cubit.deleteTransaction(
+                                widget.initialTransaction!.id);
+                            if (!context.mounted) return;
+                            Navigator.of(context).pop();
+                          },
+                        );
                       },
                     ),
                   ],
