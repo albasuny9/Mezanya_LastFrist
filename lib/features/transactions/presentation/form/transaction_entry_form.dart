@@ -24,6 +24,7 @@ import 'sections/type_section.dart';
 import 'sections/wallet_section.dart';
 import 'transaction_form_controller.dart';
 import 'package:mezanya_app/core/perf/txn_timing.dart'; // Sprint #2 — remove when done
+import 'package:mezanya_app/core/perf/screen_open_timing.dart'; // investigation — remove when done
 
 // ---------------------------------------------------------------------------
 // TransactionEntryForm
@@ -71,6 +72,7 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
   late final TransactionFormController _ctrl;
   bool _isSaving = false;
   bool _budgetTargetResetScheduled = false;
+  bool _firstBuildTimed = false; // investigation — remove when done
   // Sprint #2 — timing fields; remove with txn_timing.dart when sprint ends.
   int _formOpenMs = 0;
   int _formInitMs = 0;
@@ -78,10 +80,12 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
   @override
   void initState() {
     super.initState();
-    // ── Sprint #2: form open + init timing ───────────────────────────────
+    // ── Sprint #2 / Screen-open investigation: initState timing ───────────
     final _swOpen = Stopwatch()..start();
 
-    final state = widget.cubit.state;
+    final _swState = Stopwatch()..start();
+    final state = widget.cubit.state; // cubit read (item 6)
+    _swState.stop();
 
     final _swCtrl = Stopwatch()..start();
     _ctrl = TransactionFormController.create(
@@ -97,7 +101,9 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
     _swCtrl.stop();
     _formInitMs = _swCtrl.elapsedMilliseconds;
 
+    final _swRecurringIncome = Stopwatch()..start();
     _ensureRecurringIncomeSourceSelected();
+    _swRecurringIncome.stop();
     // NOTE: amountController/debtPrincipalController/installmentCountController/
     // downPaymentController no longer trigger a full-form setState here.
     // AmountSection and ActionsSection react to them locally via
@@ -106,6 +112,16 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
 
     _swOpen.stop();
     _formOpenMs = _swOpen.elapsedMilliseconds;
+
+    ScreenOpenTimingCollector.current
+        .record('01 | widget.cubit.state read', _swState.elapsedMilliseconds);
+    ScreenOpenTimingCollector.current.record(
+        '02 | TransactionFormController.create()', _swCtrl.elapsedMilliseconds);
+    ScreenOpenTimingCollector.current.record(
+        '03 | _ensureRecurringIncomeSourceSelected()',
+        _swRecurringIncome.elapsedMilliseconds);
+    ScreenOpenTimingCollector.current
+        .record('04 | TransactionEntryForm.initState() [total]', _formOpenMs);
     // ─────────────────────────────────────────────────────────────────────
   }
 
@@ -764,12 +780,16 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
   // ── BUILD ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final _isFirstBuild = !_firstBuildTimed;
+    final _swBuildTotal = _isFirstBuild ? (Stopwatch()..start()) : null;
+
     final state = widget.cubit.state;
     final wallets = state.wallets;
     final budget = state.budgetSetup;
     final theme = Theme.of(context);
     final locked = widget.subscriptionOnlyMode || widget.debtOnlyMode;
 
+    final _swDerived = _isFirstBuild ? (Stopwatch()..start()) : null;
     // ── Derived labels ──────────────────────────────────────────────────────
     final selectedWallet =
         wallets.where((w) => w.id == _ctrl.walletId).toList();
@@ -844,8 +864,14 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
         !allocationItems.contains(_ctrl.budgetTargetId)) {
       _scheduleBudgetTargetReset();
     }
+    if (_isFirstBuild) {
+      _swDerived!.stop();
+      ScreenOpenTimingCollector.current.record(
+          '05 | build() derived-variables block (~15 vars)',
+          _swDerived.elapsedMilliseconds);
+    }
 
-    return Container(
+    final _built = Container(
       decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -1129,5 +1155,15 @@ class _TransactionEntryFormState extends State<TransactionEntryForm> {
         ),
       ),
     );
+
+    if (_isFirstBuild) {
+      _firstBuildTimed = true;
+      _swBuildTotal!.stop();
+      ScreenOpenTimingCollector.current.record(
+          '06 | TransactionEntryForm.build() [total, 1st call]',
+          _swBuildTotal.elapsedMilliseconds);
+      ScreenOpenTimingCollector.current.printReportAfterFirstFrame();
+    }
+    return _built;
   }
 }
