@@ -5,8 +5,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/storage/shared_prefs_keys.dart';
 import '../../../../core/perf/txn_timing.dart'; // Sprint #2 — remove when done
+import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Emergency stabilization (Phase 1 of the persistence-architecture plan).
+//
+// Problem measured in production: the audit-log history (LogEntryEntity,
+// each holding full beforeState/afterState JSON snapshots) was embedded
+// inside the same single SharedPreferences blob as the rest of AppState.
+// With ~250 logs this blob reached 16+ MB, and every single transaction
+// save re-serialized and re-wrote that entire blob — measured at ~5.2s per
+// save and an eventual OutOfMemoryError crash reading it back.
+//
+// Fix (this file only — AppRepository's public API is unchanged):
+//   - `logs` are now persisted under their own SharedPreferences key
+//     (SharedPrefsKeys.appStateLogs), serialized independently.
+//   - The main `appState` key no longer embeds `logs` at all
+//     (AppStateEntity.toMap(includeLogs: false)).
+//   - Both blobs are still written on every save in this phase (no
+//     incremental/partial persistence yet — that's Phase 2/3 of the
+//     long-term plan). The win here is that the *core* AppState blob no
+//     longer carries the ever-growing, multi-megabyte logs history, so
+//     jsonEncode/setString on the core blob become fast and bounded by
+//     the actual financial data size, not by audit-history size.
+//   - Each blob can now also be reasoned about/inspected/migrated
+//     independently.
+//   - The log cap (600) is unchanged. No audit history is discarded.
+//
+// Migration: see the `logsPayload == null` branch in loadState below.
+// ═══════════════════════════════════════════════════════════════════════════
 
 class SharedPrefsAppRepository implements AppRepository {
   SharedPrefsAppRepository(this._prefs);
@@ -23,7 +52,48 @@ class SharedPrefsAppRepository implements AppRepository {
     }
     try {
       final decoded = jsonDecode(payload) as Map<String, dynamic>;
-      return AppStateEntity.fromMap(decoded);
+      // AppStateEntity.fromMap reads `logs` from this map if present (old
+      // format) and defaults to an empty list if absent (new format) —
+      // this line's behavior is correct for both formats without any
+      // special-casing.
+      var state = AppStateEntity.fromMap(decoded);
+
+      final logsPayload = _prefs.getString(SharedPrefsKeys.appStateLogs);
+      if (logsPayload == null || logsPayload.isEmpty) {
+        // ── One-time migration ──────────────────────────────────────────
+        // The separate logs key doesn't exist yet. `state.logs` at this
+        // point holds whatever `fromMap` found embedded in the legacy
+        // blob (the full historical log list if this install predates
+        // this change, or an empty list for a fresh install — either way
+        // correct). Persist it to the new key, then rewrite the core
+        // blob without embedded logs.
+        //
+        // Crash-safety: logs are written FIRST. If the app is killed
+        // between the two writes, the next launch sees a non-null
+        // logsPayload and takes the normal (non-migration) path below,
+        // re-reading the still-legacy core blob (which still has the
+        // logs embedded, since its rewrite didn't complete) and then
+        // overwriting `state.logs` with the (identical) content from the
+        // new key — a harmless no-op, not data loss. The core blob only
+        // finally drops its embedded logs on the next successful save.
+        await _writeLogs(state.logs);
+        await _writeCore(state);
+      } else {
+        try {
+          final logsDecoded = jsonDecode(logsPayload) as List<dynamic>;
+          final logs = logsDecoded
+              .whereType<Map<String, dynamic>>()
+              .map(LogEntryEntity.fromMap)
+              .toList();
+          state = state.copyWith(logs: logs);
+        } catch (_) {
+          // Separate logs payload corrupted — do not overwrite it (same
+          // "never destroy on read failure" principle as the outer
+          // catch below). state.logs stays as whatever fromMap produced
+          // from the core blob (normally empty, post-migration).
+        }
+      }
+      return state;
     } catch (_) {
       // لا نكتب فوق الـ payload المعطوب على الديسك — القراءة الفاشلة قد
       // تكون عارضة (race, عطل مؤقت في الـ plugin...)، والكتابة هنا كانت
@@ -35,9 +105,28 @@ class SharedPrefsAppRepository implements AppRepository {
 
   @override
   Future<void> saveState(AppStateEntity state) async {
+    await _writeLogs(state.logs);
+    await _writeCore(state);
+  }
+
+  Future<void> _writeLogs(List<LogEntryEntity> logs) async {
+    final _swEncode = Stopwatch()..start();
+    final payload = jsonEncode(logs.map((l) => l.toMap()).toList());
+    _swEncode.stop();
+    TxnTimingCollector.current.record(
+        '06d | jsonEncode — logs blob', _swEncode.elapsedMilliseconds);
+
+    final _swSet = Stopwatch()..start();
+    await _prefs.setString(SharedPrefsKeys.appStateLogs, payload);
+    _swSet.stop();
+    TxnTimingCollector.current.record(
+        '08b | SharedPreferences.setString(logs)', _swSet.elapsedMilliseconds);
+  }
+
+  Future<void> _writeCore(AppStateEntity state) async {
     // ── Sprint #2: measure jsonEncode and setString separately ──────────────
     final _swEncode = Stopwatch()..start();
-    final payload = jsonEncode(state.toMap());
+    final payload = jsonEncode(state.toMap(includeLogs: false));
     _swEncode.stop();
     TxnTimingCollector.current
         .record('06c | jsonEncode — saveState.toMap()', _swEncode.elapsedMilliseconds);
