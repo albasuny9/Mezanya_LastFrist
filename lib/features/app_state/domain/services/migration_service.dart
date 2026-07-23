@@ -20,6 +20,104 @@ class MigrationService {
   static String _id(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}';
 
+  static final RegExp _legacyMonthKeyPattern = RegExp(r'^\d{4}-\d{2}$');
+
+  /// ═══════════════════════════════════════════════════════════════════════
+  /// Correctness fix (not a refactor): Monthly Budget Snapshot key format
+  /// unification.
+  ///
+  /// WHY THIS MIGRATION EXISTS:
+  /// Snapshots were written using `"YYYY-MM"` (calendar-month key, via the
+  /// old `_monthKey()` helper) from the feature's introduction
+  /// (2026-04-14) onward. On 2026-04-29, cycle-aware reads were introduced
+  /// (`BudgetSetupEntity.cycleKeyFor`, format `"YYYY-MM-DD"`, aligned to the
+  /// user's configured cycle start day per the Domain Bible's definition of
+  /// the financial cycle — `02 - Financial Cycle.md`: "the system is not
+  /// tied to the calendar month"), but the WRITE side was never updated to
+  /// match. Every snapshot ever written by any installation up to this fix
+  /// is therefore keyed in the old, non-canonical `"YYYY-MM"` format — the
+  /// new-format read path could never find anything (dead code), and every
+  /// lookup silently depended on the old-format fallback instead.
+  ///
+  /// WHAT THIS DOES:
+  /// Converts every legacy `"YYYY-MM"` key in `monthlyBudgetSnapshots` to
+  /// the canonical `cycleKeyFor` format (`"YYYY-MM-DD"`), reconstructing
+  /// the correct cycle-start day from that historical snapshot's OWN
+  /// `startDay` (not today's), so a user who has since changed their cycle
+  /// start day still gets historically-accurate keys for old snapshots. No
+  /// snapshot content is modified — only its map key changes.
+  ///
+  /// WHICH VERSIONS IT SUPPORTS:
+  /// Any installation whose `monthlyBudgetSnapshots` still contains
+  /// `"YYYY-MM"`-format keys, i.e. any installation that has not yet run
+  /// this migration once. New installations (created after this fix ships)
+  /// never produce legacy keys, since the write side now writes
+  /// `cycleKeyFor` directly (see `AppCubitBase._withMonthlySnapshot`).
+  ///
+  /// IDEMPOTENCY: keys already in `"YYYY-MM-DD"` format do not match
+  /// [_legacyMonthKeyPattern] and are left untouched. Running this twice
+  /// (or on an already-migrated install) is a guaranteed no-op — the second
+  /// run finds zero legacy keys and returns `source` unchanged (`identical`
+  /// short-circuit below).
+  ///
+  /// ATOMICITY: a single new map is built locally and only swapped into the
+  /// returned state once, in one `copyWith` call. There is no intermediate
+  /// state where some keys are migrated and others are not — either this
+  /// call has run to completion and returned a fully-migrated map, or it
+  /// hasn't run at all (nothing is ever partially written, and the caller,
+  /// `AppCubitBase.initialize()`, only persists the state once — after ALL
+  /// migrations, including this one, have completed in memory).
+  ///
+  /// WHEN IT CAN BE REMOVED: once we are confident no installation still
+  /// running an old app version (pre-fix) exists in the wild — practically,
+  /// this can be deleted a few release cycles after this fix ships, once
+  /// every real install has had the chance to launch at least once and
+  /// migrate. Until then it must stay, because every historical snapshot
+  /// for every existing user is only reachable via the legacy key today.
+  /// ═══════════════════════════════════════════════════════════════════════
+  static AppStateEntity migrateMonthlyBudgetSnapshotKeysSync(
+    AppStateEntity source,
+  ) {
+    final legacyEntries = source.monthlyBudgetSnapshots.entries
+        .where((entry) => _legacyMonthKeyPattern.hasMatch(entry.key));
+    if (legacyEntries.isEmpty) return source; // idempotent no-op
+
+    final migrated = Map<String, Map<String, dynamic>>.from(
+      source.monthlyBudgetSnapshots,
+    );
+
+    for (final entry in legacyEntries) {
+      final oldKey = entry.key;
+      final snapshotMap = entry.value;
+      final parts = oldKey.split('-');
+      final year = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      if (year == null || month == null) continue; // defensively skip
+
+      BudgetSetupEntity historicalSetup;
+      try {
+        historicalSetup = BudgetSetupEntity.fromMap(snapshotMap);
+      } catch (_) {
+        continue; // corrupted snapshot payload — leave it under its
+        // original key rather than losing it or crashing the migration.
+      }
+
+      final cycleStartDay = historicalSetup.startDay.clamp(1, 28);
+      final newKey = historicalSetup.cycleKeyFor(
+        DateTime(year, month, cycleStartDay),
+      );
+
+      if (!migrated.containsKey(newKey)) {
+        migrated[newKey] = snapshotMap;
+      }
+      // لو الـ newKey موجود بالفعل (احتمال نادر: تصادم)، نسيب القيمة
+      // الموجودة زي ما هي بدل الكتابة فوقها — لا نفقد أي بيانات.
+      migrated.remove(oldKey);
+    }
+
+    return source.copyWith(monthlyBudgetSnapshots: migrated);
+  }
+
   /// يشغّل ترحيلي توزيعات الأموال وتعارضات مواقعها بالترتيب الصحيح.
   static AppStateEntity normalizeMoneyLocationState(AppStateEntity source) {
     final withDistributions = _migrateMoneyDistributionsSync(source);

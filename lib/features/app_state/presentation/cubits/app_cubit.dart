@@ -86,7 +86,12 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     appState = MigrationService.migrateDefaultWalletIconsSync(appState);
     appState = MigrationService.migrateOrphanedDebtRecurringSync(appState);
     appState = MigrationService.normalizeMoneyLocationState(appState);
-    final key = _monthKey();
+    // Correctness fix (2026-07-23): unify monthlyBudgetSnapshots keys to the
+    // canonical cycle-key format before any read of that map. See the
+    // migration's own doc comment in migration_service.dart for full
+    // rationale, idempotency, and removal-timeline notes.
+    appState = MigrationService.migrateMonthlyBudgetSnapshotKeysSync(appState);
+    final key = appState.budgetSetup.cycleKeyFor(DateTime.now());
     if (!appState.monthlyBudgetSnapshots.containsKey(key)) {
       appState = _withMonthlySnapshot(appState, appState.budgetSetup);
     }
@@ -96,11 +101,6 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
 
   String _id(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}';
-  String _monthKey([DateTime? at]) {
-    final date = at ?? DateTime.now();
-    final mm = date.month.toString().padLeft(2, '0');
-    return '${date.year}-$mm';
-  }
 
   Map<String, dynamic> _coreMap(AppStateEntity appState) {
     return appState.toMap(includeLogs: false);
@@ -114,7 +114,12 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     final snapshots = Map<String, Map<String, dynamic>>.from(
       source.monthlyBudgetSnapshots,
     );
-    snapshots[_monthKey(month)] = setup.toMap();
+    // Correctness fix (2026-07-23): write using the canonical cycle key
+    // (aligned to the user's configured cycle start day, per the Domain
+    // Bible) instead of the legacy calendar-month key. See
+    // MigrationService.migrateMonthlyBudgetSnapshotKeysSync for the
+    // one-time migration of previously-written legacy-format keys.
+    snapshots[setup.cycleKeyFor(month ?? DateTime.now())] = setup.toMap();
     return source.copyWith(monthlyBudgetSnapshots: snapshots);
   }
 
