@@ -97,21 +97,27 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   void _goToPreviousCycle(BudgetSetupEntity budget) {
     setState(() {
-      _cycleStart = DateTime(
+      // نمرّر تاريخًا داخل الشهر المستهدف بيوم البداية المُعتمَد، وناخد
+      // بداية الدورة من budget.cycleStartFor نفسها بدل إعادة كتابة نفس
+      // الصيغة هنا — مصدر واحد لتعريف "بداية الدورة" في كل أنحاء الكود،
+      // بنفس روح إصلاح مفتاح الـ snapshot (commit 4034bfd).
+      final probe = DateTime(
         _cycleStart.year,
         _cycleStart.month - 1,
         budget.startDay.clamp(1, 28),
       );
+      _cycleStart = budget.cycleStartFor(probe);
     });
   }
 
   void _goToNextCycle(BudgetSetupEntity budget) {
     setState(() {
-      _cycleStart = DateTime(
+      final probe = DateTime(
         _cycleStart.year,
         _cycleStart.month + 1,
         budget.startDay.clamp(1, 28),
       );
+      _cycleStart = budget.cycleStartFor(probe);
     });
   }
 
