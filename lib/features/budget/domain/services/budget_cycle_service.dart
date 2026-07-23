@@ -5,7 +5,7 @@
 //
 // Responsibility:
 //   - Resolve the correct BudgetSetupEntity snapshot for a given billing
-//     cycle (current, past via snapshot, or log fallback).
+//     cycle (current, or historical via Monthly Budget Snapshots).
 //   - Compute the due date for an income source within a specific month.
 //   - Find the linked recurring transaction for a given income source.
 //   - Determine whether an income source has a pending or early reminder.
@@ -13,7 +13,13 @@
 //
 // Dependencies: AppStateEntity, BudgetSetupEntity, IncomeSourceEntity,
 //   RecurringTransactionEntity, TransactionEntity, TransactionType,
-//   BudgetScope, DateFormat, dart:convert.
+//   BudgetScope, DateFormat.
+//
+// Domain Bible compliance (`11 - Financial Ledger.md`): this service must
+// never read the Audit Log / Recovery History / Activity Log as a data
+// source for Budget History. Historical BudgetSetupEntity resolution
+// depends exclusively on Monthly Budget Snapshots, falling back to Current
+// State when no snapshot exists — never on `AppStateEntity.logs`.
 //
 // Why this file exists: These calculations were embedded inside
 // budget_tracking_screen.dart as private methods. They are pure domain
@@ -22,8 +28,6 @@
 //
 // Must never: Build widgets, call BuildContext, perform navigation, show
 // dialogs, access Firestore directly, modify state, or mutate any entity.
-
-import 'dart:convert';
 
 import 'package:intl/intl.dart';
 
@@ -47,9 +51,30 @@ class BudgetCycleService {
   ///   2. Tries the cycle-keyed monthly snapshot.
   ///   3. Falls back to the old year-month keyed snapshot for backward
   ///      compatibility.
-  ///   4. Walks [state.logs] to find the most recent snapshot before
-  ///      [cycleEnd].
-  ///   5. If all lookups fail, returns [state.budgetSetup].
+  ///   4. If no snapshot exists for that cycle, returns [state.budgetSetup]
+  ///      (the current, best-known configuration).
+  ///
+  /// Per the Domain Bible (`11 - Financial Ledger.md`, §2a/§3): Read Models
+  /// — and Monthly Budget Snapshots are exactly that — must be derived only
+  /// from the authoritative source (Current State / the snapshot pipeline
+  /// itself), never from Recovery History or the Activity Log. This method
+  /// previously fell back to scanning `state.logs` (Audit Log) and
+  /// reconstructing a full historical AppState from a log's `afterState`
+  /// snapshot to extract `budgetSetup` — that was an architectural leak
+  /// coupling Budget History to Recovery/Activity data it must never depend
+  /// on, and it made this lookup cost grow linearly with total log count.
+  ///
+  /// Why a snapshot can legitimately be missing for a past cycle: snapshots
+  /// are written only at two points (`AppCubitBase.initialize()` on app
+  /// launch, and `updateBudgetSetup()` on edit), both only for whichever
+  /// month is current *at that moment*. A month that was never "current"
+  /// during any app session (the app wasn't opened at all that month, and
+  /// the budget wasn't edited that month) never gets a snapshot recorded —
+  /// there is no way to reconstruct what the configuration truly was for a
+  /// month that was never observed live, without fabricating history. In
+  /// that situation, falling back to the current configuration is the
+  /// domain-correct behavior (it is honest about not having historical
+  /// data), not a workaround.
   ///
   /// Extracted from `_budgetForMonth` in `budget_tracking_screen.dart`.
   static BudgetSetupEntity budgetForMonth(
@@ -79,15 +104,9 @@ class BudgetCycleService {
       return BudgetSetupEntity.fromMap(oldSnapshot);
     }
 
-    for (final log in state.logs) {
-      if (log.timestamp.isAfter(cycleEnd)) continue;
-      try {
-        final map = jsonDecode(log.afterState) as Map<String, dynamic>;
-        return AppStateEntity.fromMap(map).budgetSetup;
-      } catch (_) {
-        continue;
-      }
-    }
+    // لا يوجد snapshot لهذه الدورة — نرجع للإعداد الحالي (Current State) بدل
+    // محاولة إعادة بناء تاريخ من الـ Audit Log. هذا يتوافق مع Domain Bible
+    // الفصل 11: Read Models لا تعتمد أبدًا على Recovery History/Activity Log.
     return state.budgetSetup;
   }
 
