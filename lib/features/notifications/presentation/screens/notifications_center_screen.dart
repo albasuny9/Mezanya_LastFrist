@@ -8,7 +8,8 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../budget/domain/services/budget_recurring_plan_service.dart';
-import '../../../logs/domain/entities/log_entry_entity.dart';
+import '../../../logs/application/audit_facade.dart';
+import '../../../recovery/domain/entities/recovery_entry.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
@@ -326,8 +327,11 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     final items = state.notifications.where((item) {
       if (!isNotificationHistoryEntry(item)) return false;
 
-      final isReverted =
-          state.logs.any((l) => l.id == item.relatedLogId && l.isReverted);
+      final relatedLogId = item.relatedLogId;
+      final isReverted = relatedLogId != null &&
+          (AuditFacade.findRecoveryBySourceLogId(state, relatedLogId)
+                  ?.isReverted ??
+              false);
       return !isReverted;
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -335,9 +339,10 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   }
 
   Widget _buildHistoryTile(AppStateEntity state, NotificationEntity item) {
-    final relatedLog =
-        state.logs.where((log) => log.id == item.relatedLogId).toList();
-    final log = relatedLog.isEmpty ? null : relatedLog.first;
+    final relatedLogId = item.relatedLogId;
+    final log = relatedLogId == null
+        ? null
+        : AuditFacade.findRecoveryBySourceLogId(state, relatedLogId);
     final accent = _historyAccent(state, item, log);
 
     return NotificationHistoryCard(
@@ -353,7 +358,7 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   Future<void> _openHistorySheet(
     AppStateEntity state,
     NotificationEntity item,
-    LogEntryEntity? log,
+    RecoveryEntry? log,
   ) async {
     final transaction = transactionForHistoryLog(state, log);
     if (transaction != null) {
@@ -744,14 +749,14 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     );
   }
 
-  String _historyAmount(NotificationEntity item, LogEntryEntity? log) {
+  String _historyAmount(NotificationEntity item, RecoveryEntry? log) {
     return notificationHistoryAmount(
       message: item.message,
       logDetails: log?.details,
     );
   }
 
-  String _historyAmountValue(NotificationEntity item, LogEntryEntity? log) {
+  String _historyAmountValue(NotificationEntity item, RecoveryEntry? log) {
     final formatted = _historyAmount(item, log);
     if (formatted.isEmpty) return '';
     return formatted.replaceAll('جنيه', '').trim();
@@ -760,7 +765,7 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   Widget _historyIconWidget(
     AppStateEntity state,
     NotificationEntity item,
-    LogEntryEntity? log,
+    RecoveryEntry? log,
     Color accent,
   ) {
     final entityId = log?.entityId ?? '';
@@ -785,7 +790,7 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   Color _historyAccent(
     AppStateEntity state,
     NotificationEntity item,
-    LogEntryEntity? log,
+    RecoveryEntry? log,
   ) {
     final entityId = log?.entityId ?? '';
     if (item.type == 'allocation' && entityId.isNotEmpty) {

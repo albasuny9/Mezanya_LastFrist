@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
-import '../../../logs/domain/entities/log_entry_entity.dart';
+import '../../../recovery/domain/entities/recovery_entry.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/notification_entity.dart';
 import '../../domain/notification_action_copy.dart';
@@ -11,7 +11,7 @@ Future<void> openNotificationHistoryDetailsSheet(
   BuildContext context, {
   required AppCubit cubit,
   required NotificationEntity item,
-  required LogEntryEntity? log,
+  required RecoveryEntry? log,
   required Color accent,
   required IconData icon,
 }) async {
@@ -110,7 +110,7 @@ Future<void> openNotificationHistoryDetailsSheet(
               ),
             );
             if (approved != true) return;
-            await cubit.toggleLogRevert(log.id);
+            await cubit.toggleLogRevert(log.sourceLogId!);
             if (context.mounted) Navigator.pop(context);
           },
           icon: Icon(log.isReverted ? Icons.redo_rounded : Icons.undo_rounded),

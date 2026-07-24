@@ -1,5 +1,5 @@
 import '../../app_state/domain/entities/app_state_entity.dart';
-import '../../logs/domain/entities/log_entry_entity.dart';
+import '../../recovery/domain/entities/recovery_entry.dart';
 import '../../transactions/domain/entities/transaction_entity.dart';
 import 'entities/notification_entity.dart';
 
@@ -27,7 +27,7 @@ const _legacyPendingActionPrefixes = <String>[
 
 TransactionEntity? transactionForHistoryLog(
   AppStateEntity state,
-  LogEntryEntity? log,
+  RecoveryEntry? log,
 ) {
   if (log == null) return null;
 
