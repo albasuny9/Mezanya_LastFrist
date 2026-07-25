@@ -149,4 +149,20 @@ class AuditFacade {
         currentState.logs,
         sourceLogId,
       );
+
+  // ── Snapshot reconstruction ──────────────────────────────────────────
+
+  /// يعيد بناء [AppStateEntity] تاريخية من لقطة [entry] — تمريرة مباشرة لـ
+  /// [RecoveryHistoryService.reconstructSnapshot]. أي شاشة محتاجة "شكل
+  /// عنصر معيّن وقت عملية معيّنة" (زي عرض معاملة اتمسحت) تنادي الدالة دي
+  /// بدل ما تعمل `jsonDecode`/`AppStateEntity.fromMap` بنفسها — ده بالظبط
+  /// اللي بيخلي الـ UI "ميعرفش" إن فيه لقطات JSON مخزَّنة أصلًا.
+  static AppStateEntity? reconstructSnapshot(
+    RecoveryEntry entry, {
+    required bool preferBefore,
+  }) =>
+      RecoveryHistoryService.reconstructSnapshot(
+        entry,
+        preferBefore: preferBefore,
+      );
 }

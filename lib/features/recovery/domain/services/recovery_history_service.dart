@@ -159,4 +159,30 @@ class RecoveryHistoryService {
       entryAfterToggle: RecoveryHistoryAdapter.fromLog(toggled),
     );
   }
+
+  // ── Snapshot reconstruction (moved out of the UI layer — Phase 5) ──────
+
+  /// يعيد بناء [AppStateEntity] كاملة من لقطة `beforeState`/`afterState`
+  /// المخزَّنة جوه [entry] — الاستخدام النموذجي: عرض تفاصيل عنصر (معاملة/
+  /// معاملة متكررة) اتمسح، فمعادش موجود في الحالة الحالية، فلازم نرجع
+  /// نجيبه من اللقطة التاريخية.
+  ///
+  /// نُقلت هنا من `LogsScreen._snapshotForLog` (كانت بتعمل
+  /// `jsonDecode`/`AppStateEntity.fromMap` مباشرة جوه الـ UI) — أي شاشة
+  /// جديدة محتاجة "شكل التطبيق وقت العملية دي" لازم تستخدم الدالة دي (أو
+  /// [AuditFacade.reconstructSnapshot])، ومتعملش `jsonDecode` بنفسها.
+  ///
+  /// بترجع `null` لو اللقطة معطوبة — نفس السلوك الحالي بالحرف (try/catch
+  /// صامت، مفيش استثناء يوصل للـ caller).
+  static AppStateEntity? reconstructSnapshot(
+    RecoveryEntry entry, {
+    required bool preferBefore,
+  }) {
+    final raw = preferBefore ? entry.beforeState : entry.afterState;
+    try {
+      return AppStateEntity.fromMap(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
 }
