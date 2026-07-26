@@ -17,6 +17,7 @@ class RecoveryEntry {
     required this.entityType,
     required this.entityId,
     required this.action,
+    required this.details,
     required this.beforeState,
     required this.afterState,
     required this.timestamp,
@@ -29,6 +30,9 @@ class RecoveryEntry {
   final String entityType;
   final String entityId;
   final String action;
+
+  /// نص جاهز للعرض المباشر — نفس `LogEntryEntity.details` بالحرف.
+  final String details;
 
   /// JSON كامل لحالة التطبيق قبل العملية — نفس محتوى
   /// `LogEntryEntity.beforeState` بالحرف، منسوخ مش مُعاد بناؤه.

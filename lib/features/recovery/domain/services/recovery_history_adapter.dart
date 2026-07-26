@@ -32,6 +32,7 @@ class RecoveryHistoryAdapter {
       entityType: log.entityType,
       entityId: log.entityId,
       action: log.action,
+      details: log.details,
       beforeState: log.beforeState,
       afterState: log.afterState,
       timestamp: log.timestamp,

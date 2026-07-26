@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Screen-open investigation — Measurement only. No behavior changes.
