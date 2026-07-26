@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../../core/storage/shared_prefs_keys.dart';
 import '../../../../core/perf/txn_timing.dart'; // Sprint #2 — remove when done
 import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
 import '../serializers/app_state_serializer.dart';
+import '../store/core_state_store.dart';
+import '../store/logs_store.dart';
 import '../store/shared_prefs_store.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -50,16 +51,30 @@ import '../store/shared_prefs_store.dart';
 // JSON/entity/domain knowledge. This repository is now the only caller of
 // SharedPrefsStore for app-state persistence; it no longer touches
 // SharedPreferences directly at all.
+//
+// Phase 6.3: raw core/logs payload persistence moved to CoreStateStore and
+// LogsStore (../store/core_state_store.dart, ../store/logs_store.dart) —
+// each a thin, single-key wrapper over SharedPrefsStore
+// (loadCore/saveCore, loadLogs/saveLogs). This repository no longer knows
+// the SharedPrefsKeys.appState/appStateLogs key names at all — it just
+// asks each store for "the core payload" / "the logs payload". The
+// repository's own responsibility is now purely orchestration: call
+// CoreStateStore -> AppStateSerializer -> migration -> (implicit)
+// validation via try/catch -> diagnostics -> return AppState, and the
+// mirror sequence for save.
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SharedPrefsAppRepository implements AppRepository {
-  SharedPrefsAppRepository(this._store);
+  SharedPrefsAppRepository(SharedPrefsStore store)
+      : _coreStore = CoreStateStore(store),
+        _logsStore = LogsStore(store);
 
-  final SharedPrefsStore _store;
+  final CoreStateStore _coreStore;
+  final LogsStore _logsStore;
 
   @override
   Future<AppStateEntity> loadState() async {
-    final payload = _store.readString(SharedPrefsKeys.appState);
+    final payload = _coreStore.loadCore();
     if (payload == null || payload.isEmpty) {
       final initial = AppStateEntity.initial();
       await saveState(initial);
@@ -72,7 +87,7 @@ class SharedPrefsAppRepository implements AppRepository {
       // without any special-casing.
       var state = AppStateSerializer.deserializeCore(payload);
 
-      final logsPayload = _store.readString(SharedPrefsKeys.appStateLogs);
+      final logsPayload = _logsStore.loadLogs();
       if (logsPayload == null || logsPayload.isEmpty) {
         // ── One-time migration ──────────────────────────────────────────
         // The separate logs key doesn't exist yet. `state.logs` at this
@@ -127,7 +142,7 @@ class SharedPrefsAppRepository implements AppRepository {
         '06d | jsonEncode — logs blob', _swEncode.elapsedMilliseconds);
 
     final _swSet = Stopwatch()..start();
-    await _store.writeString(SharedPrefsKeys.appStateLogs, payload);
+    await _logsStore.saveLogs(payload);
     _swSet.stop();
     TxnTimingCollector.current.record(
         '08b | SharedPreferences.setString(logs)', _swSet.elapsedMilliseconds);
@@ -146,7 +161,7 @@ class SharedPrefsAppRepository implements AppRepository {
     // ─────────────────────────────────────────────────────────────────────────
 
     final _swSet = Stopwatch()..start();
-    await _store.writeString(SharedPrefsKeys.appState, payload);
+    await _coreStore.saveCore(payload);
     _swSet.stop();
     TxnTimingCollector.current
         .record('08  | SharedPreferences.setString()', _swSet.elapsedMilliseconds);
