@@ -8,6 +8,7 @@ import '../../../../core/perf/txn_timing.dart'; // Sprint #2 — remove when don
 import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
+import '../serializers/app_state_serializer.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Emergency stabilization (Phase 1 of the persistence-architecture plan).
@@ -35,6 +36,14 @@ import '../../domain/repositories/app_repository.dart';
 //   - The log cap (600) is unchanged. No audit history is discarded.
 //
 // Migration: see the `logsPayload == null` branch in loadState below.
+//
+// Phase 6.1 (persistence-architecture redesign, see conversation report):
+// core/logs JSON serialization and deserialization moved to
+// AppStateSerializer (../serializers/app_state_serializer.dart) — pure
+// functions, no SharedPreferences/timing/diagnostics/migration/validation
+// knowledge. This repository now only calls it; the try/catch structure,
+// migration logic, timing instrumentation, and diagnostics below are
+// unchanged and still live here (each is its own future extraction step).
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SharedPrefsAppRepository implements AppRepository {
@@ -51,12 +60,11 @@ class SharedPrefsAppRepository implements AppRepository {
       return initial;
     }
     try {
-      final decoded = jsonDecode(payload) as Map<String, dynamic>;
-      // AppStateEntity.fromMap reads `logs` from this map if present (old
-      // format) and defaults to an empty list if absent (new format) —
-      // this line's behavior is correct for both formats without any
-      // special-casing.
-      var state = AppStateEntity.fromMap(decoded);
+      // AppStateSerializer.deserializeCore reads `logs` from the map if
+      // present (old format) and defaults to an empty list if absent (new
+      // format) — this line's behavior is correct for both formats
+      // without any special-casing.
+      var state = AppStateSerializer.deserializeCore(payload);
 
       final logsPayload = _prefs.getString(SharedPrefsKeys.appStateLogs);
       if (logsPayload == null || logsPayload.isEmpty) {
@@ -80,11 +88,7 @@ class SharedPrefsAppRepository implements AppRepository {
         await _writeCore(state);
       } else {
         try {
-          final logsDecoded = jsonDecode(logsPayload) as List<dynamic>;
-          final logs = logsDecoded
-              .whereType<Map<String, dynamic>>()
-              .map(LogEntryEntity.fromMap)
-              .toList();
+          final logs = AppStateSerializer.deserializeLogs(logsPayload);
           state = state.copyWith(logs: logs);
         } catch (_) {
           // Separate logs payload corrupted — do not overwrite it (same
@@ -111,7 +115,7 @@ class SharedPrefsAppRepository implements AppRepository {
 
   Future<void> _writeLogs(List<LogEntryEntity> logs) async {
     final _swEncode = Stopwatch()..start();
-    final payload = jsonEncode(logs.map((l) => l.toMap()).toList());
+    final payload = AppStateSerializer.serializeLogs(logs);
     _swEncode.stop();
     TxnTimingCollector.current.record(
         '06d | jsonEncode — logs blob', _swEncode.elapsedMilliseconds);
@@ -126,7 +130,7 @@ class SharedPrefsAppRepository implements AppRepository {
   Future<void> _writeCore(AppStateEntity state) async {
     // ── Sprint #2: measure jsonEncode and setString separately ──────────────
     final _swEncode = Stopwatch()..start();
-    final payload = jsonEncode(state.toMap(includeLogs: false));
+    final payload = AppStateSerializer.serializeCore(state);
     _swEncode.stop();
     TxnTimingCollector.current
         .record('06c | jsonEncode — saveState.toMap()', _swEncode.elapsedMilliseconds);
