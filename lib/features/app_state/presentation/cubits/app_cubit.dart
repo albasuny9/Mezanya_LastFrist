@@ -21,12 +21,11 @@ import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../data/store/shared_prefs_store.dart';
 import '../../domain/repositories/app_repository.dart';
 import '../../../backup/backup_upload_pipeline.dart';
 import '../../../backup/local_backup_service.dart';
-import '../../../../core/perf/txn_timing.dart'; // Sprint #2 — remove when done
 import '../../domain/services/migration_service.dart';
 import '../../domain/services/audit_log_service.dart';
 import '../../domain/services/money_distribution_service.dart';
@@ -50,6 +49,12 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
   AppCubitBase(super.initialState);
 
   AppRepository get _repository;
+
+  /// كانت `_autoSync` بتوصل لـ `SharedPreferences.getInstance()` مباشرة —
+  /// تسريب معماري موثَّق في تقرير Phase 6.2 (البند "AppCubit بيتجاوز
+  /// الـ Repository المحقونة"). اتصلح بحقن [SharedPrefsStore] نفسها هنا،
+  /// بنفس نمط `_repository` — عبر واجهة مجردة تنفَّذ فعليًا في `AppCubit`.
+  SharedPrefsStore get _prefsStore;
 
   // عقود مجرّدة لواجهات عامة يستخدمها أكثر من mixin واحد. التنفيذ الفعلي
   // يبقى في الـ mixin المالك (transactions / budget) لتفادي تكرار المنطق؛
@@ -139,27 +144,9 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     bool recordInNotificationHistory = false,
     required Future<AppStateEntity> Function() apply,
   }) async {
-    // ── Sprint #2: pipeline timing ─────────────────────────────────────────
-    final _swTotal = Stopwatch()..start();
-
-    final _swJson1 = Stopwatch()..start();
     final before = jsonEncode(_coreMap(state));
-    _swJson1.stop();
-    TxnTimingCollector.current
-        .record('06a | jsonEncode — before state', _swJson1.elapsedMilliseconds);
-
-    final _swApply = Stopwatch()..start();
     final nextRaw = await apply();
-    _swApply.stop();
-    TxnTimingCollector.current
-        .record('04  | TransactionProcessor.apply()', _swApply.elapsedMilliseconds);
-
-    final _swJson2 = Stopwatch()..start();
     final after = jsonEncode(_coreMap(nextRaw));
-    _swJson2.stop();
-    TxnTimingCollector.current
-        .record('06b | jsonEncode — after state', _swJson2.elapsedMilliseconds);
-    // ──────────────────────────────────────────────────────────────────────
 
     final built = AuditLogService.build(
       action: action,
@@ -178,29 +165,9 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
       notifications: built.notifications,
     );
 
-    // ── Sprint #2: saveState, emit, autoSync timing ────────────────────────
-    final _swSave = Stopwatch()..start();
     await _repository.saveState(next);
-    _swSave.stop();
-    TxnTimingCollector.current
-        .record('07  | Repository.saveState()', _swSave.elapsedMilliseconds);
-
-    final _swEmit = Stopwatch()..start();
     emit(next);
-    _swEmit.stop();
-    TxnTimingCollector.current
-        .record('09  | emit(next)', _swEmit.elapsedMilliseconds);
-
-    final _swSync = Stopwatch()..start();
     _autoSync(next);
-    _swSync.stop();
-    TxnTimingCollector.current
-        .record('10  | _autoSync (fire-and-forget scheduled)', _swSync.elapsedMilliseconds);
-
-    _swTotal.stop();
-    TxnTimingCollector.current
-        .record('05  | _applyAndLog() total', _swTotal.elapsedMilliseconds);
-    // ──────────────────────────────────────────────────────────────────────
   }
 
   /// رفع/حفظ تلقائي بعد كل عملية حفظ (غير blocking). يشغّل مسارين
@@ -236,52 +203,34 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     _ensureFirebaseBridged().then((_) {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) return;
-      SharedPreferences.getInstance().then((prefs) {
-        final enabled = prefs.getBool('auto_cloud_backup_enabled') ?? false;
-        if (!enabled) return;
-        final _swBup = Stopwatch()..start(); // Sprint #2
-        BackupUploadPipeline.run(
-          email: user.email!,
-          displayName: user.displayName ?? user.email!,
-          localState: appState,
-          exportJson: () => jsonEncode(appState.toMap()),
-          kind: BackupKind.auto,
-        ).then((result) async {
-          _swBup.stop(); // Sprint #2
-          TxnTimingCollector.printBackground( // Sprint #2
-              '11  | BackupUploadPipeline.run()', _swBup.elapsedMilliseconds);
-          final p = await SharedPreferences.getInstance();
-          final statusStr = switch (result.status) {
-            BackupUploadStatus.uploaded => 'ok',
-            BackupUploadStatus.deferredConflict => 'deferred',
-            BackupUploadStatus.error => 'failed',
-            BackupUploadStatus.rejectedEmpty ||
-            BackupUploadStatus.rejectedShrink ||
-            BackupUploadStatus.cancelled =>
-              'failed',
-          };
-          await p.setString('last_auto_cloud_status', statusStr);
-        }).catchError((_) async {
-          _swBup.stop(); // Sprint #2
-          TxnTimingCollector.printBackground( // Sprint #2
-              '11  | BackupUploadPipeline.run() [error]', _swBup.elapsedMilliseconds);
-          final p = await SharedPreferences.getInstance();
-          await p.setString('last_auto_cloud_status', 'failed');
-        });
-      }).catchError((_) {});
+      final enabled = _prefsStore.readBool('auto_cloud_backup_enabled') ?? false;
+      if (!enabled) return;
+      BackupUploadPipeline.run(
+        email: user.email!,
+        displayName: user.displayName ?? user.email!,
+        localState: appState,
+        exportJson: () => jsonEncode(appState.toMap()),
+        kind: BackupKind.auto,
+      ).then((result) async {
+        final statusStr = switch (result.status) {
+          BackupUploadStatus.uploaded => 'ok',
+          BackupUploadStatus.deferredConflict => 'deferred',
+          BackupUploadStatus.error => 'failed',
+          BackupUploadStatus.rejectedEmpty ||
+          BackupUploadStatus.rejectedShrink ||
+          BackupUploadStatus.cancelled =>
+            'failed',
+        };
+        await _prefsStore.writeString('last_auto_cloud_status', statusStr);
+      }).catchError((_) async {
+        await _prefsStore.writeString('last_auto_cloud_status', 'failed');
+      });
     }).catchError((_) {});
 
     LocalBackupService.autoEnabled().then((enabled) {
       if (!enabled || appState.isEmpty) return;
-      // Sprint #2: include the jsonEncode in the measured window (it runs
-      // synchronously before writeAuto, so it IS part of local-backup cost).
-      final _swLocal = Stopwatch()..start();
-      final _localJson = jsonEncode(appState.toMap());
-      LocalBackupService.writeAuto(_localJson).then((_) {
-        _swLocal.stop();
-        TxnTimingCollector.printBackground(
-            '12  | LocalBackupService (encode + write)', _swLocal.elapsedMilliseconds);
-      });
+      final localJson = jsonEncode(appState.toMap());
+      LocalBackupService.writeAuto(localJson);
     }).catchError((_) {});
     // لو السحابة مش متاحة أو تم تأجيل الرفع، مش بيوقف الـ app.
   }
@@ -304,8 +253,12 @@ class AppCubit extends AppCubitBase
         AppCubitSettingsMixin,
         AppCubitBackupMixin,
         AppCubitNotificationsMixin {
-  AppCubit(this._repository) : super(AppStateEntity.initial());
+  AppCubit(this._repository, this._prefsStore)
+      : super(AppStateEntity.initial());
 
   @override
   final AppRepository _repository;
+
+  @override
+  final SharedPrefsStore _prefsStore;
 }

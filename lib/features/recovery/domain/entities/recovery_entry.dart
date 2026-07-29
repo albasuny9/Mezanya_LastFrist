@@ -22,8 +22,8 @@ class RecoveryEntry {
     required this.afterState,
     required this.timestamp,
     required this.isReverted,
+    required this.sourceLogId,
     this.revertedAt,
-    this.sourceLogId,
   });
 
   final String id;
@@ -48,7 +48,14 @@ class RecoveryEntry {
   /// معرّف الـ [LogEntryEntity] الأصلي اللي اتبنى منه العنصر ده — بيسمح لأي
   /// كود جديد يستدعي آلية التراجع الحالية (`toggleLogRevert(sourceLogId)`)
   /// من غير ما يحتاج يعرف تفاصيل `LogEntryEntity` نفسها.
-  final String? sourceLogId;
+  ///
+  /// **غير قابل للـ null عمدًا** (بعد مراجعة معمارية): كل [RecoveryEntry]
+  /// بيتبني حصريًا من [RecoveryHistoryAdapter.fromLog]، اللي دايمًا بيمرّر
+  /// القيمة دي — يعني الضمان الفعلي كان دايمًا "موجودة دايمًا"، والنوع
+  /// القديم (`String?`) كان أضعف من الضمان الحقيقي. التعديل ده متوافق مع
+  /// الاستخدام الحالي بالكامل (نقطة الإنشاء الوحيدة في المشروع كانت أصلًا
+  /// بتمرر القيمة دايمًا)، فمفيش أي كود موجود ينكسر.
+  final String sourceLogId;
 
   bool get canRevert => !isReverted;
 }

@@ -110,7 +110,7 @@ Future<void> openNotificationHistoryDetailsSheet(
               ),
             );
             if (approved != true) return;
-            await cubit.toggleLogRevert(log.sourceLogId!);
+            await cubit.toggleLogRevert(log.sourceLogId);
             if (context.mounted) Navigator.pop(context);
           },
           icon: Icon(log.isReverted ? Icons.redo_rounded : Icons.undo_rounded),

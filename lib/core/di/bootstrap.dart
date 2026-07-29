@@ -10,7 +10,7 @@ class AppBootstrap {
     final prefs = await SharedPreferences.getInstance();
     final store = SharedPrefsStore(prefs);
     final AppRepository repository = SharedPrefsAppRepository(store);
-    final cubit = AppCubit(repository);
+    final cubit = AppCubit(repository, store);
     await cubit.initialize();
     return cubit;
   }

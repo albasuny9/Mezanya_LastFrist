@@ -4,20 +4,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Phase 6.2 من خطة إعادة تصميم طبقة الـ Persistence.
 ///
 /// [SharedPrefsStore] مسؤولة حصريًا عن الـ I/O الخام مع `SharedPreferences`
-/// — قراءة/كتابة/حذف سترنج بمفتاح معيّن. **مفيش أي معرفة بـ JSON، ولا
-/// entities، ولا `AppStateEntity`، ولا `LogEntryEntity`، ولا serialization،
-/// ولا migration، ولا validation، ولا diagnostics، ولا timing.** المسؤولية
-/// دي كلها في مكوّنات تانية (`AppStateSerializer` للـ serialization، وباقي
-/// المكوّنات المقترَحة في تقرير المعمارية لسه هتتعمل تباعًا).
+/// — قراءة/كتابة/حذف سترنج أو bool بمفتاح معيّن. **مفيش أي معرفة بـ JSON،
+/// ولا entities، ولا `AppStateEntity`، ولا `LogEntryEntity`، ولا
+/// serialization، ولا migration، ولا validation، ولا diagnostics، ولا
+/// timing.**
 ///
-/// `SharedPrefsAppRepository` هي المستهلِك الوحيد المقصود للكلاس ده — أي
-/// كود تاني محتاج يخزّن حاجة في `SharedPreferences` (إعدادات، أعلام مؤقتة،
-/// إلخ) لازم يستخدم `SharedPreferences.getInstance()` مباشرة زي ما هو
-/// معمول حاليًا في باقي المشروع (`app_settings_screen.dart`,
-/// `backup_settings_screen.dart`, `local_backup_service.dart`,
-/// `backup_upload_pipeline.dart`) — دول استخدامات "إعدادات"/"أعلام مؤقتة"
-/// مختلفة تمامًا عن تخزين حالة التطبيق، ومقصود إنها متفضلش برّه نطاق
-/// الاستخراج ده (راجع تصنيف الاستخدامات في تقرير Phase 6.2).
+/// المستهلِكين المقصودين: `SharedPrefsAppRepository` (حالة التطبيق)
+/// و`AppCubitBase._autoSync` (علم `auto_cloud_backup_enabled` وحالة آخر
+/// مزامنة — كانت بتوصل لـ `SharedPreferences.getInstance()` مباشرة، وده
+/// كان تسريب معماري موثَّق في تقرير Phase 6.2؛ اتصلح بحقن `SharedPrefsStore`
+/// نفسها في `AppCubit` بدل الوصول المباشر). باقي استخدامات الإعدادات في
+/// المشروع (`app_settings_screen.dart`, `backup_settings_screen.dart`,
+/// `local_backup_service.dart`, `backup_upload_pipeline.dart`) لسه بتستخدم
+/// `SharedPreferences.getInstance()` مباشرة بشكل مقصود — دول شاشات/خدمات
+/// إعدادات مستقلة، مش جزء من مسار الـ Cubit/Repository.
 /// ═══════════════════════════════════════════════════════════════════════
 class SharedPrefsStore {
   const SharedPrefsStore(this._prefs);
@@ -30,6 +30,13 @@ class SharedPrefsStore {
   /// يخزّن [value] تحت [key].
   Future<void> writeString(String key, String value) =>
       _prefs.setString(key, value);
+
+  /// يرجّع قيمة bool مخزَّنة تحت [key]، أو `null` لو مش موجودة.
+  bool? readBool(String key) => _prefs.getBool(key);
+
+  /// يخزّن [value] (bool) تحت [key].
+  Future<void> writeBool(String key, bool value) =>
+      _prefs.setBool(key, value);
 
   /// يمسح القيمة المخزَّنة تحت [key] لو موجودة.
   Future<void> remove(String key) => _prefs.remove(key);

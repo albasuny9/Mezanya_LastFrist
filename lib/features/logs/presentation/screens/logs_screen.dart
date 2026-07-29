@@ -856,7 +856,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   _infoRow(
                     Icons.fingerprint_rounded,
                     'معرف السجل',
-                    log.sourceLogId ?? log.id,
+                    log.sourceLogId,
                     Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 6),
@@ -989,7 +989,7 @@ class _LogsScreenState extends State<LogsScreen> {
             if (canUndoDelete) ...[
               OutlinedButton.icon(
                 onPressed: () async {
-                  await widget.cubit.toggleLogRevert(log.sourceLogId!);
+                  await widget.cubit.toggleLogRevert(log.sourceLogId);
                   if (sheetContext.mounted) Navigator.pop(sheetContext);
                 },
                 icon: const Icon(Icons.undo_rounded),

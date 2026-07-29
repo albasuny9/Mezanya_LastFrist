@@ -306,7 +306,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () async {
-                  await widget.cubit.toggleLogRevert(log.sourceLogId!);
+                  await widget.cubit.toggleLogRevert(log.sourceLogId);
                   if (context.mounted) {
                     Navigator.pop(context);
                   }

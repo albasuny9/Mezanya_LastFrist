@@ -1,4 +1,3 @@
-import '../../../../core/perf/txn_timing.dart'; // Sprint #2 — remove when done
 import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
@@ -7,6 +6,7 @@ import '../serializers/app_state_serializer.dart';
 import '../store/core_state_store.dart';
 import '../store/logs_store.dart';
 import '../store/shared_prefs_store.dart';
+import '../validation/app_state_validator.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Emergency stabilization (Phase 1 of the persistence-architecture plan).
@@ -56,16 +56,32 @@ import '../store/shared_prefs_store.dart';
 // the SharedPrefsKeys.appState/appStateLogs key names at all — it just
 // asks each store for "the core payload" / "the logs payload". The
 // repository's own responsibility is now purely orchestration: call
-// CoreStateStore -> AppStateSerializer -> migration -> (implicit)
-// validation via try/catch -> diagnostics -> return AppState, and the
-// mirror sequence for save.
+// CoreStateStore -> AppStateSerializer -> AppStateValidator -> migration ->
+// diagnostics -> return AppState, and the mirror sequence for save. (The
+// "AppStateSerializer" and "validation" split described here was further
+// refined in the final cleanup pass below — see that note for the current,
+// accurate picture.)
 //
 // Phase 6.4: the size/breakdown diagnostics report moved to
 // PersistenceDiagnostics (../diagnostics/persistence_diagnostics.dart) —
-// self-gated by kDebugMode internally now, called unconditionally from
-// _writeCore. Migration, validation (the try/catch structure), and timing
-// instrumentation are unchanged and still live here — each remains its
-// own future extraction step, deliberately not touched in this phase.
+// self-gated by kDebugMode internally, called unconditionally from
+// _writeCore.
+//
+// Final cleanup pass:
+//   - The Sprint #2 timing instrumentation (Stopwatch/TxnTimingCollector)
+//     that used to wrap every step here was investigation-only scaffolding,
+//     never part of the permanent architecture — removed entirely rather
+//     than extracted, along with the two files that defined it
+//     (core/perf/txn_timing.dart, core/perf/screen_open_timing.dart).
+//   - Validation (the try/catch parse-attempt logic) moved to
+//     AppStateValidator (../validation/app_state_validator.dart). This
+//     repository no longer contains any try/catch itself — it checks
+//     AppStateValidator's null-on-failure return value instead, and still
+//     owns the *decision* of what to do on failure (never overwrite a
+//     corrupted payload on disk), since that decision is tied to
+//     persistence, not to whether the JSON parsed.
+//   - Migration ordering (logs written before core, for crash-safety) was
+//     reviewed and left unchanged — it was already correct.
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SharedPrefsAppRepository implements AppRepository {
@@ -84,52 +100,52 @@ class SharedPrefsAppRepository implements AppRepository {
       await saveState(initial);
       return initial;
     }
-    try {
-      // AppStateSerializer.deserializeCore reads `logs` from the map if
-      // present (old format) and defaults to an empty list if absent (new
-      // format) — this line's behavior is correct for both formats
-      // without any special-casing.
-      var state = AppStateSerializer.deserializeCore(payload);
 
-      final logsPayload = _logsStore.loadLogs();
-      if (logsPayload == null || logsPayload.isEmpty) {
-        // ── One-time migration ──────────────────────────────────────────
-        // The separate logs key doesn't exist yet. `state.logs` at this
-        // point holds whatever `fromMap` found embedded in the legacy
-        // blob (the full historical log list if this install predates
-        // this change, or an empty list for a fresh install — either way
-        // correct). Persist it to the new key, then rewrite the core
-        // blob without embedded logs.
-        //
-        // Crash-safety: logs are written FIRST. If the app is killed
-        // between the two writes, the next launch sees a non-null
-        // logsPayload and takes the normal (non-migration) path below,
-        // re-reading the still-legacy core blob (which still has the
-        // logs embedded, since its rewrite didn't complete) and then
-        // overwriting `state.logs` with the (identical) content from the
-        // new key — a harmless no-op, not data loss. The core blob only
-        // finally drops its embedded logs on the next successful save.
-        await _writeLogs(state.logs);
-        await _writeCore(state);
-      } else {
-        try {
-          final logs = AppStateSerializer.deserializeLogs(logsPayload);
-          state = state.copyWith(logs: logs);
-        } catch (_) {
-          // Separate logs payload corrupted — do not overwrite it (same
-          // "never destroy on read failure" principle as the outer
-          // catch below). state.logs stays as whatever fromMap produced
-          // from the core blob (normally empty, post-migration).
-        }
-      }
-      return state;
-    } catch (_) {
+    // AppStateValidator.tryDeserializeCore reads `logs` from the map if
+    // present (old format) and defaults to an empty list if absent (new
+    // format) — this line's behavior is correct for both formats without
+    // any special-casing.
+    final deserialized = AppStateValidator.tryDeserializeCore(payload);
+    if (deserialized == null) {
       // لا نكتب فوق الـ payload المعطوب على الديسك — القراءة الفاشلة قد
       // تكون عارضة (race, عطل مؤقت في الـ plugin...)، والكتابة هنا كانت
       // بتحوّلها لمسح دائم لبيانات المستخدم. نرجّع حالة ابتدائية للجلسة
       // الحالية فقط، ونترك البيانات الأصلية كما هي على الديسك.
       return AppStateEntity.initial();
     }
+    var state = deserialized;
+
+    final logsPayload = _logsStore.loadLogs();
+    if (logsPayload == null || logsPayload.isEmpty) {
+      // ── One-time migration ──────────────────────────────────────────
+      // The separate logs key doesn't exist yet. `state.logs` at this
+      // point holds whatever `tryDeserializeCore` found embedded in the
+      // legacy blob (the full historical log list if this install
+      // predates this change, or an empty list for a fresh install —
+      // either way correct). Persist it to the new key, then rewrite the
+      // core blob without embedded logs.
+      //
+      // Crash-safety: logs are written FIRST. If the app is killed
+      // between the two writes, the next launch sees a non-null
+      // logsPayload and takes the normal (non-migration) path below,
+      // re-reading the still-legacy core blob (which still has the logs
+      // embedded, since its rewrite didn't complete) and then
+      // overwriting `state.logs` with the (identical) content from the
+      // new key — a harmless no-op, not data loss. The core blob only
+      // finally drops its embedded logs on the next successful save.
+      await _writeLogs(state.logs);
+      await _writeCore(state);
+    } else {
+      final logs = AppStateValidator.tryDeserializeLogs(logsPayload);
+      if (logs != null) {
+        state = state.copyWith(logs: logs);
+      }
+      // else: separate logs payload corrupted — do not overwrite it (same
+      // "never destroy on read failure" principle as above). state.logs
+      // stays as whatever tryDeserializeCore produced from the core blob
+      // (normally empty, post-migration).
+    }
+    return state;
   }
 
   @override
@@ -139,37 +155,13 @@ class SharedPrefsAppRepository implements AppRepository {
   }
 
   Future<void> _writeLogs(List<LogEntryEntity> logs) async {
-    final _swEncode = Stopwatch()..start();
     final payload = AppStateSerializer.serializeLogs(logs);
-    _swEncode.stop();
-    TxnTimingCollector.current.record(
-        '06d | jsonEncode — logs blob', _swEncode.elapsedMilliseconds);
-
-    final _swSet = Stopwatch()..start();
     await _logsStore.saveLogs(payload);
-    _swSet.stop();
-    TxnTimingCollector.current.record(
-        '08b | SharedPreferences.setString(logs)', _swSet.elapsedMilliseconds);
   }
 
   Future<void> _writeCore(AppStateEntity state) async {
-    // ── Sprint #2: measure jsonEncode and setString separately ──────────────
-    final _swEncode = Stopwatch()..start();
     final payload = AppStateSerializer.serializeCore(state);
-    _swEncode.stop();
-    TxnTimingCollector.current
-        .record('06c | jsonEncode — saveState.toMap()', _swEncode.elapsedMilliseconds);
-
-    // ── DIAG: AppState size + section breakdown — self-gated by kDebugMode
-    // internally, see PersistenceDiagnostics ────────────────────────────────
     PersistenceDiagnostics.reportSizeBreakdown(state, payload);
-    // ─────────────────────────────────────────────────────────────────────────
-
-    final _swSet = Stopwatch()..start();
     await _coreStore.saveCore(payload);
-    _swSet.stop();
-    TxnTimingCollector.current
-        .record('08  | SharedPreferences.setString()', _swSet.elapsedMilliseconds);
-    // ────────────────────────────────────────────────────────────────────────
   }
 }

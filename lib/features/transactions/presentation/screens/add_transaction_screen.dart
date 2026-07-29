@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/perf/screen_open_timing.dart'; // investigation — remove when done
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
@@ -48,13 +47,7 @@ class AddTransactionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ── Screen-open investigation: this is the earliest point our own code
-    // runs when the "Add" button is tapped (AddTransactionScreen has no
-    // initState — it's a StatelessWidget — so build() is where the wall
-    // clock starts). ──────────────────────────────────────────────────────
-    ScreenOpenTimingCollector.start();
-    final sw = Stopwatch()..start();
-    final form = TransactionEntryForm(
+    return TransactionEntryForm(
       cubit: cubit,
       initialTransaction: initialTransaction,
       recurringMode: recurringMode,
@@ -67,10 +60,5 @@ class AddTransactionScreen extends StatelessWidget {
       onSaved: onSaved,
       onDeleted: onDeleted,
     );
-    sw.stop();
-    ScreenOpenTimingCollector.current
-        .record('00 | AddTransactionScreen.build()', sw.elapsedMilliseconds);
-    return form;
-    // ─────────────────────────────────────────────────────────────────────
   }
 }
