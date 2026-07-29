@@ -1,0 +1,103 @@
+TASK TYPE: READ-ONLY CODE AUDIT
+
+This task is an investigation only.
+
+You are NOT authorized to modify any file.
+
+You are NOT authorized to create commits.
+
+You are NOT authorized to apply fixes.
+
+You are NOT authorized to refactor.
+
+You are NOT authorized to generate patches.
+
+Your only job is to inspect the repository and produce a technical report.
+
+=================================================
+
+I suspect there is a financial consistency issue in the Jar system.
+
+Observed behavior:
+
+- Some Jar transactions appeared duplicated.
+- After deleting the duplicated transactions, the displayed Jar balance still became inconsistent.
+- The balance shown on the Jar card does not match the visible transaction history.
+
+I need to understand exactly why.
+
+=================================================
+
+Perform a complete READ-ONLY audit of the Jar system.
+
+Investigate and document:
+
+1. Every place where Jar.balance is modified.
+
+2. Every place where Jar.balance is read.
+
+3. Every function that can affect a Jar balance directly or indirectly.
+
+4. The complete lifecycle of:
+   - Creating a Jar transaction
+   - Editing a Jar transaction
+   - Deleting a Jar transaction
+   - Budget → Jar transfers
+   - Wallet → Jar transfers
+   - Jar → Wallet transfers
+   - Jar → Jar transfers
+   - Recurring transactions involving Jars
+   - Undo / Recovery
+   - Import / Restore
+
+5. Determine whether Jar.balance is:
+   - Stored state
+   - Derived state
+   - Or both
+
+6. Determine whether more than one source of truth exists.
+
+7. Identify every place where duplicate financial effects could happen.
+
+8. Identify every place where deleting a transaction could leave the balance unchanged.
+
+9. Produce a dependency map showing the call chain for every balance mutation.
+
+10. List every high-risk function that should be reviewed.
+
+=================================================
+
+OUTPUT FORMAT
+
+Return ONLY a report.
+
+The report must contain:
+
+- Executive Summary
+- Architecture Overview
+- Balance Mutation Map
+- Transaction Lifecycle
+- Duplicate Risk Analysis
+- Delete/Edit Consistency Analysis
+- Sources of Truth
+- High Risk Areas
+- Suspected Root Cause
+- Confidence Level for each finding
+
+=================================================
+
+IMPORTANT
+
+Do not modify any repository file.
+
+Do not create any commit.
+
+Do not stage changes.
+
+Do not generate patches.
+
+Do not execute write operations.
+
+This is a READ-ONLY investigation.
+
+The expected output is a report only.
