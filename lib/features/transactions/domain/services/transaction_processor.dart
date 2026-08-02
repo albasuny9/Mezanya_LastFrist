@@ -255,10 +255,27 @@ class TransactionProcessor {
         }
       }
 
+      // ملاحظة إصلاح صحة مالية (Jar double-count fix):
+      // حلقة تمويل الحصالات (linkedWallets) تحت دي كانت بتتنفذ بشكل مستقل
+      // تمامًا عن بلوك depositWithJarLabel فوق — يعني لو معاملة دخل واحدة
+      // عندها toWalletId (حصالة مختارة يدويًا) وكمان incomeSourceId (مصدر
+      // دخل له تمويل تلقائي)، الاتنين كانوا بيتنفذوا، وممكن يزوّدوا رصيد
+      // نفس الحصالة مرتين لنفس المبلغ، وكمان يبنوا معاملات فرعية مكررة
+      // (parentId) لنفس العملية المالية.
+      // القرار: الاختيار اليدوي الصريح (المستخدم حدَّد حصالة بنفسه) بيفوز
+      // على التمويل التلقائي **للحصالات تحديدًا** — لو depositWithJarLabel
+      // اتنفذ بالفعل، حلقة تمويل الحصالات بتتخطى بالكامل. حلقة تمويل
+      // المخصصات (allocations) تحت دي مش متأثرة — دي آلية منفصلة تمامًا عن
+      // الحصالات، ومفيهاش أي تعارض مع depositWithJarLabel، فمتلمستش هنا.
+      final manualJarDepositAlreadyApplied =
+          transaction.transferType == TransferType.depositWithJarLabel.value &&
+          transaction.toWalletId != null;
+
       if (transaction.incomeSourceId != null) {
         final sourceId = transaction.incomeSourceId!;
         var remaining = transaction.amount;
 
+        if (!manualJarDepositAlreadyApplied) {
         for (var i = 0; i < linkedWallets.length; i++) {
           final jar = linkedWallets[i];
           final matchingFunding =
@@ -355,6 +372,7 @@ class TransactionProcessor {
             );
           }
         }
+        } // end: !manualJarDepositAlreadyApplied (jar-funding loop only)
 
         for (var i = 0; i < allocations.length; i++) {
           final alloc = allocations[i];

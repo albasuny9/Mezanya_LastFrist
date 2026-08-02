@@ -11,6 +11,86 @@ import 'package:mezanya_app/features/transactions/domain/services/transaction_pr
 import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart';
 
 void main() {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Regression test — Jar double-count bug (Finding B).
+  //
+  // Root cause: a single income transaction could carry BOTH
+  // transferType == depositWithJarLabel (explicit manual jar deposit) AND
+  // a non-null incomeSourceId matching a jar with automatic funding
+  // configured for that same source. Both code paths in
+  // TransactionProcessor.apply used to run independently, crediting the
+  // same jar twice for the same money and creating a duplicate child
+  // (parentId) sub-transaction.
+  //
+  // This test constructs exactly that conflicting transaction and asserts
+  // the jar is credited only ONCE, and exactly one sub-transaction (not
+  // two) is created as a result.
+  // ═══════════════════════════════════════════════════════════════════════
+  test(
+      'income transaction with both a manual jar deposit and matching auto-funding '
+      'credits the jar only once (Finding B regression)', () {
+    const incomeSourceId = 'income-1';
+    const jar = LinkedWalletEntity(
+      id: 'jar-1',
+      name: 'Savings',
+      balance: 0,
+      monthlyAmount: 0,
+      executionDay: 1,
+      fundingSource: incomeSourceId,
+      funding: [
+        LinkedWalletEntityFunding(
+          id: 'fund-1',
+          incomeSourceId: incomeSourceId,
+          plannedAmount: 500,
+        ),
+      ],
+      icon: 'savings',
+      iconColor: '#165B47',
+      automationType: 'auto',
+      categories: [],
+    );
+    final wallet = const WalletEntity(id: 'wallet-1', name: 'Bank', balance: 0);
+
+    // A transaction that (per the pre-fix form-controller logic) carries
+    // BOTH the manual deposit-to-jar transferType AND a matching
+    // incomeSourceId — exactly the conflicting shape traced in the
+    // conversation's audit.
+    final transaction = TransactionEntity(
+      id: 'txn-1',
+      walletId: wallet.id,
+      toWalletId: jar.id,
+      amount: 500,
+      type: TransactionType.income.value,
+      transferType: TransferType.depositWithJarLabel.value,
+      incomeSourceId: incomeSourceId,
+      createdAt: DateTime(2026),
+    );
+    final initial = AppStateEntity.initial().copyWith(
+      wallets: [wallet],
+      budgetSetup: AppStateEntity.initial().budgetSetup.copyWith(
+            linkedWallets: [jar],
+          ),
+    );
+
+    final applied = TransactionProcessor.apply(initial, transaction);
+    final fundedJar = applied.budgetSetup.linkedWallets.single;
+
+    // Credited exactly once (500), not twice (1000).
+    expect(fundedJar.balance, 500);
+
+    // Exactly the one parent transaction was recorded — no extra
+    // auto-funding sub-transaction (with parentId) was created, since the
+    // manual deposit path already accounted for the money.
+    expect(applied.transactions.length, 1);
+    expect(applied.transactions.where((t) => t.parentId != null), isEmpty);
+
+    // Reversing the transaction must bring the jar back to exactly zero —
+    // proving apply() and reverse() stay symmetric under this fix (no
+    // orphaned sub-transaction reversal, no double-reversal).
+    final reversed = TransactionProcessor.reverse(applied, transaction);
+    expect(reversed.budgetSetup.linkedWallets.single.balance, 0);
+  });
+
   test('reversing physical jar funding clears its reservation source', () {
     final wallet = const WalletEntity(
       id: 'wallet-1',
