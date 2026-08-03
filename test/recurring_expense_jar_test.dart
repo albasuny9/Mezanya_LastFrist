@@ -2,12 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.dart';
 import 'package:mezanya_app/features/app_state/domain/repositories/app_repository.dart';
+import 'package:mezanya_app/features/app_state/data/store/shared_prefs_store.dart';
 import 'package:mezanya_app/features/app_state/presentation/cubits/app_cubit.dart';
 import 'package:mezanya_app/features/budget/domain/entities/budget_setup_entity.dart';
 import 'package:mezanya_app/features/transactions/domain/entities/recurring_transaction_entity.dart';
 import 'package:mezanya_app/features/transactions/domain/entities/transaction_entity.dart';
 import 'package:mezanya_app/features/transactions/domain/services/transaction_processor.dart';
 import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   const wallet = WalletEntity(
@@ -80,7 +82,7 @@ void main() {
       final repository = _MemoryAppRepository(
         baseState().copyWith(recurringTransactions: [recurring]),
       );
-      final cubit = AppCubit(repository);
+      final cubit = AppCubit(repository, await _prefsStore());
       await cubit.initialize();
 
       await cubit.recordRecurringExpenseOccurrence(
@@ -91,9 +93,8 @@ void main() {
         logDetails: 'posted',
       );
 
-      final generated = cubit.state.transactions
-          .where((t) => t.walletId == wallet.id)
-          .single;
+      final generated =
+          cubit.state.transactions.where((t) => t.walletId == wallet.id).single;
       expect(generated.toWalletId, jar.id,
           reason: 'jar target must be preserved on the generated transaction');
       expect(generated.budgetScope, BudgetScope.outsideBudget.value);
@@ -113,7 +114,8 @@ void main() {
       await cubit.close();
     });
 
-    test('idempotency: recordRecurringExpenseOccurrence never runs twice '
+    test(
+        'idempotency: recordRecurringExpenseOccurrence never runs twice '
         'for the same occurrence via the manual-post button guard', () async {
       final recurring = RecurringTransactionEntity(
         id: 'rec-2',
@@ -133,7 +135,7 @@ void main() {
       final repository = _MemoryAppRepository(
         baseState().copyWith(recurringTransactions: [recurring]),
       );
-      final cubit = AppCubit(repository);
+      final cubit = AppCubit(repository, await _prefsStore());
       await cubit.initialize();
 
       await cubit.recordRecurringExpenseOccurrence(
@@ -163,13 +165,18 @@ void main() {
         cubit.state.transactions.where((t) => t.walletId == wallet.id).length,
         1,
       );
-      final updatedJar =
-          cubit.state.budgetSetup.linkedWallets.firstWhere((j) => j.id == jar.id);
+      final updatedJar = cubit.state.budgetSetup.linkedWallets
+          .firstWhere((j) => j.id == jar.id);
       expect(updatedJar.balance, 400);
 
       await cubit.close();
     });
   });
+}
+
+Future<SharedPrefsStore> _prefsStore() async {
+  SharedPreferences.setMockInitialValues({});
+  return SharedPrefsStore(await SharedPreferences.getInstance());
 }
 
 class _MemoryAppRepository implements AppRepository {

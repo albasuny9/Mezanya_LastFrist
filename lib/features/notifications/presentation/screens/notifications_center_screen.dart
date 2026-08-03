@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../budget/domain/services/budget_cycle_service.dart';
 import '../../../budget/domain/services/budget_recurring_plan_service.dart';
 import '../../../logs/application/audit_facade.dart';
 import '../../../recovery/domain/entities/recovery_entry.dart';
@@ -36,8 +37,10 @@ class NotificationsCenterScreen extends StatefulWidget {
 class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   String _selectedTab = 'new';
   final Set<String> _processingIds = {};
-  NotificationHistoryCategory _historyCategory = NotificationHistoryCategory.all;
-  NotificationHistoryDuration _historyDuration = NotificationHistoryDuration.days30;
+  NotificationHistoryCategory _historyCategory =
+      NotificationHistoryCategory.all;
+  NotificationHistoryDuration _historyDuration =
+      NotificationHistoryDuration.days30;
 
   @override
   Widget build(BuildContext context) {
@@ -154,8 +157,7 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
                 ? const Color(0xFF0F9D7A)
                 : const Color(0xFF4C8BF5),
           ),
-          confirmLabel:
-              pendingMeta.isDueOrLate ? 'نزول' : 'بكر',
+          confirmLabel: pendingMeta.isDueOrLate ? 'نزول' : 'بكر',
           confirmEnabled: !_processingIds.contains(
             pendingMeta.isDueOrLate ? 'due_${source.id}' : 'early_${source.id}',
           ),
@@ -213,7 +215,8 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
           accent: const Color(0xFFC65D2E),
           title: debt.name,
           amount: decisionAmount,
-          icon: _pendingIconBox(Icons.credit_card_rounded, const Color(0xFFC65D2E)),
+          icon: _pendingIconBox(
+              Icons.credit_card_rounded, const Color(0xFFC65D2E)),
           confirmLabel: 'سدد',
           onConfirm: recurring == null
               ? () {}
@@ -417,6 +420,11 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
         today.isBefore(dueDate);
     final isDueOrLate = !today.isBefore(dueDate);
     if (!canEarly && !isDueOrLate) return null;
+    final snoozedUntil =
+        recurring?.snoozedUntil == null || recurring!.snoozedUntil!.isEmpty
+            ? null
+            : DateTime.tryParse(recurring.snoozedUntil!);
+    if (snoozedUntil != null && now.isBefore(snoozedUntil)) return null;
 
     final dateLabel = DateFormat('d MMMM', 'ar').format(dueDate);
     final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
@@ -511,6 +519,27 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
       amount: amount,
       early: early,
     );
+    final recurring = BudgetCycleService.linkedRecurringIncome(
+      widget.cubit.state,
+      source,
+    );
+    if (recurring != null) {
+      final occurrence = early
+          ? (RecurringScheduleEngine.nextOccurrence(recurring, now) ?? now)
+          : (RecurringScheduleEngine.unhandledDueOccurrence(recurring, now) ??
+              RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
+              now);
+      await widget.cubit.recordRecurringIncomeOccurrence(
+        recurring: recurring,
+        amount: amount,
+        occurrence: occurrence,
+        transactionNotes: source.name,
+        logDetails: historyMessage,
+        titleOverride: historyTitle,
+      );
+      return;
+    }
+
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
@@ -558,6 +587,20 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
       amount: source.amount,
       until: picked,
     );
+    final recurring = BudgetCycleService.linkedRecurringIncome(
+      widget.cubit.state,
+      source,
+    );
+    if (recurring != null) {
+      await widget.cubit.recordRecurringPostpone(
+        recurring: recurring,
+        snoozedUntil: picked,
+        logDetails: historyMessage,
+        titleOverride: historyTitle,
+      );
+      return;
+    }
+
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(incomeSources: incomes),
       detailsOverride: historyMessage,
@@ -572,8 +615,7 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     DateTime occurrence,
   ) async {
     final historyTitle = debtPayTitle(name: debt.name);
-    final historyMessage =
-        debtPayMessage(name: debt.name, amount: debt.amount);
+    final historyMessage = debtPayMessage(name: debt.name, amount: debt.amount);
     await widget.cubit.recordRecurringExpenseOccurrence(
       recurring: recurring,
       amount: debt.amount,
@@ -821,7 +863,9 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     if (text.contains('تأجيل')) {
       return const Color(0xFFD4A017);
     }
-    if (text.contains('دين') || text.contains('اشتراك') || text.contains('سداد')) {
+    if (text.contains('دين') ||
+        text.contains('اشتراك') ||
+        text.contains('سداد')) {
       return const Color(0xFFC65D2E);
     }
     return const Color(0xFF2F6F5E);

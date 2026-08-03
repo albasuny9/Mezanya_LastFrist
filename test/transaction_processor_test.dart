@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.dart';
 import 'package:mezanya_app/features/app_state/domain/repositories/app_repository.dart';
+import 'package:mezanya_app/features/app_state/data/store/shared_prefs_store.dart';
 import 'package:mezanya_app/features/app_state/presentation/cubits/app_cubit.dart';
 import 'package:mezanya_app/features/budget/domain/entities/budget_setup_entity.dart';
 import 'package:mezanya_app/features/money_distribution/domain/entities/distribution_entry.dart';
@@ -9,6 +10,7 @@ import 'package:mezanya_app/features/money_distribution/domain/services/distribu
 import 'package:mezanya_app/features/transactions/domain/entities/transaction_entity.dart';
 import 'package:mezanya_app/features/transactions/domain/services/transaction_processor.dart';
 import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   // ═══════════════════════════════════════════════════════════════════════
@@ -68,8 +70,8 @@ void main() {
     final initial = AppStateEntity.initial().copyWith(
       wallets: [wallet],
       budgetSetup: AppStateEntity.initial().budgetSetup.copyWith(
-            linkedWallets: [jar],
-          ),
+        linkedWallets: [jar],
+      ),
     );
 
     final applied = TransactionProcessor.apply(initial, transaction);
@@ -180,7 +182,7 @@ void main() {
       moneyDistributionMigrationDone: true,
     );
     final repository = _MemoryAppRepository(initial);
-    final cubit = AppCubit(repository);
+    final cubit = AppCubit(repository, await _prefsStore());
 
     await cubit.initialize();
     final migrated = cubit.state;
@@ -220,6 +222,11 @@ void main() {
       0,
     );
   });
+}
+
+Future<SharedPrefsStore> _prefsStore() async {
+  SharedPreferences.setMockInitialValues({});
+  return SharedPrefsStore(await SharedPreferences.getInstance());
 }
 
 class _MemoryAppRepository implements AppRepository {

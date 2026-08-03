@@ -35,6 +35,7 @@ import '../../../../core/constants/transaction_types.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../entities/budget_setup_entity.dart';
 
 class BudgetCycleService {
@@ -175,9 +176,12 @@ class BudgetCycleService {
       return null;
     }
     final recurring = linkedRecurringIncome(state, source);
-    final dueDate = incomeDueDateForMonth(source, month);
-    final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
     final now = DateTime.now();
+    final dueDate = recurring == null
+        ? incomeDueDateForMonth(source, month)
+        : RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
+            incomeDueDateForMonth(source, month);
+    final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
     final today = DateTime(now.year, now.month, now.day);
     final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
     final canEarly = reminderLeadDays > 0 &&
@@ -187,8 +191,13 @@ class BudgetCycleService {
     if (!canEarly && !isDueOrLate) return null;
 
     // ── snooze check ──────────────────────────────────────────────────────
-    if (source.isSnoozed) {
-      final until = source.snoozedUntilDate!;
+    final recurringSnoozedUntil =
+        recurring?.snoozedUntil == null || recurring!.snoozedUntil!.isEmpty
+            ? null
+            : DateTime.tryParse(recurring.snoozedUntil!);
+    final snoozedUntil = recurringSnoozedUntil ?? source.snoozedUntilDate;
+    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+      final until = snoozedUntil;
       return <String, dynamic>{
         'pending': false,
         'snoozed': true,

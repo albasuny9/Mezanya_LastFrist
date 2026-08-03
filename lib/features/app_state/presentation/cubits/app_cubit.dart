@@ -17,6 +17,7 @@ import '../../../notifications/domain/entities/notification_entity.dart';
 import '../../../notifications/domain/notification_action_copy.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -85,6 +86,8 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     bool recordInNotificationHistory = false,
   });
 
+  Future<void> processDueRecurringOperations({DateTime? now});
+
   Future<void> initialize() async {
     var appState = await _repository.loadState();
     appState = MigrationService.ensureDefaultSavingsJarSync(appState);
@@ -102,6 +105,7 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     }
     await _repository.saveState(appState);
     emit(appState);
+    await processDueRecurringOperations();
   }
 
   String _id(String prefix) =>
@@ -203,7 +207,8 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     _ensureFirebaseBridged().then((_) {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null || user.email == null) return;
-      final enabled = _prefsStore.readBool('auto_cloud_backup_enabled') ?? false;
+      final enabled =
+          _prefsStore.readBool('auto_cloud_backup_enabled') ?? false;
       if (!enabled) return;
       BackupUploadPipeline.run(
         email: user.email!,
@@ -234,7 +239,6 @@ abstract class AppCubitBase extends Cubit<AppStateEntity> {
     }).catchError((_) {});
     // لو السحابة مش متاحة أو تم تأجيل الرفع، مش بيوقف الـ app.
   }
-
 }
 
 class AppCubit extends AppCubitBase

@@ -30,8 +30,7 @@ class BudgetIncomeMetricsService {
   /// Returns the effective income pool for [source].
   ///
   /// Variable sources have no fixed pool, so 0 is returned.
-  /// For fixed sources the pool is [received] when any income was already
-  /// collected this cycle, otherwise the planned [source.amount].
+  /// For fixed sources the pool is the amount actually collected this cycle.
   ///
   /// Extracted from `_incomeDisplayPool` in `budget_tracking_screen.dart`.
   static double incomeDisplayPool(
@@ -39,7 +38,7 @@ class BudgetIncomeMetricsService {
     double received,
   ) {
     if (source.isVariable) return 0;
-    return received > 0 ? received : source.amount;
+    return received;
   }
 
   /// Returns the total amount spent this cycle that is attributed to

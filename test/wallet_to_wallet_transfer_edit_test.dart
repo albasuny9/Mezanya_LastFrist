@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.dart';
 import 'package:mezanya_app/features/app_state/domain/repositories/app_repository.dart';
+import 'package:mezanya_app/features/app_state/data/store/shared_prefs_store.dart';
 import 'package:mezanya_app/features/app_state/presentation/cubits/app_cubit.dart';
 import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// BUG-003 validation: simulates the exact save sequence performed by the
 /// new `_openWalletToWalletEditor` (transaction_details_sheet.dart) —
@@ -12,14 +14,14 @@ import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart'
 /// balances stay correct across notes-only, amount, date/time, and
 /// source/destination wallet edits, with no duplicate transfer created.
 void main() {
-  AppCubit buildCubit() {
+  Future<AppCubit> buildCubit() async {
     final walletA = const WalletEntity(id: 'w-a', name: 'A', balance: 1000);
     final walletB = const WalletEntity(id: 'w-b', name: 'B', balance: 500);
     final walletC = const WalletEntity(id: 'w-c', name: 'C', balance: 200);
     final initial = AppStateEntity.initial().copyWith(
       wallets: [walletA, walletB, walletC],
     );
-    return AppCubit(_MemoryAppRepository(initial));
+    return AppCubit(_MemoryAppRepository(initial), await _prefsStore());
   }
 
   double balanceOf(AppCubit cubit, String id) =>
@@ -27,7 +29,7 @@ void main() {
 
   test('notes-only edit preserves wallet effects (BUG-003 / BUG-001 fix)',
       () async {
-    final cubit = buildCubit();
+    final cubit = await buildCubit();
     await cubit.initialize();
 
     await cubit.addTransaction(
@@ -67,7 +69,7 @@ void main() {
   });
 
   test('amount edit updates balances correctly', () async {
-    final cubit = buildCubit();
+    final cubit = await buildCubit();
     await cubit.initialize();
 
     await cubit.addTransaction(
@@ -96,9 +98,10 @@ void main() {
     await cubit.close();
   });
 
-  test('changing source and destination wallet reverses old effect and '
+  test(
+      'changing source and destination wallet reverses old effect and '
       'applies the new one', () async {
-    final cubit = buildCubit();
+    final cubit = await buildCubit();
     await cubit.initialize();
 
     await cubit.addTransaction(
@@ -134,7 +137,7 @@ void main() {
 
   test('date/time edit does not affect balances or duplicate the transfer',
       () async {
-    final cubit = buildCubit();
+    final cubit = await buildCubit();
     await cubit.initialize();
 
     await cubit.addTransaction(
@@ -159,12 +162,18 @@ void main() {
     );
 
     expect(cubit.state.transactions.length, 1);
-    expect(cubit.state.transactions.single.createdAt, DateTime(2026, 1, 5, 14, 30));
+    expect(cubit.state.transactions.single.createdAt,
+        DateTime(2026, 1, 5, 14, 30));
     expect(balanceOf(cubit, 'w-a'), 900);
     expect(balanceOf(cubit, 'w-b'), 600);
 
     await cubit.close();
   });
+}
+
+Future<SharedPrefsStore> _prefsStore() async {
+  SharedPreferences.setMockInitialValues({});
+  return SharedPrefsStore(await SharedPreferences.getInstance());
 }
 
 class _MemoryAppRepository implements AppRepository {

@@ -1,6 +1,140 @@
 part of 'app_cubit.dart';
 
 mixin AppCubitRecurringMixin on AppCubitBase {
+  @override
+  Future<void> processDueRecurringOperations({DateTime? now}) async {
+    final reference = now ?? DateTime.now();
+
+    for (final recurring in List<RecurringTransactionEntity>.from(
+      state.recurringTransactions,
+    )) {
+      if (recurring.isVariableIncome ||
+          recurring.executionType != AutomationType.auto.value) {
+        continue;
+      }
+      final occurrence =
+          RecurringScheduleEngine.unhandledDueOccurrence(recurring, reference);
+      if (occurrence == null ||
+          !RecurringScheduleEngine.isSameCalendarDay(occurrence, reference)) {
+        continue;
+      }
+
+      if (recurring.type == TransactionType.income.value) {
+        await recordRecurringIncomeOccurrence(
+          recurring: recurring,
+          amount: recurring.amount,
+          occurrence: occurrence,
+          transactionNotes: recurring.name,
+          logDetails:
+              'Auto recurring income posted: ${recurring.name} (${recurring.amount.toStringAsFixed(2)})',
+          titleOverride: recurring.name,
+        );
+      } else if (recurring.type == TransactionType.expense.value) {
+        await recordRecurringExpenseOccurrence(
+          recurring: recurring,
+          amount: recurring.amount,
+          occurrence: occurrence,
+          transactionNotes: recurring.name,
+          logDetails:
+              'Auto recurring expense posted: ${recurring.name} (${recurring.amount.toStringAsFixed(2)})',
+          titleOverride: recurring.name,
+        );
+      }
+    }
+
+    final nextNotifications = _withDueRecurringNotifications(
+      state.recurringTransactions,
+      state.notifications,
+      reference,
+    );
+    if (identical(nextNotifications, state.notifications)) return;
+
+    final next = state.copyWith(notifications: nextNotifications);
+    await _repository.saveState(next);
+    emit(next);
+    _autoSync(next);
+  }
+
+  List<NotificationEntity> _withDueRecurringNotifications(
+    List<RecurringTransactionEntity> recurringTransactions,
+    List<NotificationEntity> notifications,
+    DateTime now,
+  ) {
+    var changed = false;
+    var next = notifications.where((notification) {
+      if (!_isRecurringDueNotification(notification)) return true;
+      final parts = notification.message.split('|');
+      if (parts.length < 3) return false;
+      final recurringId = parts[1];
+      final occurrence = DateTime.tryParse(parts[2]);
+      final recurring = recurringTransactions
+          .where((item) => item.id == recurringId)
+          .firstOrNull;
+      if (recurring == null || occurrence == null) {
+        changed = true;
+        return false;
+      }
+      final snoozedUntil =
+          recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
+              ? null
+              : DateTime.tryParse(recurring.snoozedUntil!);
+      final keep = recurring.executionType == AutomationType.confirm.value &&
+          !RecurringScheduleEngine.wasOccurrenceHandled(
+              recurring, occurrence) &&
+          (snoozedUntil == null || !now.isBefore(snoozedUntil));
+      if (!keep) changed = true;
+      return keep;
+    }).toList();
+
+    for (final recurring in recurringTransactions) {
+      if (recurring.executionType != AutomationType.confirm.value ||
+          recurring.isVariableIncome) {
+        continue;
+      }
+      final occurrence =
+          RecurringScheduleEngine.unhandledDueOccurrence(recurring, now);
+      if (occurrence == null) continue;
+      final snoozedUntil =
+          recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
+              ? null
+              : DateTime.tryParse(recurring.snoozedUntil!);
+      if (snoozedUntil != null && now.isBefore(snoozedUntil)) continue;
+
+      final reminderAt = occurrence.subtract(
+        RecurringScheduleEngine.reminderDuration(recurring),
+      );
+      if (now.isBefore(reminderAt)) continue;
+
+      final type = recurring.type == TransactionType.income.value
+          ? 'recurring-income-due'
+          : 'recurring-expense-due';
+      final key = '$type|${recurring.id}|${occurrence.toIso8601String()}';
+      if (next.any((notification) =>
+          notification.type == type && notification.message == key)) {
+        continue;
+      }
+
+      next = [
+        NotificationEntity(
+          id: _id('notif'),
+          title: recurring.name,
+          message: key,
+          createdAt: now,
+          type: type,
+          isPendingAction: true,
+        ),
+        ...next,
+      ].take(AuditLogService.maxNotifications).toList();
+      changed = true;
+    }
+
+    return changed ? next : notifications;
+  }
+
+  bool _isRecurringDueNotification(NotificationEntity notification) =>
+      notification.type == 'recurring-income-due' ||
+      notification.type == 'recurring-expense-due';
+
   Future<void> addRecurringTransaction({
     String? id,
     required String name,
