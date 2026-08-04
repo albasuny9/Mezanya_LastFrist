@@ -11,22 +11,30 @@ mixin AppCubitAllocationsMixin on AppCubitBase {
     final amount = alloc.pendingDistribution;
     if (amount <= 0) return;
 
-    final nextBalances = Map<String, double>.from(alloc.walletBalances);
-    if (alloc.pendingDistributionWalletId.isNotEmpty) {
-      nextBalances[alloc.pendingDistributionWalletId] =
-          (nextBalances[alloc.pendingDistributionWalletId] ?? 0) + amount;
-    }
     allocations[idx] = alloc.copyWith(
-      balance: alloc.balance + amount,
-      walletBalances: nextBalances,
       pendingDistribution: 0,
       pendingDistributionWalletId: '',
       pendingDistributionSourceId: '',
       pendingDistributionSnoozedUntil: '',
     );
 
-    final next = state.copyWith(
+    final staged = state.copyWith(
       budgetSetup: state.budgetSetup.copyWith(allocations: allocations),
+    );
+    final transaction = TransactionEntity(
+      id: _id('txn'),
+      walletId: alloc.pendingDistributionWalletId.isEmpty
+          ? null
+          : alloc.pendingDistributionWalletId,
+      toWalletId: allocationId,
+      budgetScope: BudgetScope.withinBudget.value,
+      incomeSourceId: alloc.pendingDistributionSourceId.isEmpty
+          ? null
+          : alloc.pendingDistributionSourceId,
+      transferType: TransferType.internalTransfer.value,
+      amount: amount,
+      type: TransactionType.transfer.value,
+      createdAt: DateTime.now(),
     );
     final historyTitle = allocationConfirmTitle(name: alloc.name);
     final historyMessage =
@@ -38,7 +46,7 @@ mixin AppCubitAllocationsMixin on AppCubitBase {
       details: historyMessage,
       titleOverride: historyTitle,
       recordInNotificationHistory: true,
-      apply: () async => next,
+      apply: () async => TransactionProcessor.apply(staged, transaction),
     );
   }
 

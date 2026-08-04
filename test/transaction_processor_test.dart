@@ -151,6 +151,84 @@ void main() {
     expect(reversed.transactions, isEmpty);
   });
 
+  test('confirming allocation distribution records a replayable transaction',
+      () async {
+    const walletId = 'wallet-1';
+    const wallet = WalletEntity(
+      id: walletId,
+      name: 'Bank',
+      balance: 1000,
+    );
+    const allocation = AllocationEntity(
+      id: 'allocation-1',
+      name: 'Food',
+      icon: 'restaurant',
+      iconColor: '#1D4ED8',
+      rolloverBehavior: 'keep',
+      funding: [],
+      categories: [],
+      pendingDistribution: 125,
+      pendingDistributionWalletId: walletId,
+      pendingDistributionSourceId: 'income-1',
+    );
+    final initial = AppStateEntity.initial().copyWith(
+      wallets: [wallet],
+      budgetSetup: AppStateEntity.initial().budgetSetup.copyWith(
+        allocations: [allocation],
+        incomeSources: const [
+          IncomeSourceEntity(
+            id: 'income-1',
+            name: 'Salary',
+            amount: 125,
+            date: 1,
+            type: 'confirm',
+            targetWalletId: walletId,
+          ),
+        ],
+      ),
+    );
+    final repository = _MemoryAppRepository(initial);
+    final cubit = AppCubit(repository, await _prefsStore());
+
+    await cubit.initialize();
+    await cubit.confirmAllocationDistribution(allocation.id);
+
+    final confirmed = cubit.state.budgetSetup.allocations
+        .firstWhere((item) => item.id == allocation.id);
+    expect(confirmed.balance, 125);
+    expect(confirmed.walletBalances[wallet.id], 125);
+    expect(confirmed.pendingDistribution, 0);
+    expect(confirmed.pendingDistributionWalletId, isEmpty);
+    expect(confirmed.pendingDistributionSourceId, isEmpty);
+
+    final posted = cubit.state.transactions.single;
+    expect(posted.type, TransactionType.transfer.value);
+    expect(posted.transferType, TransferType.internalTransfer.value);
+    expect(posted.walletId, wallet.id);
+    expect(posted.toWalletId, allocation.id);
+    expect(posted.amount, 125);
+
+    final replayBase = cubit.state.copyWith(
+      transactions: const [],
+      budgetSetup: cubit.state.budgetSetup.copyWith(
+        allocations: [
+          confirmed.copyWith(
+            balance: 0,
+            walletBalances: const {},
+          ),
+        ],
+      ),
+    );
+    final replayed = TransactionProcessor.apply(replayBase, posted);
+    final replayedAllocation = replayed.budgetSetup.allocations
+        .firstWhere((item) => item.id == allocation.id);
+
+    expect(replayedAllocation.balance, confirmed.balance);
+    expect(replayedAllocation.walletBalances, confirmed.walletBalances);
+
+    await cubit.close();
+  });
+
   test('existing migrated jars backfill money distributions from sources',
       () async {
     final wallet = const WalletEntity(
