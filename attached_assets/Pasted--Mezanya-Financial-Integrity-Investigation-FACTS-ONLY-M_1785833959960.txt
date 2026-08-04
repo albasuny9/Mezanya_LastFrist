@@ -1,0 +1,340 @@
+# Mezanya Financial Integrity Investigation
+## FACTS ONLY MODE
+
+You are NOT allowed to fix anything.
+
+You are NOT allowed to refactor anything.
+
+You are NOT allowed to recommend changes until the investigation is complete.
+
+Your only job is to collect evidence.
+
+--------------------------------------------------
+
+CRITICAL RULES
+
+1.
+
+Never assume.
+
+Never infer.
+
+Never guess.
+
+Every statement in your report must be backed by actual code.
+
+If something cannot be proven from the repository, explicitly write:
+
+"NOT PROVEN"
+
+instead of guessing.
+
+--------------------------------------------------
+
+2.
+
+Do NOT search for a bug.
+
+Search for facts.
+
+--------------------------------------------------
+
+3.
+
+Do NOT conclude root causes until every execution path has been traced.
+
+--------------------------------------------------
+
+4.
+
+If two explanations are possible,
+
+keep both,
+
+mark both,
+
+and continue gathering evidence.
+
+--------------------------------------------------
+
+5.
+
+Do NOT propose fixes.
+
+Do NOT redesign.
+
+Do NOT optimize.
+
+Only investigate.
+
+--------------------------------------------------
+
+PROJECT CONTEXT
+
+This repository contains the Mezanya financial engine.
+
+The Domain Bible exists inside:
+
+docs/architecture/Mezanya Domain Bible/
+
+Use it ONLY as specification.
+
+Use the code as implementation.
+
+Never assume implementation follows the Bible.
+
+--------------------------------------------------
+
+INVESTIGATION TARGET
+
+Users report impossible Jar balances.
+
+Example:
+
+Jar balance shows values that cannot be explained by visible transactions.
+
+Deleting duplicated transactions does not restore the displayed balance.
+
+The goal is to determine:
+
+Can this actually happen?
+
+If yes,
+
+where is the financial inconsistency introduced?
+
+--------------------------------------------------
+
+STEP 1
+
+Locate EVERY place in the repository that modifies:
+
+Jar balance
+
+Wallet balance
+
+LinkedWallet balance
+
+Budget balances
+
+Money Location
+
+Allocation balances
+
+Reservation amounts
+
+Produce a table.
+
+For each mutation include:
+
+File
+
+Class
+
+Method
+
+Variable modified
+
+Reason
+
+Caller
+
+--------------------------------------------------
+
+STEP 2
+
+Trace COMPLETE execution flow.
+
+Starting from:
+
+User action
+
+↓
+
+Cubit
+
+↓
+
+Domain Service
+
+↓
+
+Financial Engine
+
+↓
+
+Persistence
+
+↓
+
+Read Model
+
+↓
+
+UI
+
+Produce exact call chains.
+
+--------------------------------------------------
+
+STEP 3
+
+For every mutation found,
+
+determine whether it is:
+
+Apply
+
+Reverse
+
+Edit
+
+Delete
+
+Undo
+
+Recurring
+
+Restore Backup
+
+Migration
+
+Other
+
+--------------------------------------------------
+
+STEP 4
+
+Search for reconciliation.
+
+Search entire repository for:
+
+rebuild
+
+recalculate
+
+recompute
+
+repair
+
+reconcile
+
+reconstruct
+
+startup verification
+
+integrity
+
+consistency
+
+background validation
+
+Report ONLY actual implementations.
+
+--------------------------------------------------
+
+STEP 5
+
+Determine whether Current State can always be reconstructed from Transaction History.
+
+Do NOT answer immediately.
+
+Trace the code.
+
+Only answer after proof.
+
+--------------------------------------------------
+
+STEP 6
+
+Search for code that can leave residual financial effects after:
+
+delete
+
+edit
+
+reverse
+
+undo
+
+recurring
+
+backup restore
+
+migration
+
+--------------------------------------------------
+
+STEP 7
+
+Produce an Evidence Table.
+
+Every finding must contain:
+
+Evidence ID
+
+Finding
+
+Exact file
+
+Exact method
+
+Exact code location
+
+Execution path
+
+Confidence:
+
+PROVEN
+
+LIKELY
+
+NOT PROVEN
+
+Nothing else is allowed.
+
+--------------------------------------------------
+
+STEP 8
+
+List open questions.
+
+If something cannot be proven from code,
+
+write exactly what additional evidence would be required.
+
+--------------------------------------------------
+
+OUTPUT FORMAT
+
+1.
+
+Architecture Map
+
+2.
+
+Mutation Map
+
+3.
+
+Execution Flow
+
+4.
+
+Evidence Table
+
+5.
+
+Open Questions
+
+6.
+
+Confidence Level
+
+Do NOT provide fixes.
+
+Do NOT provide recommendations.
+
+Do NOT redesign anything.
+
+Stop after the investigation report.
