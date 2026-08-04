@@ -18,6 +18,7 @@ enum TransactionType {
 enum TransferType {
   walletToWallet('wallet-to-wallet'),
   internalTransfer('internal-transfer'),
+  allocationFunding('allocation-funding'),
   jarFunding('jar-funding'),
   jarFundingPhysical('jar-funding-physical'),
   jarAllocation('jar-allocation'),

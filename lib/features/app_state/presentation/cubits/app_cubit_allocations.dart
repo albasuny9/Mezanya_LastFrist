@@ -31,7 +31,7 @@ mixin AppCubitAllocationsMixin on AppCubitBase {
       incomeSourceId: alloc.pendingDistributionSourceId.isEmpty
           ? null
           : alloc.pendingDistributionSourceId,
-      transferType: TransferType.internalTransfer.value,
+      transferType: TransferType.allocationFunding.value,
       amount: amount,
       type: TransactionType.transfer.value,
       createdAt: DateTime.now(),

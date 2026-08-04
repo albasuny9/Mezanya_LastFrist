@@ -203,7 +203,7 @@ void main() {
 
     final posted = cubit.state.transactions.single;
     expect(posted.type, TransactionType.transfer.value);
-    expect(posted.transferType, TransferType.internalTransfer.value);
+    expect(posted.transferType, TransferType.allocationFunding.value);
     expect(posted.walletId, wallet.id);
     expect(posted.toWalletId, allocation.id);
     expect(posted.amount, 125);
