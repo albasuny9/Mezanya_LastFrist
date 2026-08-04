@@ -1,0 +1,153 @@
+# TASK: Measure AppState size and serialization cost (DIAGNOSIS ONLY)
+
+Rules:
+
+- Do NOT optimize anything.
+- Do NOT refactor.
+- Do NOT change behavior.
+- Do NOT implement fixes.
+- Only add temporary debug instrumentation and produce a diagnosis report.
+
+Current evidence:
+
+- jsonEncode(state.toMap()) ≈ 1.5s
+- SharedPreferences.setString() ≈ 2s
+- LocalBackup encode ≈ 4s
+- Eventually an OutOfMemoryError occurs during SharedPreferences/platform channel.
+
+I need to know exactly what is making the payload so large.
+
+--------------------------------------------------
+1. Measure final payload size
+--------------------------------------------------
+
+Inside `SharedPrefsAppRepository.saveState()` immediately after:
+
+```dart
+final payload = jsonEncode(state.toMap());
+```
+
+Print:
+
+- payload length (characters)
+- payload size in bytes
+- payload size in KB
+- payload size in MB
+
+Example:
+
+Payload
+Characters: XXXXXXX
+Bytes: XXXXXXX
+KB: XXXX
+MB: X.XX
+
+--------------------------------------------------
+2. Measure AppState collections
+--------------------------------------------------
+
+Before encoding, print the item count of every collection inside AppState.
+
+Examples:
+
+transactions
+logs
+notifications
+wallets
+categories
+goals
+allocations
+linkedWallets
+incomeSources
+
+Include every list stored inside AppState.
+
+--------------------------------------------------
+3. Measure serialized size of each section
+--------------------------------------------------
+
+Serialize each major section independently.
+
+Example:
+
+transactions json size = XXX KB
+logs json size = XXX KB
+notifications json size = XXX KB
+wallets json size = XXX KB
+budgetSetup json size = XXX KB
+
+This is to identify which section dominates the payload.
+
+--------------------------------------------------
+4. Deep investigation of Logs
+--------------------------------------------------
+
+Logs are currently the primary suspect.
+
+Print:
+
+- logs count
+- largest beforeState length
+- largest afterState length
+- average beforeState length
+- average afterState length
+- total bytes of all beforeState strings
+- total bytes of all afterState strings
+
+If beforeState/afterState are JSON strings, report their exact lengths.
+
+--------------------------------------------------
+5. Detect duplicated serialization
+--------------------------------------------------
+
+Inspect AppState serialization.
+
+Verify whether any object serializes another large object inside itself.
+
+Examples:
+
+- Wallet contains Transactions?
+- Transaction contains Wallet?
+- Allocation contains Wallet?
+- Goal contains Budget?
+- Any repeated serialization of the same object graph?
+
+Do NOT modify code.
+
+Only report every duplication found.
+
+--------------------------------------------------
+6. Rank contributors
+--------------------------------------------------
+
+Produce a table like:
+
+| Component | Serialized Size | % of Total Payload |
+|----------|-----------------|--------------------|
+| Logs | ... MB | ...% |
+| Transactions | ... KB | ...% |
+| Notifications | ... KB | ...% |
+| Wallets | ... KB | ...% |
+
+Sort descending.
+
+--------------------------------------------------
+7. Final diagnosis
+--------------------------------------------------
+
+Do NOT implement any optimization.
+
+Answer only:
+
+1. What makes AppState so large?
+2. Why does jsonEncode take ~1.5 seconds?
+3. Why does SharedPreferences.setString() take ~2 seconds?
+4. Why does LocalBackup encoding take ~4 seconds?
+5. Is the root cause:
+   - oversized logs
+   - oversized transactions
+   - duplicated serialization
+   - recursive object graph
+   - another issue
+
+Every conclusion must be backed by the collected measurements.

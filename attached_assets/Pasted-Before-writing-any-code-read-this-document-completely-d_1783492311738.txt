@@ -1,0 +1,273 @@
+Before writing any code, read this document completely:
+
+docs/architecture/00-Mezanya-Domain-Bible.md
+
+It is now the primary Source of Truth for this project.
+
+If the existing implementation conflicts with the document, the architecture document takes priority.
+
+==========================================================
+CURRENT OBJECTIVE
+==========================================================
+
+We are NOT implementing the full Money Distribution feature.
+
+We are building its long-term foundation.
+
+The goal of this phase is to create a clean architecture that the project can continue building on for years.
+
+Do not optimize for speed.
+
+Optimize for correctness.
+
+==========================================================
+VERY IMPORTANT
+==========================================================
+
+The previous implementation introduced MoneyLocationReview and several review flows.
+
+Do NOT remove them immediately.
+
+Do NOT rewrite everything.
+
+Instead, evaluate whether they should become implementation details instead of being the core architecture.
+
+The core architecture should revolve around Distribution, not Reviews.
+
+==========================================================
+ARCHITECTURE PRINCIPLE
+==========================================================
+
+The application has five independent domains.
+
+Wallet
+
+Responsible only for physical money.
+
+--------------------------------
+
+Budget
+
+Responsible only for monthly planning.
+
+--------------------------------
+
+Transaction
+
+Responsible only for financial history.
+
+--------------------------------
+
+Jar
+
+Responsible only for reserved balances.
+
+--------------------------------
+
+Money Distribution
+
+Responsible only for describing where Jar money physically exists.
+
+These responsibilities must never overlap.
+
+==========================================================
+YOUR TASK
+==========================================================
+
+This phase is ONLY about creating the proper foundation.
+
+Do NOT try to finish the feature.
+
+==========================================================
+STEP 1
+Review the current implementation.
+==========================================================
+
+Inspect everything already implemented regarding Money Location.
+
+Especially:
+
+- MoneyLocationEngine
+- MoneyLocationReview
+- LinkedWalletEntity
+- TransactionProcessor
+- AppCubit
+- Jar Details UI
+- Existing migrations
+
+Understand how they currently work.
+
+Do not blindly continue them.
+
+==========================================================
+STEP 2
+Build the Distribution Domain
+==========================================================
+
+Introduce a proper Distribution domain.
+
+The architecture should revolve around Distribution Entries.
+
+A Distribution Entry represents:
+
+Jar
+
+↓
+
+Wallet
+
+↓
+
+Amount
+
+plus optional metadata such as:
+
+- linked transaction
+- creation source
+- manual / automatic origin
+
+A Distribution Entry is NOT:
+
+- a transaction
+- financial history
+- wallet balance
+
+==========================================================
+STEP 3
+Separate responsibilities
+==========================================================
+
+Review the current code.
+
+Where responsibilities overlap:
+
+refactor gradually.
+
+Examples:
+
+Wallet should never own Jar logic.
+
+Jar should never own Wallet logic.
+
+Transactions should never own Distribution.
+
+Distribution should become the bridge only.
+
+==========================================================
+STEP 4
+Distribution Engine
+==========================================================
+
+Create or refactor the engine so it becomes responsible only for Distribution.
+
+Allowed responsibilities:
+
+- create entry
+- edit entry
+- remove entry
+- move entry
+- validate entry
+
+Forbidden responsibilities:
+
+- changing wallet balances
+- changing transaction history
+- modifying budget calculations
+
+==========================================================
+STEP 5
+Integrity Validation
+==========================================================
+
+Create a validation layer.
+
+It should detect problems only.
+
+Examples:
+
+Total Distribution != Jar Balance
+
+Negative Distribution
+
+Missing Wallet
+
+Invalid references
+
+Deleted linked transaction
+
+Orphan Distribution
+
+The validator reports problems.
+
+It does NOT solve them automatically.
+
+==========================================================
+STEP 6
+Migration
+==========================================================
+
+If migration is needed,
+
+keep existing user data.
+
+Prefer migration over recreation.
+
+==========================================================
+IMPORTANT
+==========================================================
+
+DO NOT redesign the UI yet.
+
+Keep UI changes minimal.
+
+Do not add dialogs.
+
+Do not add new review workflows.
+
+Do not build management screens yet.
+
+First build a stable architecture.
+
+==========================================================
+EXPECTED RESULT
+==========================================================
+
+At the end of this phase I expect:
+
+✓ Clean Distribution domain
+
+✓ Distribution Engine
+
+✓ Distribution validation
+
+✓ Proper separation of responsibilities
+
+✓ Existing implementation adapted where possible
+
+✓ No unnecessary UI
+
+✓ No duplicated logic
+
+==========================================================
+AFTER IMPLEMENTATION
+==========================================================
+
+After finishing,
+
+do NOT continue implementing the next phase.
+
+Instead provide a detailed report including:
+
+1. What was changed.
+
+2. What was kept from the previous implementation.
+
+3. What was refactored.
+
+4. Remaining architectural issues.
+
+5. Which files were modified.
+
+6. Which parts should be implemented in Phase 2.
+
+Stop there and wait for approval before continuing.

@@ -1,17 +1,21 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
+import '../../../../core/utils/transaction_display_format.dart';
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../money_distribution/domain/services/distribution_engine.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/wallet_entity.dart';
+import '../widgets/jar_details_sheet.dart';
+import '../widgets/wallet_shared_widgets.dart';
 import 'jar_editor_screen.dart';
 
 class WalletsScreen extends StatefulWidget {
@@ -53,7 +57,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
               onTransfer: wallets.length < 2 ? null : _openWalletTransferDialog,
               onMore: () => _openWalletsPage(state),
               child: wallets.isEmpty
-                  ? const _EmptyStateCard(
+                  ? const WalletEmptyStateCard(
                       title: 'لا توجد محافظ بعد',
                       subtitle: 'أضف محفظة فعلية لتسجيل الفلوس الحقيقية.',
                     )
@@ -112,7 +116,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       : () => _openInternalTransferDialog(),
               onMore: () => _openJarsPage(state),
               child: jars.isEmpty
-                  ? const _EmptyStateCard(
+                  ? const WalletEmptyStateCard(
                       title: 'لا توجد حصالات بعد',
                       subtitle:
                           'ابدأ بحصالة التوفير أو أنشئ حصالة لتنظيم جزء من فلوسك.',
@@ -123,37 +127,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: _compactJarTile(state, jar),
                             )),
-                        if (jars.length > 3)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: GestureDetector(
-                              onTap: () => _openJarsPage(state),
-                              child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 9),
-                                decoration: BoxDecoration(
-                                  color: _teal.withValues(alpha: 0.07),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                      color: _teal.withValues(alpha: 0.15)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                        'عرض باقي الحصالات (${jars.length - 3})',
-                                        style: TextStyle(
-                                            color: _teal,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13)),
-                                    const SizedBox(width: 4),
-                                    Icon(Icons.expand_more_rounded,
-                                        size: 16, color: _teal),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
                       ],
                     ),
             ),
@@ -207,7 +180,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _ActionBtn(
+                WalletActionBtn(
                   icon: Icons.swap_horiz_rounded,
                   accent: accent,
                   enabled: onTransfer != null,
@@ -215,7 +188,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   tooltip: transferTooltip,
                 ),
                 const SizedBox(width: 8),
-                _ActionBtn(
+                WalletActionBtn(
                   icon: Icons.add_rounded,
                   accent: accent,
                   enabled: true,
@@ -279,6 +252,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final reserved = _walletReservedAmount(state, wallet.id);
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     return _compactEntityTile(
+      state: state,
       title: wallet.name,
       subtitle: reserved > 0
           ? 'محجوز للحصالات: ${reserved.toStringAsFixed(2)}'
@@ -291,21 +265,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   Widget _compactJarTile(AppStateEntity state, LinkedWalletEntity jar) {
-    final distribution = _jarDistribution(state, jar.id);
-    final accent = _parseColor(jar.iconColor);
-    return _compactEntityTile(
-      title: jar.name,
-      subtitle: distribution.isEmpty
-          ? 'لم يتم توزيعها على محافظ بعد'
-          : 'موزعة على ${distribution.length} محفظة',
-      amount: jar.balance,
-      icon: jar.icon,
-      accent: accent,
+    return JarCompactSummaryTile(
+      state: state,
+      jar: jar,
       onTap: () => _openJarDetailsSheet(jar),
     );
   }
 
   Widget _compactEntityTile({
+    required AppStateEntity state,
     required String title,
     required String subtitle,
     required double amount,
@@ -351,7 +319,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              '${amount.toStringAsFixed(2)} جنيه',
+              '${amount.toStringAsFixed(2)} ${_currency(state)}',
               style: TextStyle(
                 color: accent,
                 fontSize: 13,
@@ -399,7 +367,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final state = widget.cubit.state;
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final reserved = _walletReservedAmount(state, wallet.id);
-    final available = wallet.balance - reserved;
     final reservations =
         _walletReservations(state, wallet.id); // jarId -> amount
 
@@ -491,7 +458,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${wallet.balance.toStringAsFixed(2)} جنيه',
+                                      '${wallet.balance.toStringAsFixed(2)} ${_currency(state)}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
@@ -538,16 +505,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _glassMetric(
-                                  label: 'الصافي المتاح',
-                                  value: available.toStringAsFixed(2),
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _glassMetric(
-                                  label: 'الحصالات',
-                                  value: reservations.length.toString(),
+                                  label: 'المحجوز',
+                                  value: reserved.toStringAsFixed(2),
                                   accent: accent,
                                 ),
                               ),
@@ -583,8 +542,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   showJars
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات للحصالات',
+                                      ? 'إخفاء مكان الفلوس'
+                                      : 'مكان الفلوس',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -595,432 +554,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Jar allocations panel (below card) ─────────────────
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    child: showJars
-                        ? Container(
-                            margin: const EdgeInsets.only(top: 10),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: accent.withValues(alpha: 0.12),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: accent.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        Icons.savings_rounded,
-                                        color: accent,
-                                        size: 17,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      'التخصيصات للحصالات',
-                                      style: TextStyle(
-                                        color: accent,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                if (reservations.isEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFBF1),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: accent.withValues(alpha: 0.10),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'لا يوجد تخصيص لأي حصالة من هذه المحفظة حتى الآن.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF8A7F72),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ...reservations.entries.map((e) {
-                                    final matchedJars = state
-                                        .budgetSetup.linkedWallets
-                                        .where((j) => j.id == e.key)
-                                        .toList();
-                                    final jarName = matchedJars.isEmpty
-                                        ? 'حصالة'
-                                        : matchedJars.first.name;
-                                    final jarIcon = matchedJars.isEmpty
-                                        ? 'savings'
-                                        : matchedJars.first.icon;
-                                    final jarAccent = matchedJars.isEmpty
-                                        ? accent
-                                        : _parseColor(
-                                            matchedJars.first.iconColor);
-                                    final ratio = reserved <= 0
-                                        ? 0.0
-                                        : (e.value / reserved).clamp(0.0, 1.0);
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFFBF1),
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          border: Border.all(
-                                            color:
-                                                accent.withValues(alpha: 0.14),
-                                          ),
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Container(
-                                                  width: 36,
-                                                  height: 36,
-                                                  decoration: BoxDecoration(
-                                                    color: jarAccent.withValues(
-                                                        alpha: 0.12),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            11),
-                                                  ),
-                                                  child: Center(
-                                                    child: AppIconPickerDialog
-                                                        .iconWidgetForName(
-                                                      jarIcon,
-                                                      color: jarAccent,
-                                                      size: 18,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    jarName,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  e.value.toStringAsFixed(2),
-                                                  style: TextStyle(
-                                                    color: jarAccent,
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 10),
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                              child: LinearProgressIndicator(
-                                                value: ratio,
-                                                minHeight: 5,
-                                                backgroundColor: accent
-                                                    .withValues(alpha: 0.12),
-                                                valueColor:
-                                                    AlwaysStoppedAnimation(
-                                                        jarAccent),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-
-                  const SizedBox(height: 20),
-                  // ── Transactions ───────────────────────────────────────
-                  _sectionHeader('المعاملات'),
-                  const SizedBox(height: 10),
-                  if (walletTx.isEmpty)
-                    const _InlineNote(
-                      text: 'لا توجد حركات مسجلة على هذه المحفظة حتى الآن.',
-                    )
-                  else
-                    ...walletTx.take(30).map(
-                          (t) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: SharedTransactionCard(
-                              transaction: t,
-                              appState: widget.cubit.state,
-                              onTap: () => openTransactionDetailsSheet(
-                                ctx,
-                                cubit: widget.cubit,
-                                transaction: t,
-                              ),
-                            ),
-                          ),
-                        ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
-    final state = widget.cubit.state;
-    final distribution = _jarDistribution(state, jar.id);
-    final relevantTransactions = state.transactions
-        .where((t) =>
-            t.toWalletId == jar.id ||
-            t.walletId == jar.id ||
-            (t.type == TransactionType.income.value && t.toWalletId == jar.id))
-        .where((t) =>
-            t.transferType == TransferType.jarAllocation.value ||
-            t.transferType == TransferType.jarAllocationCancel.value ||
-            t.transferType == TransferType.jarAllocationSpend.value ||
-            t.transferType == TransferType.jarFunding.value ||
-            t.transferType == TransferType.jarFundingPhysical.value ||
-            t.transferType == TransferType.depositWithJarLabel.value ||
-            t.transferType == TransferType.allocationToJar.value ||
-            t.transferType == TransferType.jarToAllocation.value ||
-            (t.type == TransactionType.income.value &&
-                t.budgetScope == BudgetScope.withinBudget.value))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    final accent = _parseColor(jar.iconColor);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: const Color(0xFFFFFBF1),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      builder: (ctx) {
-        var showWallets = false;
-        return StatefulBuilder(
-          builder: (ctx, setSheet) {
-            return DraggableScrollableSheet(
-              initialChildSize: 0.88,
-              minChildSize: 0.5,
-              maxChildSize: 0.95,
-              expand: false,
-              builder: (ctx, scrollCtrl) => ListView(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                children: [
-                  // ── Hero Card ──────────────────────────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          accent.withValues(alpha: 0.95),
-                          accent.withValues(alpha: 0.72),
-                        ],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
-                      borderRadius: BorderRadius.circular(26),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.30),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ── Top: icon + name + actions ──────────────────
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Center(
-                                  child: AppIconPickerDialog.iconWidgetForName(
-                                    jar.icon,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      jar.name,
-                                      style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w900,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${jar.balance.toStringAsFixed(2)} جنيه',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white
-                                            .withValues(alpha: 0.85),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _iconAction(Icons.settings_outlined, onTap: () {
-                                Navigator.of(ctx).pop();
-                                _openJarEditor(current: jar);
-                              }, tooltip: 'تعديل'),
-                              const SizedBox(width: 6),
-                              _iconAction(
-                                Icons.add_circle_outline_rounded,
-                                onTap: () => _openJarAdjustmentDialog(
-                                  jar: jar,
-                                  mode: _JarAdjustmentMode.allocate,
-                                ),
-                                tooltip: 'تحديد مصدر الحجز',
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        // ── Metrics row ─────────────────────────────────
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _glassMetric(
-                                  label: 'الرصيد الكلي',
-                                  value: jar.balance.toStringAsFixed(2),
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _glassMetric(
-                                  label: 'شهري مخطط',
-                                  value: jar.monthlyAmount.toStringAsFixed(2),
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _glassMetric(
-                                  label: 'المحافظ',
-                                  value: distribution.length.toString(),
-                                  accent: accent,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // ── Wide toggle button ───────────────────────────
-                        GestureDetector(
-                          onTap: () =>
-                              setSheet(() => showWallets = !showWallets),
-                          child: Container(
-                            margin: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.28),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                AnimatedRotation(
-                                  turns: showWallets ? 0.5 : 0,
-                                  duration: const Duration(milliseconds: 260),
-                                  child: const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  showWallets
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات من المحافظ',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // ── الكارت يكبر من تحت ──────────────────────────
                         AnimatedSize(
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeOutCubic,
-                          child: showWallets
+                          child: showJars
                               ? Container(
-                                  // نفس الكارت بيكبر من تحت
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        accent.withValues(alpha: 0.72),
-                                        accent.withValues(alpha: 0.55),
-                                      ],
-                                      begin: Alignment.topRight,
-                                      end: Alignment.bottomLeft,
-                                    ),
-                                    borderRadius: const BorderRadius.vertical(
-                                        bottom: Radius.circular(26)),
-                                  ),
                                   padding:
                                       const EdgeInsets.fromLTRB(18, 0, 18, 20),
                                   child: Column(
@@ -1033,66 +571,30 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                             width: 32,
                                             height: 32,
                                             decoration: BoxDecoration(
-                                              color: accent.withValues(
-                                                  alpha: 0.12),
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.18),
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
-                                            child: Icon(
-                                              Icons
-                                                  .account_balance_wallet_rounded,
-                                              color: accent,
+                                            child: const Icon(
+                                              Icons.monetization_on_rounded,
+                                              color: Colors.white,
                                               size: 17,
                                             ),
                                           ),
                                           const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              'توزيع الفلوس على المحافظ',
-                                              style: TextStyle(
-                                                color: accent,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                          ),
-                                          GestureDetector(
-                                            onTap: () =>
-                                                _openJarAdjustmentDialog(
-                                              jar: jar,
-                                              mode: _JarAdjustmentMode.allocate,
-                                            ),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 5),
-                                              decoration: BoxDecoration(
-                                                color: accent.withValues(
-                                                    alpha: 0.12),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.add_rounded,
-                                                      size: 13, color: accent),
-                                                  const SizedBox(width: 4),
-                                                  Text('تخصيص',
-                                                      style: TextStyle(
-                                                          color: accent,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          fontSize: 12)),
-                                                ],
-                                              ),
+                                          const Text(
+                                            'توزيع الفلوس',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 15,
                                             ),
                                           ),
                                         ],
                                       ),
                                       const SizedBox(height: 14),
-                                      if (distribution.isEmpty)
+                                      if (reservations.isEmpty)
                                         Container(
                                           padding: const EdgeInsets.all(16),
                                           decoration: BoxDecoration(
@@ -1105,7 +607,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                             ),
                                           ),
                                           child: const Text(
-                                            'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
+                                            'لا يوجد تخصيص لأي حصالة من هذه المحفظة حتى الآن.',
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
                                               color: Color(0xFF8A7F72),
@@ -1115,100 +617,110 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                           ),
                                         )
                                       else
-                                        ...distribution.entries.map((e) {
-                                          final matchedWallets = state.wallets
-                                              .where((w) => w.id == e.key)
+                                        ...reservations.entries.map((e) {
+                                          final matchedJars = state
+                                              .budgetSetup.linkedWallets
+                                              .where((j) => j.id == e.key)
                                               .toList();
-                                          final walletName =
-                                              matchedWallets.isEmpty
-                                                  ? 'محفظة'
-                                                  : matchedWallets.first.name;
-                                          final walletIcon = matchedWallets
-                                                  .isEmpty
-                                              ? 'account_balance_wallet'
-                                              : (matchedWallets.first.icon ??
-                                                  'account_balance_wallet');
+                                          final jarName = matchedJars.isEmpty
+                                              ? 'حصالة'
+                                              : matchedJars.first.name;
+                                          final jarIcon = matchedJars.isEmpty
+                                              ? 'savings'
+                                              : matchedJars.first.icon;
+                                          final ratio = reserved <= 0
+                                              ? 0.0
+                                              : (e.value / reserved)
+                                                  .clamp(0.0, 1.0);
                                           return Padding(
                                             padding: const EdgeInsets.only(
                                                 bottom: 8),
-                                            child: GestureDetector(
-                                              onTap: () =>
-                                                  _openWalletAllocationSheet(
-                                                ctx: ctx,
-                                                jar: jar,
-                                                walletId: e.key,
-                                                walletName: walletName,
-                                                walletIcon: walletIcon,
-                                                relevantTransactions:
-                                                    relevantTransactions,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 12,
                                               ),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12),
-                                                decoration: BoxDecoration(
+                                              decoration: BoxDecoration(
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                border: Border.all(
                                                   color: Colors.white
-                                                      .withValues(alpha: 0.15),
-                                                  borderRadius:
-                                                      BorderRadius.circular(14),
-                                                  border: Border.all(
-                                                    color: Colors.white
-                                                        .withValues(
-                                                            alpha: 0.25),
-                                                  ),
+                                                      .withValues(alpha: 0.25),
                                                 ),
-                                                child: Row(
-                                                  children: [
-                                                    Container(
-                                                      width: 34,
-                                                      height: 34,
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.white
-                                                            .withValues(
-                                                                alpha: 0.18),
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(10),
-                                                      ),
-                                                      child: Center(
-                                                        child: AppIconPickerDialog
-                                                            .iconWidgetForName(
-                                                          walletIcon,
-                                                          color: Colors.white,
-                                                          size: 17,
+                                              ),
+                                              child: Column(
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Container(
+                                                        width: 34,
+                                                        height: 34,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors.white
+                                                              .withValues(
+                                                                  alpha: 0.18),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(10),
+                                                        ),
+                                                        child: Center(
+                                                          child: AppIconPickerDialog
+                                                              .iconWidgetForName(
+                                                            jarIcon,
+                                                            color: Colors.white,
+                                                            size: 17,
+                                                          ),
                                                         ),
                                                       ),
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Expanded(
-                                                      child: Text(walletName,
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: Text(
+                                                          jarName,
                                                           style:
                                                               const TextStyle(
-                                                                  color: Colors
-                                                                      .white,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w800,
-                                                                  fontSize:
-                                                                      14)),
-                                                    ),
-                                                    Text(
-                                                      '${e.value.toStringAsFixed(2)} جنيه',
-                                                      style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            fontSize: 14,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        '${e.value.toStringAsFixed(2)} ${_currency(state)}',
+                                                        style: const TextStyle(
                                                           color: Colors.white,
                                                           fontWeight:
                                                               FontWeight.w900,
-                                                          fontSize: 15),
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            999),
+                                                    child:
+                                                        LinearProgressIndicator(
+                                                      value: ratio,
+                                                      minHeight: 5,
+                                                      backgroundColor: Colors
+                                                          .white
+                                                          .withValues(
+                                                              alpha: 0.16),
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation(
+                                                        Colors.white.withValues(
+                                                            alpha: 0.78),
+                                                      ),
                                                     ),
-                                                    const SizedBox(width: 6),
-                                                    const Icon(
-                                                        Icons
-                                                            .chevron_left_rounded,
-                                                        color: Colors.white70,
-                                                        size: 18),
-                                                  ],
-                                                ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           );
@@ -1218,172 +730,29 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 )
                               : const SizedBox.shrink(),
                         ),
-
-                        const SizedBox(height: 20),
-                        // ── Transactions ───────────────────────────────────────
-                        // ── معاملات التمويل من الميزانية ────────────────────
-                        Builder(builder: (ctx) {
-                          final budgetFundings = relevantTransactions
-                              .where((t) =>
-                                  t.transferType ==
-                                      TransferType.jarFunding.value ||
-                                  t.transferType ==
-                                      TransferType.jarFundingPhysical.value)
-                              .toList();
-                          if (budgetFundings.isEmpty)
-                            return const SizedBox.shrink();
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _sectionHeader('من الميزانية الشهرية'),
-                              const SizedBox(height: 10),
-                              ...budgetFundings.map((t) {
-                                final incomeName = widget
-                                        .cubit.state.budgetSetup.incomeSources
-                                        .where((s) => s.id == t.incomeSourceId)
-                                        .map((s) => s.name)
-                                        .firstOrNull ??
-                                    'مصدر دخل';
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFBF1),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                          color:
-                                              accent.withValues(alpha: 0.18)),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 38,
-                                          height: 38,
-                                          decoration: BoxDecoration(
-                                            color:
-                                                accent.withValues(alpha: 0.10),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Icon(Icons.savings_rounded,
-                                              color: accent, size: 19),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(incomeName,
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 13)),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                t.transferType ==
-                                                        TransferType
-                                                            .jarFundingPhysical
-                                                            .value
-                                                    ? 'خصم من المحفظة'
-                                                    : 'حجز من المحفظة',
-                                                style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: accent.withValues(
-                                                        alpha: 0.7),
-                                                    fontWeight:
-                                                        FontWeight.w600),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              '${t.amount.toStringAsFixed(2)} جنيه',
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 14,
-                                                  color: accent),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            GestureDetector(
-                                              onTap: () =>
-                                                  _openBudgetFundingEditor(
-                                                      ctx: ctx,
-                                                      jar: jar,
-                                                      transaction: t),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 3),
-                                                decoration: BoxDecoration(
-                                                  color: accent.withValues(
-                                                      alpha: 0.10),
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Text('تعديل',
-                                                    style: TextStyle(
-                                                        color: accent,
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.w700)),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                              const SizedBox(height: 8),
-                            ],
-                          );
-                        }),
-
-                        _sectionHeader('المعاملات'),
-                        const SizedBox(height: 10),
-                        if (relevantTransactions
-                            .where((t) =>
-                                t.transferType !=
-                                    TransferType.jarFunding.value &&
-                                t.transferType !=
-                                    TransferType.jarFundingPhysical.value)
-                            .isEmpty)
-                          const _InlineNote(
-                            text:
-                                'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
-                          )
-                        else
-                          ...relevantTransactions
-                              .where((t) =>
-                                  t.transferType !=
-                                      TransferType.jarFunding.value &&
-                                  t.transferType !=
-                                      TransferType.jarFundingPhysical.value)
-                              .map(
-                                (t) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: SharedTransactionCard(
-                                    transaction: t,
-                                    appState: widget.cubit.state,
-                                    onTap: () => openTransactionDetailsSheet(
-                                      ctx,
-                                      cubit: widget.cubit,
-                                      transaction: t,
-                                    ),
-                                  ),
-                                ),
-                              ),
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 20),
+                  // ── Transactions ───────────────────────────────────────
+                  _sectionHeader('المعاملات'),
+                  const SizedBox(height: 10),
+                  if (walletTx.isEmpty)
+                    const WalletInlineNote(
+                      text: 'لا توجد حركات مسجلة على هذه المحفظة حتى الآن.',
+                    )
+                  else
+                    SharedTransactionDayGroups(
+                      transactions: walletTx.take(30).toList(),
+                      appState: widget.cubit.state,
+                      viewingContextId: wallet.id,
+                      onTap: (transaction) => openTransactionDetailsSheet(
+                        ctx,
+                        cubit: widget.cubit,
+                        transaction: transaction,
+                      ),
+                    ),
                 ],
               ),
             );
@@ -1393,753 +762,12 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  /// تعديل معاملة تمويل من الميزانية: تغيير المحفظة التي تحجز فيها الفلوس
-  /// بوتوم شيت معاملات الحجز لمحفظة معينة جوه الحصالة
-  Future<void> _openWalletAllocationSheet({
-    required BuildContext ctx,
-    required LinkedWalletEntity jar,
-    required String walletId,
-    required String walletName,
-    required String walletIcon,
-    required List<TransactionEntity> relevantTransactions,
-  }) async {
-    final accent = _parseColor(jar.iconColor);
-    // فلتر المعاملات اللي ليها علاقة بالمحفظة دي تحديداً
-    final walletTxns = relevantTransactions.where((t) {
-      if (t.walletId != walletId && t.fromWalletId != walletId) return false;
-      return t.transferType == TransferType.jarAllocation.value ||
-          t.transferType == TransferType.jarAllocationCancel.value ||
-          t.transferType == TransferType.jarFunding.value ||
-          t.transferType == TransferType.jarFundingPhysical.value;
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    await showModalBottomSheet<void>(
-      context: ctx,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFFFFBF1),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (bCtx) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        expand: false,
-        builder: (bCtx, ctrl) => Column(
-          children: [
-            // Header
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    accent.withValues(alpha: 0.95),
-                    accent.withValues(alpha: 0.72)
-                  ],
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: AppIconPickerDialog.iconWidgetForName(walletIcon,
-                        color: Colors.white, size: 20),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(walletName,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16)),
-                  Text('معاملات الحجز',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600)),
-                ]),
-              ]),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: walletTxns.isEmpty
-                  ? Center(
-                      child: Text('لا توجد معاملات حجز لهذه المحفظة',
-                          style: TextStyle(
-                              color: accent.withValues(alpha: 0.5),
-                              fontWeight: FontWeight.w600)))
-                  : ListView.builder(
-                      controller: ctrl,
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                      itemCount: walletTxns.length,
-                      itemBuilder: (_, i) {
-                        final t = walletTxns[i];
-                        final isFromBudget =
-                            t.transferType == TransferType.jarFunding.value ||
-                                t.transferType ==
-                                    TransferType.jarFundingPhysical.value;
-                        final incomeName = isFromBudget
-                            ? (widget.cubit.state.budgetSetup.incomeSources
-                                    .where((s) => s.id == t.incomeSourceId)
-                                    .map((s) => s.name)
-                                    .firstOrNull ??
-                                'من الميزانية')
-                            : null;
-                        final txDate =
-                            DateFormat('d MMM yyyy', 'ar').format(t.createdAt);
-                        final isCancel = t.transferType ==
-                            TransferType.jarAllocationCancel.value;
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: accent.withValues(alpha: 0.14)),
-                            ),
-                            child: Row(children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: (isCancel
-                                          ? const Color(0xFFDC2626)
-                                          : (isFromBudget
-                                              ? const Color(0xFF2F7D5E)
-                                              : accent))
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  isCancel
-                                      ? Icons.undo_rounded
-                                      : (isFromBudget
-                                          ? Icons.savings_rounded
-                                          : Icons.lock_outline_rounded),
-                                  color: isCancel
-                                      ? const Color(0xFFDC2626)
-                                      : (isFromBudget
-                                          ? const Color(0xFF2F7D5E)
-                                          : accent),
-                                  size: 17,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        isFromBudget
-                                            ? 'من الميزانية • $incomeName'
-                                            : (isCancel
-                                                ? 'إلغاء حجز'
-                                                : 'حجز يدوي'),
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 13),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(txDate,
-                                          style: TextStyle(
-                                              fontSize: 11,
-                                              color:
-                                                  accent.withValues(alpha: 0.6),
-                                              fontWeight: FontWeight.w600)),
-                                    ]),
-                              ),
-                              Text(
-                                '${isCancel ? "-" : "+"}${t.amount.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                    color: isCancel
-                                        ? const Color(0xFFDC2626)
-                                        : accent,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 15),
-                              ),
-                            ]),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openBudgetFundingEditor({
-    required BuildContext ctx,
-    required LinkedWalletEntity jar,
-    required TransactionEntity transaction,
-  }) async {
-    final state = widget.cubit.state;
-    final accent = _parseColor(jar.iconColor);
-    var selectedWalletId = transaction.walletId ?? '';
-    final wallets = state.wallets;
-
-    if (wallets.isEmpty) return;
-    if (!wallets.any((w) => w.id == selectedWalletId) && wallets.isNotEmpty) {
-      selectedWalletId = wallets.first.id;
-    }
-
-    await showModalBottomSheet<void>(
-      context: ctx,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFFFFBF1),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (bCtx) => StatefulBuilder(
-        builder: (bCtx, setS) => Padding(
-          padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(bCtx).viewInsets.bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.savings_rounded, color: accent, size: 18),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'تعديل حجز الميزانية',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                        color: accent),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 6),
-              Text(
-                'المبلغ: ${transaction.amount.toStringAsFixed(2)} جنيه',
-                style: TextStyle(
-                    color: accent.withValues(alpha: 0.7),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 20),
-              Text('المحفظة التي تحجز فيها الفلوس',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: accent.withValues(alpha: 0.8))),
-              const SizedBox(height: 10),
-              ...wallets.map((w) {
-                final isSelected = w.id == selectedWalletId;
-                return GestureDetector(
-                  onTap: () => setS(() => selectedWalletId = w.id),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? accent.withValues(alpha: 0.10)
-                          : const Color(0xFFFFFBF1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isSelected
-                            ? accent
-                            : accent.withValues(alpha: 0.15),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Icon(Icons.account_balance_wallet_rounded,
-                            size: 16, color: accent),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(w.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 14)),
-                      ),
-                      if (isSelected)
-                        Icon(Icons.check_circle_rounded,
-                            color: accent, size: 20),
-                    ]),
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () async {
-                  if (selectedWalletId.isEmpty) return;
-                  Navigator.pop(bCtx);
-                  final oldWalletId = transaction.walletId ?? '';
-                  // نشيل الإدخال القديم ونضيف الجديد بنفس القيمة
-                  final filteredSources = jar.walletSources
-                      .where((s) => s.walletId != oldWalletId)
-                      .toList();
-                  filteredSources.add(
-                    JarWalletSource(
-                      walletId: selectedWalletId,
-                      amount: transaction.amount,
-                    ),
-                  );
-                  final updatedJar =
-                      jar.copyWith(walletSources: filteredSources);
-                  final linkedWallets = widget
-                      .cubit.state.budgetSetup.linkedWallets
-                      .map((j) => j.id == jar.id ? updatedJar : j)
-                      .toList();
-                  await widget.cubit.updateBudgetSetup(
-                    widget.cubit.state.budgetSetup
-                        .copyWith(linkedWallets: linkedWallets),
-                  );
-                },
-                child: const Text('حفظ التغيير',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openJarAdjustmentDialog({
-    required LinkedWalletEntity jar,
-    required _JarAdjustmentMode mode,
-    String? initialWalletId,
-  }) async {
-    final state = widget.cubit.state;
-    final sourceDistribution = _jarDistribution(state, jar.id);
-    final availableWallets = mode == _JarAdjustmentMode.allocate
-        ? state.wallets
-        : state.wallets
-            .where((wallet) => (sourceDistribution[wallet.id] ?? 0) > 0)
-            .toList();
-    if (availableWallets.isEmpty) return;
-
-    final accent = _parseColor(jar.iconColor);
-    var walletId =
-        availableWallets.any((wallet) => wallet.id == initialWalletId)
-            ? initialWalletId!
-            : availableWallets.first.id;
-    final amountController = TextEditingController();
-    final notesController = TextEditingController();
-
-    await showModalBottomSheet<void>(
+  Future<void> _openJarDetailsSheet(LinkedWalletEntity initialJar) {
+    return showJarDetailsSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFFFFBF1),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final distribution = _jarDistribution(widget.cubit.state, jar.id);
-          final unallocatedAmount =
-              _jarUnallocatedAmount(widget.cubit.state, jar);
-          final selectedReserved = distribution[walletId] ?? 0;
-          final isAllocate = mode == _JarAdjustmentMode.allocate;
-          final title =
-              isAllocate ? 'تحديد مصدر أموال الحصالة' : 'إلغاء ربط من المحفظة';
-
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle
-                Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4C9B8),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              accent.withValues(alpha: 0.95),
-                              accent.withValues(alpha: 0.70),
-                            ],
-                            begin: Alignment.topRight,
-                            end: Alignment.bottomLeft,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Center(
-                          child: AppIconPickerDialog.iconWidgetForName(
-                            jar.icon,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
-                                color: accent,
-                              ),
-                            ),
-                            Text(
-                              jar.name,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF8A7F72),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Form card
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: accent.withValues(alpha: 0.12)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isAllocate
-                              ? 'اختر محفظة لربطها بالرصيد:'
-                              : 'اختر محفظة لإلغاء الربط منها:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: accent.withValues(alpha: 0.70),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFFBF1),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                                color: accent.withValues(alpha: 0.16)),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: walletId,
-                              isExpanded: true,
-                              icon: Icon(Icons.keyboard_arrow_down_rounded,
-                                  color: accent),
-                              items: availableWallets.map((w) {
-                                return DropdownMenuItem(
-                                  value: w.id,
-                                  child: Text(
-                                    w.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setDialogState(() => walletId = value);
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.07),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.info_outline_rounded,
-                                  size: 14, color: accent),
-                              const SizedBox(width: 6),
-                              Text(
-                                isAllocate
-                                    ? 'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} جنيه'
-                                    : 'المتاح للإلغاء: ${selectedReserved.toStringAsFixed(2)} جنيه',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Amount field
-                        Text(
-                          'المبلغ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: accent.withValues(alpha: 0.70),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: amountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            filled: true,
-                            fillColor: const Color(0xFFFFFBF1),
-                            suffixText: 'جنيه',
-                            suffixStyle: TextStyle(
-                              color: accent,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                  color: accent.withValues(alpha: 0.16)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                  color: accent.withValues(alpha: 0.16)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: accent, width: 1.5),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 14),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Notes field
-                        Text(
-                          'ملاحظات (اختياري)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: accent.withValues(alpha: 0.70),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: notesController,
-                          style: const TextStyle(fontSize: 14),
-                          decoration: InputDecoration(
-                            hintText: 'أضف ملاحظة...',
-                            filled: true,
-                            fillColor: const Color(0xFFFFFBF1),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                  color: accent.withValues(alpha: 0.16)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                  color: accent.withValues(alpha: 0.16)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: accent, width: 1.5),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 14),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Action buttons
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(
-                                color: accent.withValues(alpha: 0.30)),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            foregroundColor: const Color(0xFF8A7F72),
-                          ),
-                          child: const Text(
-                            'إلغاء',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final amount =
-                                double.tryParse(amountController.text.trim()) ??
-                                    0;
-                            if (amount <= 0) return;
-
-                            final currentJar = widget
-                                .cubit.state.budgetSetup.linkedWallets
-                                .firstWhere((j) => j.id == jar.id);
-
-                            if (isAllocate) {
-                              if (amount > currentJar.unlabeledAmount + 0.01) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'لا يمكن تخصيص مبلغ أكبر من الرصيد غير المحدد في الحصالة.')),
-                                );
-                                return;
-                              }
-                              // إضافة أو زيادة label المحفظة
-                              final existing =
-                                  currentJar.walletSources.firstWhere(
-                                (s) => s.walletId == walletId,
-                                orElse: () => JarWalletSource(
-                                    walletId: walletId, amount: 0),
-                              );
-                              final newSources = [
-                                ...currentJar.walletSources
-                                    .where((s) => s.walletId != walletId),
-                                JarWalletSource(
-                                    walletId: walletId,
-                                    amount: existing.amount + amount),
-                              ];
-                              await widget.cubit.updateJarWalletSources(
-                                jarId: jar.id,
-                                sources: newSources,
-                              );
-                            } else {
-                              if (amount > selectedReserved + 0.01) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'لا يمكن إلغاء تخصيص مبلغ أكبر من المربوط حالياً بهذه المحفظة.')),
-                                );
-                                return;
-                              }
-                              // تخفيض أو حذف label المحفظة
-                              final existing =
-                                  currentJar.walletSources.firstWhere(
-                                (s) => s.walletId == walletId,
-                                orElse: () => JarWalletSource(
-                                    walletId: walletId, amount: 0),
-                              );
-                              final newAmt = (existing.amount - amount)
-                                  .clamp(0.0, double.infinity);
-                              final newSources = [
-                                ...currentJar.walletSources
-                                    .where((s) => s.walletId != walletId),
-                                if (newAmt > 0)
-                                  JarWalletSource(
-                                      walletId: walletId, amount: newAmt),
-                              ];
-                              await widget.cubit.updateJarWalletSources(
-                                jarId: jar.id,
-                                sources: newSources,
-                              );
-                            }
-
-                            if (!mounted) return;
-                            Navigator.of(ctx).pop();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: Text(
-                            isAllocate ? 'تأكيد التخصيص' : 'تأكيد الإلغاء',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+      cubit: widget.cubit,
+      jarId: initialJar.id,
+      onEditJar: (jar) => _openJarEditor(current: jar),
     );
   }
 
@@ -2199,7 +827,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
           // Wallet selection logic for Source (Jar or Allocation)
           List<Map<String, dynamic>> walletOptions = [];
           final distribution = sourceType == 'jar'
-              ? _jarDistribution(currentState, sourceId)
+              ? jarWalletDistribution(currentState, sourceId)
               : _allocationDistribution(currentState, sourceId);
           final unallocated = _jarUnallocatedAmount(currentState, sourceItem);
 
@@ -2263,7 +891,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       style:
                           TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 24),
-                  _TransferItemTile(
+                  WalletTransferItemTile(
                     label: 'من',
                     title: sourceType == 'jar'
                         ? (sourceItem as LinkedWalletEntity).name
@@ -2349,7 +977,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Icon(Icons.keyboard_double_arrow_down_rounded,
                           color: Colors.black26)),
-                  _TransferItemTile(
+                  WalletTransferItemTile(
                     label: 'إلى',
                     title: targetType == 'jar'
                         ? (targetItem as LinkedWalletEntity).name
@@ -2383,7 +1011,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     decoration: InputDecoration(
                       labelText: 'المبلغ',
                       prefixIcon: const Icon(Icons.monetization_on_outlined),
-                      suffixText: 'جنيه',
+                      suffixText: currencyLabelAr(state.currencyCode),
                       helperText: walletOptions.isNotEmpty
                           ? 'المتاح من المحفظة: ${selectedWalletAmount.toStringAsFixed(2)}'
                           : null,
@@ -2420,12 +1048,17 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               : selectedWalletId;
 
                       if (sourceType == 'jar' && targetType == 'jar') {
-                        // تحويل بين حصالتين — label فقط بدون transaction
-                        await widget.cubit.transferBetweenJars(
-                          sourceJarId: sourceId,
-                          targetJarId: targetId,
+                        // تحويل بين حصالتين — معاملة حقيقية ظاهرة في تاريخ الاتنين
+                        await widget.cubit.addTransaction(
+                          type: TransactionType.transfer.value,
+                          fromWalletId: sourceId,
+                          toWalletId: targetId,
+                          walletId: actualWalletId,
                           amount: amount,
-                          physicalWalletId: actualWalletId,
+                          transferType: TransferType.jarToJar.value,
+                          notes: notesController.text.trim().isEmpty
+                              ? null
+                              : notesController.text.trim(),
                         );
                       } else {
                         // تحويل يشمل مخصص — نستخدم transaction افتراضية
@@ -2481,7 +1114,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
           const SizedBox(height: 16),
           if (jars.isNotEmpty) ...[
             const Row(children: [
-              Icon(Icons.savings_rounded, size: 16),
+              Icon(Icons.monetization_on_rounded, size: 16),
               SizedBox(width: 8),
               Text('الحصالات',
                   style: TextStyle(
@@ -2493,7 +1126,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       color: _parseColor(j.iconColor)),
                   title: Text(j.name,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${j.balance.toStringAsFixed(2)} جنيه'),
+                  subtitle: Text(
+                    '${j.balance.toStringAsFixed(2)} ${_currency(state)}',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     onSelected(j.id, 'jar');
@@ -2549,7 +1184,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
           final targetJar = currentState.budgetSetup.linkedWallets
               .where((jar) => jar.id == jarId)
               .firstOrNull;
-          final unallocatedJarAmount = targetJar?.unlabeledAmount ?? 0;
+          final unallocatedJarAmount = targetJar == null
+              ? 0.0
+              : jarUnknownDistribution(currentState, targetJar);
           final reservedFromWallet =
               _walletReservedAmount(currentState, wallet.id);
           final availableFromWallet =
@@ -2688,7 +1325,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'المتاح من المحفظة: ${availableFromWallet.toStringAsFixed(2)} جنيه',
+                                'المتاح من المحفظة: ${availableFromWallet.toStringAsFixed(2)} ${_currency(currentState)}',
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w700,
@@ -2697,7 +1334,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'غير محدد المصدر في الحصالة: ${unallocatedJarAmount.toStringAsFixed(2)} جنيه',
+                                'غير محدد المصدر في الحصالة: ${unallocatedJarAmount.toStringAsFixed(2)} ${_currency(currentState)}',
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w700,
@@ -2729,7 +1366,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             hintText: '0.00',
                             filled: true,
                             fillColor: const Color(0xFFFFFBF1),
-                            suffixText: 'جنيه',
+                            suffixText: _currency(currentState),
                             suffixStyle: TextStyle(
                               color: accent,
                               fontWeight: FontWeight.w700,
@@ -2809,27 +1446,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     return;
                                   }
 
-                                  final currentJar = widget
-                                      .cubit.state.budgetSetup.linkedWallets
-                                      .firstWhere((jar) => jar.id == jarId);
-                                  final existing =
-                                      currentJar.walletSources.firstWhere(
-                                    (source) => source.walletId == wallet.id,
-                                    orElse: () => JarWalletSource(
-                                        walletId: wallet.id, amount: 0),
-                                  );
-                                  final newSources = [
-                                    ...currentJar.walletSources.where(
-                                      (source) => source.walletId != wallet.id,
-                                    ),
-                                    JarWalletSource(
-                                      walletId: wallet.id,
-                                      amount: existing.amount + amount,
-                                    ),
-                                  ];
-                                  await widget.cubit.updateJarWalletSources(
-                                    jarId: currentJar.id,
-                                    sources: newSources,
+                                  // معاملة حقيقية: محفظة → الحصالة (حجز)
+                                  await widget.cubit.addTransaction(
+                                    walletId: wallet.id,
+                                    fromWalletId: wallet.id,
+                                    toWalletId: jarId,
+                                    amount: amount,
+                                    type: TransactionType.transfer.value,
+                                    transferType:
+                                        TransferType.jarAllocation.value,
                                   );
                                   if (!mounted) return;
                                   Navigator.of(ctx).pop();
@@ -2863,11 +1488,15 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   Future<void> _openWalletTransferDialog() async {
+    final state = widget.cubit.state;
     final wallets = widget.cubit.state.wallets;
     if (wallets.length < 2) return;
     var fromId = wallets.first.id;
     var toId = wallets[1].id;
     final amountController = TextEditingController();
+    final notesController = TextEditingController();
+    var selectedDate = DateTime.now();
+    var selectedTime = TimeOfDay.now();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -2908,7 +1537,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   const SizedBox(height: 24),
 
                   // من
-                  _WalletPickerTile(
+                  WalletPickerTile(
                     label: 'من',
                     wallet: fromWallet,
                     onTap: () => _showWalletPicker(
@@ -2926,7 +1555,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
 
                   // إلى
-                  _WalletPickerTile(
+                  WalletPickerTile(
                     label: 'إلى',
                     wallet: toWallet,
                     onTap: () => _showWalletPicker(
@@ -2947,19 +1576,74 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     decoration: InputDecoration(
                       labelText: 'المبلغ',
                       prefixIcon: const Icon(Icons.monetization_on_outlined),
-                      suffixText: 'جنيه',
+                      suffixText: _currency(state),
                       helperText:
-                          'الرصيد المتاح: ${fromWallet.balance.toStringAsFixed(2)} جنيه',
+                          'الرصيد المتاح: ${fromWallet.balance.toStringAsFixed(2)} ${_currency(state)}',
                     ),
                     onChanged: (_) => setDialogState(() {}),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDate,
+                              firstDate: DateTime(2023),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setDialogState(() => selectedDate = picked);
+                            }
+                          },
+                          icon: const Icon(Icons.calendar_month_outlined),
+                          label: Text(DateFormat('d MMM yyyy', 'ar')
+                              .format(selectedDate)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: selectedTime,
+                            );
+                            if (picked != null) {
+                              setDialogState(() => selectedTime = picked);
+                            }
+                          },
+                          icon: const Icon(Icons.schedule_outlined),
+                          label: Text(selectedTime.format(context)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظات',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () async {
                       final amount =
                           double.tryParse(amountController.text.trim()) ?? 0;
                       if (amount <= 0 || fromId == toId) return;
+                      final createdAt = DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                        selectedTime.hour,
+                        selectedTime.minute,
+                      );
                       Navigator.of(context).pop();
                       await widget.cubit.addTransaction(
                         type: TransactionType.transfer.value,
@@ -2967,7 +1651,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
                         fromWalletId: fromId,
                         toWalletId: toId,
                         transferType: 'wallet-to-wallet',
-                        notes: 'تحويل بين المحافظ',
+                        createdAt: createdAt,
+                        notes: notesController.text.trim().isEmpty
+                            ? null
+                            : notesController.text.trim(),
                       );
                     },
                     style: FilledButton.styleFrom(
@@ -3024,7 +1711,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 ),
                 title: Text(w.name,
                     style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text('${w.balance.toStringAsFixed(2)} جنيه'),
+                subtitle: Text(
+                  '${w.balance.toStringAsFixed(2)} ${_currency(widget.cubit.state)}',
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   onSelected(w.id);
@@ -3036,6 +1725,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   void _openWalletEditor({WalletEntity? current}) {
+    final state = widget.cubit.state;
     final nameController = TextEditingController(text: current?.name ?? '');
     final balanceController =
         TextEditingController(text: (current?.balance ?? 0).toStringAsFixed(0));
@@ -3189,10 +1879,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       controller: balanceController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'الرصيد الفعلي',
                         prefixIcon: Icon(Icons.account_balance_wallet_outlined),
-                        suffixText: 'جنيه',
+                        suffixText: _currency(state),
                       ),
                     ),
 
@@ -3298,26 +1988,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
     });
   }
 
-  /// المبالغ المحجوزة من محفظة معينة لكل حصالة — مبني على walletSources (label فقط)
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
-    final result = <String, double>{};
-    for (final jar in state.budgetSetup.linkedWallets) {
-      for (final src in jar.walletSources) {
-        if (src.walletId == walletId && src.amount > 0) {
-          result[jar.id] = src.amount;
-        }
-      }
-    }
-    return result;
-  }
-
-  /// توزيع الحصالة على المحافظ — مبني على walletSources
-  Map<String, double> _jarDistribution(AppStateEntity state, String jarId) {
-    final jar =
-        state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
-    if (jar == null) return {};
-    return {for (final s in jar.walletSources) s.walletId: s.amount};
+    return DistributionEngine.reservationsForWallet(
+        state.moneyDistributions, walletId);
   }
 
   Map<String, double> _allocationDistribution(
@@ -3330,7 +2004,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   double _jarUnallocatedAmount(AppStateEntity state, dynamic entity) {
     if (entity is LinkedWalletEntity) {
-      return entity.unlabeledAmount;
+      return jarUnknownDistribution(state, entity);
     } else if (entity is AllocationEntity) {
       final sum = entity.walletBalances.values.fold<double>(0, (s, v) => s + v);
       return (entity.balance - sum).clamp(0, double.infinity);
@@ -3339,9 +2013,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   double _walletReservedAmount(AppStateEntity state, String walletId) {
-    return _walletReservations(state, walletId)
-        .values
-        .fold<double>(0, (sum, item) => sum + item);
+    return DistributionEngine.reservedForWallet(
+        state.moneyDistributions, walletId);
   }
 
   bool _isVirtualJarTransaction(TransactionEntity transaction) {
@@ -3475,6 +2148,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
     return Color(0xFF000000 | value);
   }
 
+  String _currency(AppStateEntity state) {
+    return currencyLabelAr(state.currencyCode);
+  }
+
   List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
     final sorted = List<LinkedWalletEntity>.from(jars);
     sorted.sort((a, b) {
@@ -3491,50 +2168,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     return sorted;
   }
 }
-
-enum _JarAdjustmentMode { allocate }
-
-class _ActionBtn extends StatelessWidget {
-  const _ActionBtn({
-    required this.icon,
-    required this.accent,
-    required this.enabled,
-    required this.onTap,
-    required this.tooltip,
-  });
-
-  final IconData icon;
-  final Color accent;
-  final bool enabled;
-  final VoidCallback onTap;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveColor = enabled ? accent : const Color(0xFFBDB5A8);
-    final bg = enabled
-        ? accent.withValues(alpha: 0.10)
-        : const Color(0xFFE8E0D6).withValues(alpha: 0.60);
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: effectiveColor.withValues(alpha: 0.16)),
-          ),
-          child: Icon(icon, color: effectiveColor, size: 20),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Wallets full-page list with reorder + style toggle ─────────────────────
 
 class _WalletsListPage extends StatefulWidget {
   const _WalletsListPage({required this.cubit, this.onWalletTap});
@@ -3555,24 +2188,17 @@ class _WalletsListPageState extends State<_WalletsListPage> {
 
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
-    final result = <String, double>{};
-    for (final jar in state.budgetSetup.linkedWallets) {
-      for (final src in jar.walletSources) {
-        if (src.walletId == walletId && src.amount > 0) {
-          result[jar.id] = src.amount;
-        }
-      }
-    }
-    return result;
+    return DistributionEngine.reservationsForWallet(
+        state.moneyDistributions, walletId);
   }
 
   double _walletReservedAmount(AppStateEntity state, String walletId) {
-    return _walletReservations(state, walletId)
-        .values
-        .fold<double>(0, (sum, item) => sum + item);
+    return DistributionEngine.reservedForWallet(
+        state.moneyDistributions, walletId);
   }
 
   Widget _buildCard(AppStateEntity state, WalletEntity wallet, int index) {
+    final state = widget.cubit.state;
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final isColored = wallet.isHighlighted;
     final reserved = _walletReservedAmount(state, wallet.id);
@@ -3636,7 +2262,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'متاح ${available.toStringAsFixed(2)} جنيه',
+                        'متاح ${available.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -3880,6 +2506,9 @@ class _JarsListPage extends StatefulWidget {
 
 class _JarsListPageState extends State<_JarsListPage> {
   bool _reorderMode = false;
+  String _currency(AppStateEntity state) {
+    return currencyLabelAr(state.currencyCode);
+  }
 
   Color _parseColor(String hex) {
     final cleaned = hex.replaceAll('#', '');
@@ -3891,6 +2520,7 @@ class _JarsListPageState extends State<_JarsListPage> {
       List<LinkedWalletEntity> allJars, LinkedWalletEntity jar, int index) {
     final accent = _parseColor(jar.iconColor);
     final isColored = jar.isHighlighted;
+    final state = widget.cubit.state;
 
     final card = Container(
       key: ValueKey(jar.id),
@@ -3951,7 +2581,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                       const SizedBox(height: 3),
                       if (jar.monthlyAmount > 0)
                         Text(
-                          'الهدف الشهري: ${jar.monthlyAmount.toStringAsFixed(2)} جنيه',
+                          'الهدف الشهري: ${jar.monthlyAmount.toStringAsFixed(2)} ${currencyLabelAr(state.currencyCode)}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -4026,7 +2656,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          jar.balance.toStringAsFixed(2),
+                          '${jar.balance.toStringAsFixed(2)} ${_currency(widget.cubit.state)}',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
@@ -4127,289 +2757,6 @@ class _JarsListPageState extends State<_JarsListPage> {
               itemBuilder: (ctx, i) => _buildCard(jars, jars[i], i),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _InlineNote extends StatelessWidget {
-  const _InlineNote({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3EEDF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Color(0xFF72685A),
-          fontWeight: FontWeight.w600,
-          height: 1.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyStateCard extends StatelessWidget {
-  const _EmptyStateCard({
-    required this.title,
-    required this.subtitle,
-  });
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE4DCCF)),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.inbox_outlined, size: 34, color: Color(0xFF7A725F)),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF72685A),
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WalletPickerTile extends StatelessWidget {
-  const _WalletPickerTile({
-    required this.label,
-    required this.wallet,
-    required this.onTap,
-  });
-
-  final String label;
-  final WalletEntity wallet;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Color(
-      0xFF000000 |
-          int.parse((wallet.iconColor ?? '#165b47').replaceFirst('#', ''),
-              radix: 16),
-    );
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.18)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Center(
-                child: AppIconPickerDialog.iconWidgetForName(
-                  wallet.icon ?? 'account_balance_wallet',
-                  color: accent,
-                  size: 22,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: accent.withValues(alpha: 0.7),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Text(
-                    wallet.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text(
-                  'الرصيد',
-                  style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black38),
-                ),
-                Text(
-                  wallet.balance.toStringAsFixed(2),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.edit_note_rounded,
-                color: accent.withValues(alpha: 0.4), size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TransferItemTile extends StatelessWidget {
-  const _TransferItemTile({
-    required this.label,
-    required this.title,
-    required this.icon,
-    required this.accent,
-    this.amount,
-    required this.onTap,
-  });
-
-  final String label;
-  final String title;
-  final String icon;
-  final Color accent;
-  final double? amount;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.15)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: AppIconPickerDialog.iconWidgetForName(
-                  icon,
-                  color: accent,
-                  size: 22,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: accent.withValues(alpha: 0.7),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (amount != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    'الرصيد الحالي',
-                    style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black38),
-                  ),
-                  Text(
-                    amount!.toStringAsFixed(2),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      color: accent,
-                    ),
-                  ),
-                ],
-              ),
-            const SizedBox(width: 8),
-            Icon(Icons.edit_note_rounded,
-                color: accent.withValues(alpha: 0.4), size: 20),
-          ],
         ),
       ),
     );

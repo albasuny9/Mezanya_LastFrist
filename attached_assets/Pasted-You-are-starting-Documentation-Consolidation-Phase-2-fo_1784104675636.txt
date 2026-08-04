@@ -1,0 +1,187 @@
+You are starting Documentation Consolidation Phase 2 for the Mezanya project.
+
+This is the FIRST migration batch.
+
+IMPORTANT
+
+This is NOT a documentation governance task anymore.
+
+This is a controlled knowledge migration.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Begin consolidating permanent business knowledge into the Domain Bible.
+
+This batch is intentionally very small.
+
+Work ONLY on the two following source documents:
+
+.agents/memory/money-location-engine.md
+
+.agents/memory/money-distribution-domain.md
+
+Do NOT inspect unrelated files.
+
+==================================================
+TARGET
+==================================================
+
+Migrate only permanent domain knowledge into the appropriate Domain Bible chapter(s).
+
+If the destination chapter does not yet exist or is intentionally empty, prepare the content but do not invent new concepts.
+
+==================================================
+MIGRATE ONLY
+==================================================
+
+Move ONLY:
+
+• Domain concepts
+
+• Business definitions
+
+• Financial terminology
+
+• Domain relationships
+
+• Invariants
+
+• Business rules
+
+• Pipeline descriptions (business level only)
+
+• Glossary material
+
+==================================================
+DO NOT MOVE
+==================================================
+
+Never migrate:
+
+Implementation notes
+
+Flutter details
+
+Dart classes
+
+Method names
+
+File paths
+
+Line numbers
+
+Bug investigations
+
+TODOs
+
+Refactor plans
+
+Agent reasoning
+
+Temporary conclusions
+
+Historical discussion
+
+Tool-specific notes
+
+==================================================
+CONSOLIDATION RULES
+==================================================
+
+Do NOT copy paragraphs verbatim.
+
+Rewrite everything into Domain Bible language.
+
+The Bible must read as a specification, not as investigation notes.
+
+If two files explain the same concept:
+
+Merge them.
+
+Keep one canonical explanation.
+
+Never duplicate concepts.
+
+==================================================
+KEEP THE FOLLOWING DISTINCTION
+==================================================
+
+Business Rule
+
+↓
+
+Domain Bible
+
+Implementation Detail
+
+↓
+
+Implementation documents
+
+Historical investigation
+
+↓
+
+Historical/Reference documents
+
+==================================================
+DO NOT CHANGE
+==================================================
+
+Do NOT modify any Dart code.
+
+Do NOT modify ADRs.
+
+Do NOT archive files.
+
+Do NOT delete files.
+
+Do NOT move files.
+
+Do NOT rename files.
+
+==================================================
+OUTPUT
+==================================================
+
+After finishing, produce a report containing:
+
+1.
+
+Every concept migrated.
+
+2.
+
+Destination chapter and section.
+
+3.
+
+Concepts intentionally left behind.
+
+4.
+
+Reason each concept was left behind.
+
+5.
+
+Any contradictions discovered.
+
+6.
+
+Any domain concepts still missing from the Bible.
+
+7.
+
+Recommended Batch 2 scope.
+
+==================================================
+STOP
+==================================================
+
+Stop immediately after this first migration batch.
+
+Do not continue with other documents.
+
+Wait for review before the next batch.

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -29,6 +30,7 @@ class AppSettingsScreen extends StatefulWidget {
 
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
   late TextEditingController _nameController;
+  String _selectedLanguage = 'ar';
 
   static const _bg = Color(0xFFFFFBF1);
   static const _green = Color(0xFF2F6F5E);
@@ -38,6 +40,18 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   GoogleSignInAccount? _account;
 
   bool _uploadingImage = false;
+
+  Future<void> _signInFirebaseWithGoogle(GoogleSignInAccount account) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.email == account.email) return;
+
+    final auth = await account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: auth.idToken,
+    );
+    await FirebaseAuth.instance.signInWithCredential(credential);
+  }
 
   @override
   void initState() {
@@ -51,16 +65,20 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   Future<void> _initGoogle() async {
     final cached = _googleSignIn.currentUser;
     if (cached != null) {
+      await _signInFirebaseWithGoogle(cached);
+      if (!mounted) return;
       _account = cached;
       if (_nameController.text.trim().isEmpty) {
         _nameController.text = cached.displayName ?? '';
       }
-      if (mounted) setState(() {});
+      setState(() {});
       return;
     }
     final acc = await _googleSignIn.signInSilently();
     if (!mounted) return;
     if (acc != null) {
+      await _signInFirebaseWithGoogle(acc);
+      if (!mounted) return;
       _account = acc;
       if (_nameController.text.trim().isEmpty) {
         _nameController.text = acc.displayName ?? '';
@@ -123,9 +141,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
             children: [
               const SizedBox(height: 8),
-
-              // ── الملف الشخصي ─────────────────────────────────
-              _SectionHeader(label: 'الملف الشخصي', icon: Icons.person_rounded),
               _ProfileCard(
                 profileImageUrl: state.profileImageUrl,
                 googlePhotoUrl: _account?.photoUrl,
@@ -136,6 +151,25 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 uploadingImage: _uploadingImage,
                 onPickImage: _pickAndUploadProfileImage,
                 onNameChanged: (v) => widget.cubit.updateSettings(userName: v),
+              ),
+
+              const SizedBox(height: 20),
+
+              _SectionHeader(
+                label: 'إعداد اللغة والعملة',
+                icon: Icons.language_rounded,
+              ),
+              _LanguageCurrencyCard(
+                currencyCode: state.currencyCode,
+                selectedLanguage: _selectedLanguage,
+                onCurrencyChanged: (value) {
+                  if (value == null || value == state.currencyCode) return;
+                  widget.cubit.updateSettings(currencyCode: value);
+                },
+                onLanguageChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedLanguage = value);
+                },
               ),
 
               const SizedBox(height: 20),
@@ -185,6 +219,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     try {
       final account = await _googleSignIn.signIn();
       if (account == null) return;
+      await _signInFirebaseWithGoogle(account);
       _nameController.text = account.displayName ?? '';
       widget.cubit.updateSettings(
         userName: _nameController.text,
@@ -213,8 +248,26 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         return;
       }
 
-      // جلب الـ metadata بكول خفيف
-      final meta = await BackupService.fetchMetadata(email);
+      // ترتيب البحث الإلزامي عن أي نسخة متاحة: يدوي سحابي أولاً، ثم
+      // تلقائي سحابي، ثم النسخة القديمة (Legacy) كملاذ أخير. أول نسخة
+      // توجد هي التي تُعرَض للمستخدم.
+      BackupSlot? foundSlot;
+      Map<String, dynamic>? meta = await BackupService.fetchSlotMetadata(
+        email,
+        BackupSlot.manualCloud,
+      );
+      if (meta != null) {
+        foundSlot = BackupSlot.manualCloud;
+      } else {
+        final latestAuto = await BackupService.latestAutoSlot(email);
+        if (latestAuto != null) {
+          meta = await BackupService.fetchSlotMetadata(email, latestAuto);
+          foundSlot = latestAuto;
+        }
+      }
+      final isLegacy = meta == null;
+      meta ??= await BackupService.fetchLegacyMetadata(email);
+
       if (meta == null) {
         await prefs.setBool(promptKey, true);
         return;
@@ -238,7 +291,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       await prefs.setBool(promptKey, true);
 
       if (restore) {
-        final json = await BackupService.fetchData(email);
+        // لا نُهاجر النسخة القديمة تلقائيًا — نقرأها فقط للاسترجاع، وتبقى
+        // كما هي على مسارها القديم (Legacy) بلا أي كتابة.
+        final json = isLegacy
+            ? await BackupService.fetchLegacyData(email)
+            : await BackupService.fetchSlotData(email, foundSlot!);
         if (json != null) {
           await widget.cubit.importStateJson(json);
           if (mounted) {
@@ -255,6 +312,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   Future<void> _signOutGoogle() async {
     await _googleSignIn.signOut();
+    await FirebaseAuth.instance.signOut();
     widget.cubit.updateSettings(googleEmail: '');
     setState(() => _account = null);
   }
@@ -1046,6 +1104,118 @@ class _AccountLinkCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LanguageCurrencyCard extends StatelessWidget {
+  const _LanguageCurrencyCard({
+    required this.currencyCode,
+    required this.selectedLanguage,
+    required this.onCurrencyChanged,
+    required this.onLanguageChanged,
+  });
+
+  final String currencyCode;
+  final String selectedLanguage;
+  final ValueChanged<String?> onCurrencyChanged;
+  final ValueChanged<String?> onLanguageChanged;
+
+  static const _green = Color(0xFF2F6F5E);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: _green.withValues(alpha: 0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+            color: _green.withValues(alpha: 0.07),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            _SettingsDropdownField(
+              label: 'العملة',
+              icon: Icons.attach_money_rounded,
+              value: currencyCode,
+              items: const [
+                DropdownMenuItem(value: 'EGP', child: Text('جنيه مصري (EGP)')),
+                DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي (SAR)')),
+                DropdownMenuItem(
+                    value: 'USD', child: Text('دولار أمريكي (USD)')),
+                DropdownMenuItem(value: 'EUR', child: Text('يورو (EUR)')),
+              ],
+              onChanged: onCurrencyChanged,
+            ),
+            const SizedBox(height: 14),
+            _SettingsDropdownField(
+              label: 'اللغة',
+              icon: Icons.translate_rounded,
+              value: selectedLanguage,
+              items: const [
+                DropdownMenuItem(value: 'ar', child: Text('العربية')),
+              ],
+              onChanged: onLanguageChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsDropdownField extends StatelessWidget {
+  const _SettingsDropdownField({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  static const _green = Color(0xFF2F6F5E);
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _green),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          color: _green.withValues(alpha: 0.75),
+          fontWeight: FontWeight.w700,
+        ),
+        prefixIcon: Icon(icon, color: _green),
+        filled: true,
+        fillColor: const Color(0xFFF5FAF8),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: _green.withValues(alpha: 0.18)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _green, width: 1.5),
+        ),
       ),
     );
   }

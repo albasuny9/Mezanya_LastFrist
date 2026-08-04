@@ -1,0 +1,353 @@
+You are working as the Documentation Governor for the Mezanya project.
+
+This is a DOCUMENTATION GOVERNANCE task.
+
+DO NOT modify any Dart code.
+DO NOT modify Flutter UI.
+DO NOT modify tests.
+DO NOT refactor business logic.
+DO NOT implement features.
+
+Your ONLY responsibility is organizing the documentation and creating a strict entry point for every future AI agent.
+
+==================================================
+GOAL
+==================================================
+
+Every AI agent working on this repository MUST read the documentation in the correct order.
+
+The Domain Bible must become the ONLY source of truth for permanent business knowledge.
+
+No future agent should start reading random markdown files.
+
+==================================================
+TASK 1
+Create:
+
+.agents/README.md
+
+This file will become the mandatory entry point for every AI agent.
+
+It must be written as an OPERATING MANUAL, not a project description.
+
+The README must explain:
+
+1.
+What this repository is.
+
+2.
+How AI agents are expected to work.
+
+3.
+Which documentation must be read first.
+
+4.
+Which documentation is considered authoritative.
+
+5.
+Which documentation is historical.
+
+6.
+Which documentation is implementation-only.
+
+7.
+What MUST NEVER be done.
+
+==================================================
+TASK 2
+Create:
+
+.agents/PROJECT_INDEX.md
+
+This file is the navigation map of the repository.
+
+It must include every important documentation folder.
+
+For each document include:
+
+• purpose
+
+• owner
+
+• authority level
+
+• when to read it
+
+• whether it is permanent or temporary
+
+Example:
+
+Domain Bible
+
+Purpose:
+Business rules.
+
+Authority:
+Highest.
+
+Read:
+Always.
+
+------------
+
+ADR
+
+Purpose:
+Approved architecture decisions.
+
+Authority:
+Second highest.
+
+Read:
+After Domain Bible.
+
+------------
+
+Architecture Docs
+
+Purpose:
+Implementation references.
+
+Authority:
+Reference only.
+
+Read:
+When implementing.
+
+------------
+
+Agent Memory
+
+Purpose:
+Temporary implementation knowledge.
+
+Authority:
+Lowest.
+
+Read:
+Only when working on related implementation.
+
+==================================================
+TASK 3
+Inspect the ENTIRE documentation tree.
+
+This includes:
+
+docs/architecture/
+
+docs/architecture/Mezanya Domain Bible/
+
+docs/architecture/adr/
+
+.agents/memory/
+
+and every markdown document under docs.
+
+Build an inventory.
+
+For every document determine:
+
+• Purpose
+
+• Status
+
+• Authority
+
+• Owner
+
+• Should future agents read it?
+
+==================================================
+TASK 4
+Classify every document.
+
+Allowed statuses ONLY:
+
+Canonical
+
+Reference
+
+Implementation
+
+Historical
+
+Temporary
+
+Every file must receive exactly one status.
+
+==================================================
+TASK 5
+Create
+
+.agents/DOCUMENTATION_MAP.md
+
+This document must explain:
+
+Which documentation is authoritative.
+
+Which documents supersede others.
+
+Which documents duplicate information.
+
+Which documents should never be used as a source of truth.
+
+==================================================
+TASK 6
+Create
+
+.agents/AGENT_WORKFLOW.md
+
+This file defines the mandatory workflow.
+
+Every future AI agent should follow exactly this order:
+
+STEP 1
+
+Read README.md
+
+↓
+
+STEP 2
+
+Read PROJECT_INDEX.md
+
+↓
+
+STEP 3
+
+Read Domain Bible
+
+↓
+
+STEP 4
+
+Read related ADRs
+
+↓
+
+STEP 5
+
+Inspect source code
+
+↓
+
+STEP 6
+
+Read implementation documents only if needed
+
+↓
+
+STEP 7
+
+Begin implementation
+
+No agent should ever skip these steps.
+
+==================================================
+TASK 7
+Create
+
+.agents/DOCUMENTATION_RULES.md
+
+Document the permanent documentation policy.
+
+Include rules like:
+
+- Business knowledge belongs ONLY in the Domain Bible.
+
+- ADRs store architectural decisions only.
+
+- Agent Memory stores implementation notes only.
+
+- Architecture docs explain implementation.
+
+- Never duplicate permanent knowledge.
+
+- Never create a new document when an existing canonical document should be updated.
+
+- Never move implementation details into the Domain Bible.
+
+==================================================
+TASK 8
+Review existing .agents/memory files.
+
+DO NOT delete anything.
+
+DO NOT move anything.
+
+Instead:
+
+For each file determine:
+
+• still useful
+
+• obsolete
+
+• duplicated
+
+• candidate for migration into the Domain Bible
+
+Generate a report only.
+
+==================================================
+TASK 9
+STRICT RULES
+
+Do NOT touch Flutter code.
+
+Do NOT modify Dart files.
+
+Do NOT modify business logic.
+
+Do NOT reorganize the source tree.
+
+Only documentation.
+
+==================================================
+TASK 10
+DELIVERABLES
+
+Produce:
+
+.agents/README.md
+
+.agents/PROJECT_INDEX.md
+
+.agents/DOCUMENTATION_MAP.md
+
+.agents/AGENT_WORKFLOW.md
+
+.agents/DOCUMENTATION_RULES.md
+
+Then generate:
+
+DOCUMENTATION_AUDIT_REPORT.md
+
+The report must include:
+
+• all documentation discovered
+
+• classification of every document
+
+• duplicate documentation
+
+• missing documentation
+
+• obsolete documentation
+
+• recommended migrations
+
+• documentation debt
+
+==================================================
+CRITICAL
+
+Do NOT rewrite the Domain Bible.
+
+Do NOT migrate content yet.
+
+Do NOT delete any document.
+
+This task establishes documentation governance ONLY.
+
+When finished, stop and wait for approval before performing any migration or cleanup.

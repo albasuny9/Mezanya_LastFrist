@@ -1,23 +1,23 @@
-# Korassa Flutter App
+# Mezanya (الميزانية)
 
-This folder contains a Flutter mobile foundation for Korassa using:
+Mezanya is a Flutter personal-finance app for managing wallets, budget "jars," recurring transactions, and debts, built with a feature-first Clean Architecture and a single centralized `AppCubit` app state.
 
-- SharedPreferences for local persistence.
-- Repository Pattern to separate storage from business logic.
-- Feature-based structure for scalable development.
+This root `README.md` is a short pointer only. It is not a source of truth for business rules or architecture decisions — see the documentation map below.
 
-## Folder Structure
+## Where to look
 
-- `lib/core`: common setup and storage keys.
-- `lib/features`: feature-first modules (entities, repositories, presentation).
-- `lib/features/app_state/data/repositories/shared_prefs_app_repository.dart`: SharedPreferences implementation of `AppRepository`.
+- **Start here as an AI agent:** `.agents/README.md` — mandatory entry point and operating rules for any agent working in this repository.
+- **Business rules (sole source of truth):** `docs/architecture/Mezanya Domain Bible/`
+- **Architecture decisions:** `docs/architecture/adr/`
+- **Documentation index / map:** `.agents/PROJECT_INDEX.md`, `.agents/DOCUMENTATION_MAP.md`
+- **Environment, run instructions, and current agent operating protocol:** `replit.md`
 
-## Run
+## Running the app
 
-1. Install Flutter SDK.
-2. Open this folder:
-   - `cd flutter_app`
-3. Install packages:
+1. Install the Flutter SDK.
+2. From the project root, install packages:
    - `flutter pub get`
-4. Run:
+3. Run:
    - `flutter run`
+
+For Replit-specific run/workflow configuration, see `replit.md`.

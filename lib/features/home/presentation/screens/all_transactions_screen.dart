@@ -1,12 +1,13 @@
-import 'package:mezanya_app/core/constants/transaction_types.dart';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
-import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
-import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
-import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
+import '../widgets/recent_transaction_card.dart';
 
 // ── Period types ────────────────────────────────────────────────────────────
 
@@ -48,7 +49,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     _anchor = DateTime(widget.initialMonth.year, widget.initialMonth.month, 1);
   }
 
-  bool _isJarTx(TransactionEntity t) => false;
+  bool _isJarTx(TransactionEntity t) =>
+      t.transferType == TransferType.jarAllocation.value ||
+      t.transferType == TransferType.jarAllocationCancel.value ||
+      t.transferType == TransferType.jarAllocationSpend.value ||
+      t.transferType == TransferType.allocationToJar.value ||
+      t.transferType == TransferType.jarToAllocation.value;
 
   // ── Period navigation ──────────────────────────────────────────────────────
 
@@ -156,6 +162,115 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   // ── Filter bottom sheet ───────────────────────────────────────────────────
+
+  void _openDateRangeSheet() {
+    DateTime? tmpFrom = _customFrom;
+    DateTime? tmpTo = _customTo;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _beige,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'اختر الفترة',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'حدد تاريخ البداية والنهاية',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8A7F72),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DatePickerBox(
+                        label: 'من',
+                        date: tmpFrom,
+                        onTap: () async {
+                          final p = await showDatePicker(
+                            context: ctx,
+                            initialDate: tmpFrom ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (p != null) setSheet(() => tmpFrom = p);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DatePickerBox(
+                        label: 'إلى',
+                        date: tmpTo,
+                        onTap: () async {
+                          final p = await showDatePicker(
+                            context: ctx,
+                            initialDate: tmpTo ?? tmpFrom ?? DateTime.now(),
+                            firstDate: tmpFrom ?? DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (p != null) setSheet(() => tmpTo = p);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _green,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: tmpFrom == null || tmpTo == null
+                        ? null
+                        : () {
+                            setState(() {
+                              _period = _Period.custom;
+                              _customFrom = tmpFrom;
+                              _customTo = tmpTo;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                    child: const Text(
+                      'تطبيق',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   void _openFilterSheet() {
     var tmpPeriod = _period;
@@ -395,14 +510,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = widget.cubit.state.categories;
     final filtered = _filtered();
-    final totalIn = filtered
+
+    final totalIncome = filtered
         .where((t) => t.type == TransactionType.income.value)
         .fold<double>(0, (s, t) => s + t.amount);
-    final totalOut = filtered
+    final totalExpense = filtered
         .where((t) => t.type == TransactionType.expense.value)
         .fold<double>(0, (s, t) => s + t.amount);
+    final net = totalIncome - totalExpense;
 
     final grouped = <String, List<TransactionEntity>>{};
     for (final t in filtered) {
@@ -417,131 +533,41 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top period bar ─────────────────────────────────────────
-            _PeriodTopBar(
-              label: _periodLabel(),
-              showArrows: _period != _Period.custom,
-              onPrev: _prev,
-              onNext: _next,
+            _PageTitleBar(
+              onFilter: _openFilterSheet,
+              onSort: () => setState(() => _sortAscending = !_sortAscending),
+              sortAscending: _sortAscending,
+              filterActive: _typeTab != 'all' || _period == _Period.custom,
             ),
-
-            // ── Content ────────────────────────────────────────────────
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                 children: [
-                  // Summary card
-                  _SummaryCard(
-                      totalIn: totalIn,
-                      totalOut: totalOut,
-                      count: filtered.length),
-                  const SizedBox(height: 12),
-
-                  // Sort and Filter Bar
-                  Row(
-                    children: [
-                      // Sort Button
-                      InkWell(
-                        onTap: () =>
-                            setState(() => _sortAscending = !_sortAscending),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Ink(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: const Color(0xFF165b47)
-                                    .withValues(alpha: 0.15)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _sortAscending
-                                    ? Icons.arrow_upward_rounded
-                                    : Icons.arrow_downward_rounded,
-                                size: 18,
-                                color: const Color(0xFF165b47),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _sortAscending ? 'تصاعدي' : 'تنازلي',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF165b47),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      // Filter Button
-                      InkWell(
-                        onTap: _openFilterSheet,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Ink(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _typeTab != 'all'
-                                ? const Color(0xFF165b47)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: const Color(0xFF165b47)
-                                    .withValues(alpha: 0.15)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.tune_rounded,
-                                size: 18,
-                                color: _typeTab != 'all'
-                                    ? Colors.white
-                                    : const Color(0xFF165b47),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'تصفية',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: _typeTab != 'all'
-                                      ? Colors.white
-                                      : const Color(0xFF165b47),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                  _PeriodTopBar(
+                    label: _periodLabel(),
+                    showArrows: _period != _Period.custom,
+                    onPrev: _prev,
+                    onNext: _next,
+                    onRangeTap: _openDateRangeSheet,
                   ),
-                  const SizedBox(height: 18),
-
-                  // Empty state
+                  const SizedBox(height: 12),
+                  if (filtered.isNotEmpty)
+                    _MonthSummaryCard(
+                      income: totalIncome,
+                      expense: totalExpense,
+                      net: net,
+                    ),
+                  if (filtered.isNotEmpty) const SizedBox(height: 16),
                   if (filtered.isEmpty)
                     const _EmptyState()
                   else
                     ...sortedKeys.map((dateKey) {
                       final dayTx = grouped[dateKey]!;
                       final dayDate = DateTime.parse(dateKey);
-                      final dayIncome = dayTx
-                          .where((t) => t.type == TransactionType.income.value)
-                          .fold<double>(0, (s, t) => s + t.amount);
-                      final dayExpense = dayTx
-                          .where((t) => t.type == TransactionType.expense.value)
-                          .fold<double>(0, (s, t) => s + t.amount);
 
                       return _DayGroup(
                         date: dayDate,
-                        dayIncome: dayIncome,
-                        dayExpense: dayExpense,
                         transactions: dayTx,
-                        categories: categories,
                         cubit: widget.cubit,
                       );
                     }),
@@ -557,68 +583,292 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
 // ── Period Top Bar ──────────────────────────────────────────────────────────
 
+class _PageTitleBar extends StatelessWidget {
+  const _PageTitleBar({
+    required this.onFilter,
+    required this.onSort,
+    required this.sortAscending,
+    required this.filterActive,
+  });
+
+  final VoidCallback onFilter;
+  final VoidCallback onSort;
+  final bool sortAscending;
+  final bool filterActive;
+
+  static const _green = Color(0xFF165b47);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+      child: Row(
+        children: [
+          _HeaderIcon(
+            icon: Icons.arrow_back_ios_new_rounded,
+            onTap: () => Navigator.of(context).pop(),
+            iconSize: 20,
+          ),
+          Expanded(
+            child: Text(
+              'كل المعاملات',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: _green,
+              ),
+            ),
+          ),
+          _HeaderIcon(
+            icon: Icons.tune_rounded,
+            onTap: onFilter,
+            isActive: filterActive,
+          ),
+          _HeaderIcon(
+            icon: sortAscending
+                ? Icons.arrow_upward_rounded
+                : Icons.arrow_downward_rounded,
+            onTap: onSort,
+            isActive: sortAscending,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.onTap,
+    this.isActive = false,
+    this.iconSize = 22,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isActive;
+  final double iconSize;
+
+  static const _green = Color(0xFF165b47);
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      icon: Icon(
+        icon,
+        size: iconSize,
+        color: isActive ? _green : _green.withValues(alpha: 0.82),
+      ),
+    );
+  }
+}
+
 class _PeriodTopBar extends StatelessWidget {
   const _PeriodTopBar({
     required this.label,
     required this.showArrows,
     required this.onPrev,
     required this.onNext,
+    required this.onRangeTap,
   });
 
   final String label;
   final bool showArrows;
-  final VoidCallback onPrev, onNext;
+  final VoidCallback onPrev, onNext, onRangeTap;
+
+  static const _green = Color(0xFF165b47);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFFFFBF1),
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          // Back button
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            color: const Color(0xFF165b47),
-          ),
-
-          // Prev arrow
           if (showArrows)
-            IconButton(
-              onPressed: onPrev,
-              icon: const Icon(Icons.chevron_right_rounded, size: 26),
-              color: const Color(0xFF165b47),
-            ),
-
-          // Period label
+            _PeriodNavBtn(
+              icon: Icons.chevron_right_rounded,
+              onTap: onPrev,
+            )
+          else
+            const SizedBox(width: 38),
           Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF165b47),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: AppTheme.dateTextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: _green,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                ),
+                GestureDetector(
+                  onTap: onRangeTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4, left: 2),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: _green.withValues(alpha: 0.65),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Next arrow
           if (showArrows)
-            IconButton(
-              onPressed: onNext,
-              icon: const Icon(Icons.chevron_left_rounded, size: 26),
-              color: const Color(0xFF165b47),
-            ),
+            _PeriodNavBtn(
+              icon: Icons.chevron_left_rounded,
+              onTap: onNext,
+            )
+          else
+            const SizedBox(width: 38),
         ],
+      ),
+    );
+  }
+}
+
+class _MonthSummaryCard extends StatelessWidget {
+  const _MonthSummaryCard({
+    required this.income,
+    required this.expense,
+    required this.net,
+  });
+
+  final double income;
+  final double expense;
+  final double net;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SummaryCol(
+              label: 'دخل',
+              value: '+${income.toStringAsFixed(0)}',
+              valueColor: const Color(0xFF16A34A),
+            ),
+          ),
+          Container(width: 1, height: 36, color: const Color(0xFFE8E0D4)),
+          Expanded(
+            child: _SummaryCol(
+              label: 'صافي',
+              value: '${net >= 0 ? '+' : ''}${net.toStringAsFixed(0)}',
+              valueColor: const Color(0xFF1A1A1A),
+            ),
+          ),
+          Container(width: 1, height: 36, color: const Color(0xFFE8E0D4)),
+          Expanded(
+            child: _SummaryCol(
+              label: 'مصروف',
+              value: '-${expense.toStringAsFixed(0)}',
+              valueColor: const Color(0xFFDC2626),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCol extends StatelessWidget {
+  const _SummaryCol({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            color: valueColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF8A7F72),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PeriodNavBtn extends StatelessWidget {
+  const _PeriodNavBtn({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          color: const Color(0xFF165b47),
+          size: 22,
+          textDirection: ui.TextDirection.ltr,
+        ),
       ),
     );
   }
@@ -706,130 +956,13 @@ class _DatePickerBox extends StatelessWidget {
               date == null
                   ? 'اختر تاريخ'
                   : DateFormat('d MMMM yyyy', 'ar').format(date!),
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: Color(0xFF165b47)),
+              style: AppTheme.dateTextStyle(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF165b47),
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Summary Card ────────────────────────────────────────────────────────────
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.totalIn,
-    required this.totalOut,
-    required this.count,
-  });
-
-  final double totalIn, totalOut;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final net = totalIn - totalOut;
-    final isPos = net >= 0;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1B6B25), Color(0xFF0A5E19)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x301B6B25), blurRadius: 18, offset: Offset(0, 7))
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _GlassTile(
-                  label: 'الدخل',
-                  value: '+${totalIn.toStringAsFixed(2)}',
-                  valueColor: const Color(0xFF4ADE80),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _GlassTile(
-                  label: 'المصروف',
-                  value: '-${totalOut.toStringAsFixed(2)}',
-                  valueColor: const Color(0xFFF87171),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _GlassTile(
-                  label: 'الصافي',
-                  value: '${isPos ? '+' : ''}${net.toStringAsFixed(2)}',
-                  valueColor:
-                      isPos ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$count معاملة',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GlassTile extends StatelessWidget {
-  const _GlassTile({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-  });
-
-  final String label, value;
-  final Color valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.72),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  color: valueColor, fontSize: 13, fontWeight: FontWeight.w900),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-        ],
       ),
     );
   }
@@ -867,17 +1000,12 @@ class _EmptyState extends StatelessWidget {
 class _DayGroup extends StatelessWidget {
   const _DayGroup({
     required this.date,
-    required this.dayIncome,
-    required this.dayExpense,
     required this.transactions,
-    required this.categories,
     required this.cubit,
   });
 
   final DateTime date;
-  final double dayIncome, dayExpense;
   final List<TransactionEntity> transactions;
-  final List<CategoryEntity> categories;
   final AppCubit cubit;
 
   String _dateLabel() {
@@ -885,90 +1013,36 @@ class _DayGroup extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final d = DateTime(date.year, date.month, date.day);
-    if (d == today) return 'اليوم';
-    if (d == yesterday) return 'أمس';
-    return DateFormat('EEEE، d MMMM', 'ar').format(date);
+    final datePart = DateFormat('d MMMM', 'ar').format(date);
+    if (d == today) return 'اليوم • $datePart';
+    if (d == yesterday) return 'أمس • $datePart';
+    return datePart;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Divider(color: Color(0xFFE4DCCF), thickness: 1),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              _dateLabel(),
+              textAlign: TextAlign.center,
+              style: AppTheme.dateTextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF8A7F72),
               ),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3EEDF),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      _dateLabel(),
-                      style: const TextStyle(
-                          color: Color(0xFF7D7461),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800),
-                    ),
-                    if (dayIncome > 0 || dayExpense > 0) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFB5A99A),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    if (dayIncome > 0)
-                      Text('+${dayIncome.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              color: Color(0xFF16A34A),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    if (dayIncome > 0 && dayExpense > 0)
-                      const Text('  ', style: TextStyle(fontSize: 11)),
-                    if (dayExpense > 0)
-                      Text('-${dayExpense.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              color: Color(0xFFDC2626),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Divider(color: Color(0xFFE4DCCF), thickness: 1),
-              ),
-            ],
+            ),
           ),
-        ),
-        ...transactions.map((t) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SharedTransactionCard(
-                transaction: t,
-                appState: cubit.state,
-                onTap: () => openTransactionDetailsSheet(
-                  context,
-                  cubit: cubit,
-                  transaction: t,
-                ),
-              ),
-            )),
-        const SizedBox(height: 14),
-      ],
+          RecentTransactionsGroup(
+            transactions: transactions,
+            cubit: cubit,
+          ),
+        ],
+      ),
     );
   }
 }

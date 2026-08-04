@@ -1,24 +1,48 @@
 // ignore_for_file: no_wildcard_variable_uses
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 
-import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
+import '../../../transactions/presentation/screens/income_source_editor_screen.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
+import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
+import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/services/budget_cycle_service.dart';
+import '../../domain/services/budget_income_metrics_service.dart';
+import '../../domain/services/budget_metrics_service.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../../domain/services/budget_transaction_filter.dart';
+import '../../domain/utils/budget_date_format.dart';
+import '../constants/budget_colors.dart';
+import '../constants/budget_layout.dart';
 import 'budget_setup_screen.dart';
+import 'allocation_editor_screen.dart';
 import 'cycle_analysis_screen.dart';
+import '../widgets/budget_static_info_card.dart';
+import '../widgets/budget_section_title.dart';
+import '../widgets/budget_section_empty_card.dart';
+import '../widgets/budget_compact_action_button.dart';
+import '../widgets/budget_icon_badge.dart';
+import '../widgets/budget_hero_summary_card.dart';
+import '../widgets/budget_past_month_summary_card.dart';
+import '../widgets/budget_setup_prompt_card.dart';
+import '../widgets/budget_entity_tile.dart';
+import '../widgets/budget_tracking_detail_hero_shell.dart';
+import '../widgets/budget_month_bar.dart';
+import '../widgets/budget_inline_section_card.dart';
+import '../widgets/budget_cycle_summary_card.dart';
+import '../widgets/budget_lent_pending_card.dart';
+import '../widgets/budget_installment_payments_card.dart';
+import '../widgets/budget_draggable_tx_sheet.dart';
 
 class BudgetTrackingScreen extends StatefulWidget {
   const BudgetTrackingScreen({super.key, required this.cubit});
@@ -27,34 +51,6 @@ class BudgetTrackingScreen extends StatefulWidget {
 
   @override
   State<BudgetTrackingScreen> createState() => _BudgetTrackingScreenState();
-}
-
-class _StaticInfoCard extends StatelessWidget {
-  const _StaticInfoCard({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
 }
 
 class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
@@ -101,21 +97,27 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   void _goToPreviousCycle(BudgetSetupEntity budget) {
     setState(() {
-      _cycleStart = DateTime(
+      // نمرّر تاريخًا داخل الشهر المستهدف بيوم البداية المُعتمَد، وناخد
+      // بداية الدورة من budget.cycleStartFor نفسها بدل إعادة كتابة نفس
+      // الصيغة هنا — مصدر واحد لتعريف "بداية الدورة" في كل أنحاء الكود،
+      // بنفس روح إصلاح مفتاح الـ snapshot (commit 4034bfd).
+      final probe = DateTime(
         _cycleStart.year,
         _cycleStart.month - 1,
         budget.startDay.clamp(1, 28),
       );
+      _cycleStart = budget.cycleStartFor(probe);
     });
   }
 
   void _goToNextCycle(BudgetSetupEntity budget) {
     setState(() {
-      _cycleStart = DateTime(
+      final probe = DateTime(
         _cycleStart.year,
         _cycleStart.month + 1,
         budget.startDay.clamp(1, 28),
       );
+      _cycleStart = budget.cycleStartFor(probe);
     });
   }
 
@@ -141,7 +143,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        final budget = _budgetForMonth(state);
+        final budget = BudgetCycleService.budgetForMonth(
+            state, _cycleStart, _cycleEnd, _isCurrentCycle(state.budgetSetup));
         final futureMonth = _isFutureMonth();
         final pastMonth = _isPastMonth();
         final hasBudgetPlan = _hasBudgetPlan(budget);
@@ -151,35 +154,77 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           return jar.funding
               .any((f) => f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
         }).toList();
-        final monthTx = _monthTransactions(state.transactions);
+        final monthTx = BudgetTransactionFilter.forCycle(
+            state.transactions, _cycleStart, _cycleEnd);
         final incomeTx = monthTx
-            .where((t) => t.type == TransactionType.income.value)
-            .toList();
-        final expenseTx = monthTx
-            .where((t) => t.type == TransactionType.expense.value)
+            .where((t) =>
+                t.type == TransactionType.income.value &&
+                // الإيداعات اليدوية للحصالات (depositWithJarLabel) هي
+                // تمويل داخلي للحصالة وليست دخلاً ضمن الميزانية الشهرية
+                t.transferType != TransferType.depositWithJarLabel.value)
             .toList();
         final incomeSectionChildren =
             _incomeInlineCards(state, budget, incomeTx, monthTx);
         final totalIncomeActual =
             incomeTx.fold<double>(0, (s, t) => s + t.amount);
         final totalExpenseActual =
-            expenseTx.fold<double>(0, (s, t) => s + t.amount);
+            BudgetMetricsService.computeActualBudgetExpense(monthTx);
         final remainingIncome = totalIncomeActual - totalExpenseActual;
         // final totalDebts = budget.debts.fold<double>(0, (s, d) => s + d.amount);
         final isCurrentMonthView = _isCurrentCycle(budget);
-        final hasPendingIncome =
-            isCurrentMonthView && _hasPendingIncome(budget, incomeTx);
+        final hasPendingIncome = isCurrentMonthView &&
+            BudgetCycleService.hasPendingIncome(widget.cubit.state, budget,
+                incomeTx, _isCurrentMonthView(), _month);
         final monthKey = budget.cycleKeyFor(_cycleStart);
         final shouldAutoExpandIncome =
             hasPendingIncome && _dismissedAutoIncomeMonthKey != monthKey;
         final isIncomeExpanded = _isIncomeExpanded || shouldAutoExpandIncome;
 
+        // ── computed for BudgetMonthBar ────────────────────────────────
+        final cycleEndForBar = _cycleEnd;
+        final startLabel = budgetFormatShortDate(_cycleStart);
+        final endLabel = budgetFormatShortDate(cycleEndForBar);
+        final currentYear = DateTime.now().year;
+        final showYear = _cycleStart.year != currentYear ||
+            cycleEndForBar.year != currentYear;
+        final yearText = showYear ? ' ${cycleEndForBar.year}' : '';
+        final rangeLabel = '$startLabel — $endLabel$yearText';
+
+        // ── computed for BudgetCycleSummaryCard ─────────────────────────
+        final plannedIncome = budget.incomeSources
+            .where((i) => !i.isVariable)
+            .fold<double>(0, (s, i) => s + i.amount);
+        final plannedAllocations = budget.allocations.fold<double>(
+          0,
+          (s, a) =>
+              s + a.funding.fold<double>(0, (ss, f) => ss + f.plannedAmount),
+        );
+        final plannedJars =
+            budget.linkedWallets.fold<double>(0, (s, j) => s + j.monthlyAmount);
+        final plannedDebts = budget.debts.fold<double>(0, (s, d) {
+          final rec = _linkedRecurringDebt(state, d);
+          return s +
+              BudgetRecurringPlanService.amountDueInCycle(
+                debt: d,
+                recurring: rec,
+                cycleStart: _cycleStart,
+                cycleEnd: _cycleEnd,
+              );
+        });
+
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _monthBar(context),
+            BudgetMonthBar(
+              rangeLabel: rangeLabel,
+              isCurrent: isCurrentMonthView,
+              isPast: _isPastCycle(budget),
+              isFuture: _isFutureCycle(budget),
+              onPrevious: () => _goToPreviousCycle(budget),
+              onNext: () => _goToNextCycle(budget),
+            ),
             const SizedBox(height: 12),
-            _heroSummaryCard(
+            BudgetHeroSummaryCard(
               totalIncomeActual: totalIncomeActual,
               totalExpenseActual: totalExpenseActual,
               remainingIncome: remainingIncome,
@@ -187,7 +232,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ),
             if (pastMonth) ...[
               const SizedBox(height: 14),
-              _pastMonthSummaryCard(
+              BudgetPastMonthSummaryCard(
                 totalIncomeActual: totalIncomeActual,
                 totalExpenseActual: totalExpenseActual,
                 remainingIncome: remainingIncome,
@@ -195,15 +240,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ],
             if (showSetupPromptOnly) ...[
               const SizedBox(height: 18),
-              _budgetSetupPromptCard(futureMonth: futureMonth),
+              BudgetSetupPromptCard(
+                futureMonth: futureMonth,
+                isPastMonth: pastMonth,
+                onSetup: _openBudgetSetupScreen,
+              ),
             ] else ...[
               const SizedBox(height: 18),
-              _sectionTitle('الدخل'),
+              const BudgetSectionTitle(title: 'الدخل'),
               const SizedBox(height: 12),
-              _inlineSectionCard(
+              BudgetInlineSectionCard(
                 title: 'الدخل الكلي',
                 subtitle: incomeSectionChildren.length == 1 &&
-                        incomeSectionChildren.first is _StaticInfoCard
+                        incomeSectionChildren.first is BudgetStaticInfoCard
                     ? 'لا توجد مصادر دخل مضافة في هذه الدورة بعد'
                     : 'كل مصادر الدخل المخطط لها لهذا الشهر',
                 amount: totalIncomeActual,
@@ -225,11 +274,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 expandedChildren: incomeSectionChildren,
               ),
               const SizedBox(height: 18),
-              _sectionTitle('المخصصات'),
+              const BudgetSectionTitle(title: 'المخصصات'),
               const SizedBox(height: 12),
               ...budget.allocations.isEmpty
                   ? <Widget>[
-                      _sectionEmptyCard(
+                      BudgetSectionEmptyCard(
                         text: 'لا يوجد مخصص في هذه الدورة.',
                         onTap: futureMonth || !pastMonth
                             ? _openBudgetSetupScreen
@@ -239,33 +288,52 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   : budget.allocations.map((allocation) =>
                       _allocationSummaryTile(state, allocation, monthTx)),
               const SizedBox(height: 18),
-              _sectionTitle('الحصالات'),
+              const BudgetSectionTitle(title: 'الحصالات'),
               const SizedBox(height: 12),
               ...budgetJars.isEmpty
                   ? const <Widget>[
-                      _StaticInfoCard(
+                      BudgetStaticInfoCard(
                           text: 'لا توجد حصالات ممولة في هذا الشهر.')
                     ]
-                  : budgetJars
-                      .map((jar) => _jarSummaryTile(state, jar, monthTx)),
+                  : budgetJars.map((jar) => _jarSummaryTile(jar)),
               const SizedBox(height: 18),
-              _sectionTitle('الديون والأقساط'),
+              const BudgetSectionTitle(title: 'الديون والأقساط'),
               const SizedBox(height: 12),
               ..._installmentCards(state, budget, monthTx),
               ..._lentCards(state, monthTx),
               const SizedBox(height: 18),
-              _sectionTitle('الاشتراكات'),
+              const BudgetSectionTitle(title: 'الاشتراكات'),
               const SizedBox(height: 12),
               ..._subscriptionCards(state, budget, monthTx),
               const SizedBox(height: 18),
-              _sectionTitle('ملخص الدورة'),
+              const BudgetSectionTitle(title: 'ملخص الدورة'),
               const SizedBox(height: 12),
-              _cycleSummaryCard(
-                state: state,
-                budget: budget,
+              BudgetCycleSummaryCard(
                 totalIncomeActual: totalIncomeActual,
                 totalExpenseActual: totalExpenseActual,
                 remainingIncome: remainingIncome,
+                plannedIncome: plannedIncome,
+                plannedAllocations: plannedAllocations,
+                plannedJars: plannedJars,
+                plannedDebts: plannedDebts,
+                unallocatedAmount: budget.unallocatedAmount,
+                onViewAnalysis: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CycleAnalysisScreen(
+                      transactions: widget.cubit.state.transactions,
+                      categories: widget.cubit.state.categories,
+                      cycleStart: _cycleStart,
+                      cycleEnd: _cycleEnd,
+                      totalIncomeActual: totalIncomeActual,
+                      totalExpenseActual: totalExpenseActual,
+                      remainingIncome: remainingIncome,
+                      plannedIncome: plannedIncome,
+                      plannedAllocations: plannedAllocations,
+                      plannedJars: plannedJars,
+                      plannedDebts: plannedDebts,
+                    ),
+                  ),
+                ),
               ),
               if (!pastMonth) ...[
                 const SizedBox(height: 16),
@@ -284,107 +352,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         );
       },
     );
-  }
-
-  Widget _monthBar(BuildContext context) {
-    final budget = widget.cubit.state.budgetSetup;
-    final cycleEnd = _cycleEnd;
-    final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
-    final endLabel = DateFormat('d MMM', 'ar').format(cycleEnd);
-    final rangeLabel = '$startLabel — $endLabel';
-    final isCurrent = _isCurrentCycle(budget);
-
-    const green = Color(0xFF165B47);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      decoration: BoxDecoration(
-        // الدورة الحالية: خلفية خضرا خفيفة جداً
-        color: isCurrent ? green.withValues(alpha: 0.10) : Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isCurrent
-              ? green.withValues(alpha: 0.22)
-              : green.withValues(alpha: 0.10),
-        ),
-      ),
-      child: Row(
-        children: [
-          // زرار الأحدث (يمين في RTL → أول عنصر في الـ Row)
-          IconButton(
-            onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.arrow_forward_ios_rounded,
-                size: 18, color: green),
-            tooltip: 'الدورة التالية',
-          ),
-          Expanded(
-            child: Text(
-              rangeLabel,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                color: isCurrent ? green : green.withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-          // زرار الأقدم (يسار في RTL → آخر عنصر في الـ Row)
-          IconButton(
-            onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.arrow_back_ios_rounded,
-                size: 18, color: green),
-            tooltip: 'الدورة السابقة',
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<TransactionEntity> _monthTransactions(List<TransactionEntity> tx) {
-    final end = _cycleEnd;
-    return tx
-        .where((t) =>
-            !t.createdAt.isBefore(_cycleStart) &&
-            !t.createdAt.isAfter(end) &&
-            !_isJarReserveTx(t))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  }
-
-  BudgetSetupEntity _budgetForMonth(AppStateEntity state) {
-    final budget = state.budgetSetup;
-
-    // الدورة الحالية: دايمًا نستخدم budgetSetup الحالي لضمان ظهور آخر التحديثات
-    if (_isCurrentCycle(budget)) return state.budgetSetup;
-
-    final cycleKey = budget.cycleKeyFor(_cycleStart);
-
-    // جرب الـ snapshot الجديد بمفتاح الدورة
-    final cycleSnapshot = state.monthlyBudgetSnapshots[cycleKey];
-    if (cycleSnapshot != null && cycleSnapshot.isNotEmpty) {
-      return BudgetSetupEntity.fromMap(cycleSnapshot);
-    }
-
-    // fallback: مفتاح الشهر القديم للتوافق مع البيانات السابقة
-    final oldKey =
-        '${_cycleStart.year}-${_cycleStart.month.toString().padLeft(2, '0')}';
-    final oldSnapshot = state.monthlyBudgetSnapshots[oldKey];
-    if (oldSnapshot != null && oldSnapshot.isNotEmpty) {
-      return BudgetSetupEntity.fromMap(oldSnapshot);
-    }
-
-    final end = _cycleEnd;
-    for (final log in state.logs) {
-      if (log.timestamp.isAfter(end)) continue;
-      try {
-        final map = jsonDecode(log.afterState) as Map<String, dynamic>;
-        return AppStateEntity.fromMap(map).budgetSetup;
-      } catch (_) {
-        continue;
-      }
-    }
-    return state.budgetSetup;
   }
 
   bool _isFutureMonth() => _isFutureCycle(widget.cubit.state.budgetSetup);
@@ -427,760 +394,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Widget _heroSummaryCard({
-    required double totalIncomeActual,
-    required double totalExpenseActual,
-    required double remainingIncome,
-    required double plannedIncome,
-  }) {
-    final theme = Theme.of(context);
-
-    // نسبة الصحة المالية: 1.0 = كل الدخل متبقٍ، 0.0 = خلصت الفلوس، سالب = عجز
-    final healthRatio = totalIncomeActual <= 0
-        ? 1.0
-        : (remainingIncome / totalIncomeActual).clamp(-0.5, 1.0);
-
-    const cGreen1 = Color(0xFF165B47);
-    const cGreen2 = Color(0xFF2F7D5E);
-    const cGreen3 = Color(0xFF8DCB9B);
-    const cYellow1 = Color(0xFF8B6C14);
-    const cYellow2 = Color(0xFFAA8C20);
-    const cYellow3 = Color(0xFFD4B040);
-    const cRed1 = Color(0xFF8E4A37);
-    const cRed2 = Color(0xFFC96B47);
-    const cRed3 = Color(0xFFE07055);
-
-    Color g1, g2, g3, shadow;
-    if (healthRatio <= 0.0) {
-      g1 = cRed1;
-      g2 = cRed2;
-      g3 = cRed3;
-      shadow = cRed1;
-    } else if (healthRatio < 0.35) {
-      final t = healthRatio / 0.35;
-      g1 = Color.lerp(cRed1, cYellow1, t)!;
-      g2 = Color.lerp(cRed2, cYellow2, t)!;
-      g3 = Color.lerp(cRed3, cYellow3, t)!;
-      shadow = g1;
-    } else if (healthRatio < 0.65) {
-      final t = (healthRatio - 0.35) / 0.30;
-      g1 = Color.lerp(cYellow1, cGreen1, t)!;
-      g2 = Color.lerp(cYellow2, cGreen2, t)!;
-      g3 = Color.lerp(cYellow3, cGreen3, t)!;
-      shadow = g1;
-    } else {
-      g1 = cGreen1;
-      g2 = cGreen2;
-      g3 = cGreen3;
-      shadow = cGreen1;
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [g1, g2, g3],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: shadow.withValues(alpha: 0.22),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          PositionedDirectional(
-            top: -14,
-            start: -4,
-            child: Icon(
-              Icons.account_balance_wallet_rounded,
-              size: 92,
-              color: Colors.white.withValues(alpha: 0.14),
-            ),
-          ),
-          PositionedDirectional(
-            bottom: -18,
-            end: -4,
-            child: Icon(
-              Icons.auto_graph_rounded,
-              size: 82,
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'الباقي من الدخل الشهري',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                remainingIncome.toStringAsFixed(2),
-                style: theme.textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 14),
-              _heroBarChart(
-                income: totalIncomeActual,
-                expense: totalExpenseActual,
-                plannedIncome: plannedIncome,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _heroBarChart({
-    required double income,
-    required double expense,
-    required double plannedIncome,
-  }) {
-    // المقياس المشترك للشريطين = أكبر قيمة بين الدخل المخطط والدخل الفعلي
-    final scale = income > plannedIncome ? income : plannedIncome;
-
-    double normalIncomeRatio = 0.0;
-    double excessIncomeRatio = 0.0;
-    if (scale > 0) {
-      final withinPlan = income < plannedIncome ? income : plannedIncome;
-      normalIncomeRatio = withinPlan / scale;
-      if (income > plannedIncome) {
-        excessIncomeRatio = (income - plannedIncome) / scale;
-      }
-    }
-
-    final expenseRatio = scale > 0
-        ? (expense / scale).clamp(0.0, 1.0)
-        : (expense > 0 ? 1.0 : 0.0);
-
-    Widget track({required List<(double, Color)> segments, required double amount, required String label}) {
-      final totalRatio =
-          segments.fold<double>(0.0, (s, seg) => s + seg.$1).clamp(0.0, 1.0);
-
-      return Row(
-        children: [
-          SizedBox(
-            width: 52,
-            child: Text(label,
-                style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700)),
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                Container(
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                if (totalRatio > 0)
-                  FractionallySizedBox(
-                    widthFactor: totalRatio,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: Row(
-                        children: segments
-                            .where((seg) => seg.$1 > 0)
-                            .map((seg) => Expanded(
-                                  flex: (seg.$1 * 1000).round().clamp(1, 1000),
-                                  child: Container(
-                                    height: 10,
-                                    color: seg.$2,
-                                  ),
-                                ))
-                            .toList(),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(amount.toStringAsFixed(0),
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900)),
-        ],
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        children: [
-          track(
-            label: 'الدخل',
-            amount: income,
-            segments: [
-              (normalIncomeRatio, const Color(0xFF4ADE80)), // أخضر عادي = حتى الدخل المخطط
-              (excessIncomeRatio, const Color(0xFF15803D)), // أخضر غامق = الزيادة عن المخطط
-            ],
-          ),
-          const SizedBox(height: 8),
-          track(
-            label: 'المصروف',
-            amount: expense,
-            segments: [
-              (expenseRatio, const Color(0xFFF87171)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pastMonthSummaryCard({
-    required double totalIncomeActual,
-    required double totalExpenseActual,
-    required double remainingIncome,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'ملخص هذا الشهر',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'هذا الشهر للعرض فقط. يمكنك مراجعة ما حدث داخل الخطة والمعاملات.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: 12),
-          _row('إجمالي الدخل', totalIncomeActual),
-          _row('إجمالي المصروف', totalExpenseActual),
-          _row('الصافي النهائي', remainingIncome, danger: remainingIncome < 0),
-        ],
-      ),
-    );
-  }
-
-  Widget _budgetSetupPromptCard({required bool futureMonth}) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFE8F5E9), Color(0xFFD8F3E5)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              size: 42,
-              color: Color(0xFF0F9D7A),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            futureMonth
-                ? 'خطط لهذا الشهر بشكل مسبق'
-                : 'ابدأ إعداد الميزانية الشهرية',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            futureMonth
-                ? 'هذا الشهر لم يبدأ بعد. يمكنك تجهيز خطته الآن، لكنها لن تتحول إلى عرض الميزانية والمعاملات إلا عندما يبدأ الشهر فعليًا.'
-                : 'أضف أي عنصر في الخطة مثل دخل أو مخصص أو حصالة أو التزام، وبعدها ستظهر لك شاشة متابعة الميزانية هنا.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: _isPastMonth() ? null : _openBudgetSetupScreen,
-            icon: const Icon(Icons.tune_rounded),
-            label: Text(
-              futureMonth
-                  ? 'إعداد هذا الشهر مسبقًا'
-                  : 'إعداد الميزانية الشهرية',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    const accent = Color(0xFF165B47);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: accent,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              height: 1,
-              color: accent.withValues(alpha: 0.10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionEmptyCard({
-    required String text,
-    VoidCallback? onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.open_in_new_rounded),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  text,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              const Icon(Icons.chevron_left_rounded),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _cycleSummaryCard({
-    required AppStateEntity state,
-    required BudgetSetupEntity budget,
-    required double totalIncomeActual,
-    required double totalExpenseActual,
-    required double remainingIncome,
-  }) {
-    final theme = Theme.of(context);
-    final plannedIncome = budget.incomeSources
-        .where((i) => !i.isVariable)
-        .fold<double>(0, (s, i) => s + i.amount);
-    final plannedAllocations = budget.allocations.fold<double>(
-      0,
-      (s, a) => s + a.funding.fold<double>(0, (ss, f) => ss + f.plannedAmount),
-    );
-    final plannedJars =
-        budget.linkedWallets.fold<double>(0, (s, j) => s + j.monthlyAmount);
-    final plannedDebts = budget.debts.fold<double>(0, (s, d) {
-      final rec = _linkedRecurringDebt(state, d);
-      return s +
-          BudgetRecurringPlanService.amountDueInCycle(
-            debt: d,
-            recurring: rec,
-            cycleStart: _cycleStart,
-            cycleEnd: _cycleEnd,
-          );
-    });
-    final netSaving = remainingIncome.clamp(0, double.infinity).toDouble();
-    final spendRatio = totalIncomeActual <= 0
-        ? 0.0
-        : (totalExpenseActual / totalIncomeActual).clamp(0.0, 1.0);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        children: [
-          // ── Header row ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text('ملخص الدورة',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w900)),
-                ),
-                // زرار تحليل الدورة
-                InkWell(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => CycleAnalysisScreen(
-                        cubit: widget.cubit,
-                        cycleStart: _cycleStart,
-                        cycleEnd: _cycleEnd,
-                        totalIncomeActual: totalIncomeActual,
-                        totalExpenseActual: totalExpenseActual,
-                        remainingIncome: remainingIncome,
-                        plannedIncome: plannedIncome,
-                        plannedAllocations: plannedAllocations,
-                        plannedJars: plannedJars,
-                        plannedDebts: plannedDebts,
-                      ),
-                    ),
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E7F5C).withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.auto_graph_rounded,
-                            size: 16, color: Color(0xFF1E7F5C)),
-                        const SizedBox(width: 5),
-                        Text('تحليل الدورة',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: const Color(0xFF1E7F5C),
-                              fontWeight: FontWeight.w800,
-                            )),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          // ── Spend progress ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text('المستهلك',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700)),
-                    const Spacer(),
-                    Text(
-                      '${(spendRatio * 100).round()}٪  ·  ${totalExpenseActual.toStringAsFixed(0)}',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: spendRatio,
-                    minHeight: 8,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      spendRatio < 0.7
-                          ? const Color(0xFF1E7F5C)
-                          : spendRatio < 0.9
-                              ? const Color(0xFFE4B83F)
-                              : const Color(0xFFC65D2E),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Divider(height: 1),
-          // ── Rows ──
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _row('الدخل الفعلي', totalIncomeActual),
-                _row('إجمالي المصروف', totalExpenseActual,
-                    danger: totalExpenseActual > totalIncomeActual),
-                _row('المتبقي', remainingIncome, danger: remainingIncome < 0),
-                const Divider(height: 20),
-                _row('الدخل المخطط', plannedIncome),
-                _row('المخصصات', plannedAllocations),
-                _row('الحصالات', plannedJars),
-                _row('الالتزامات في الدورة', plannedDebts),
-                const Divider(height: 20),
-                _row('غير المخصص', budget.unallocatedAmount,
-                    danger: budget.unallocatedAmount < 0),
-                _row('التوفير المتوقع', netSaving),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _entityTile({
-    required String title,
-    required Widget leading,
-    required String amountText,
-    required String metaText,
-    required VoidCallback onTap,
-    String? supportingText,
-    Widget? supportingCustom,
-    String? trailingTopText,
-    List<Widget> actions = const <Widget>[],
-    double? progress,
-    Color? progressColor,
-    Color? tint,
-    bool compactMeta = false,
-    bool embeddedInIncomeCard = false,
-  }) {
-    final theme = Theme.of(context);
-    final tileTint = tint ?? theme.colorScheme.surface;
-    final accentStrip = tint ?? const Color(0xFF0F9D7A);
-    final decoration = embeddedInIncomeCard
-        ? BoxDecoration(
-            color: accentStrip.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: accentStrip.withValues(alpha: 0.22),
-            ),
-          )
-        : BoxDecoration(
-            color: tint == null
-                ? theme.colorScheme.surface
-                : tileTint.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: tint == null
-                  ? theme.colorScheme.outlineVariant
-                  : tileTint.withValues(alpha: 0.24),
-            ),
-          );
-    final radius = embeddedInIncomeCard ? 18.0 : 24.0;
-    return Container(
-      margin: EdgeInsets.only(bottom: embeddedInIncomeCard ? 8 : 10),
-      decoration: decoration,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(radius),
-          onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              embeddedInIncomeCard ? 12 : 14,
-              embeddedInIncomeCard ? 12 : 14,
-              embeddedInIncomeCard ? 12 : 14,
-              embeddedInIncomeCard ? 12 : 14,
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    leading,
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-
-                              // if (trailingTopText != null)
-                              //   Text(
-                              //     trailingTopText,
-                              //     style: TextStyle(
-                              //       fontSize: 12,
-                              //       color: theme.colorScheme.onSurfaceVariant,
-                              //       fontWeight: FontWeight.w700,
-                              //     ),
-                              //   ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            metaText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: compactMeta ? 11 : 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: compactMeta
-                                  ? FontWeight.w600
-                                  : FontWeight.w700,
-                            ),
-                          ),
-                          if (supportingCustom != null) ...[
-                            const SizedBox(height: 4),
-                            supportingCustom,
-                          ] else if (supportingText != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              supportingText,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          amountText,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF165B47),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 18, color: Color(0xFF9E9E9E)),
-                      ],
-                    ),
-                  ],
-                ),
-                if (progress != null) ...[
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 7,
-                      color: progressColor ?? theme.colorScheme.primary,
-                      backgroundColor:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.08),
-                    ),
-                  ),
-                ],
-                if (actions.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      for (var i = 0; i < actions.length; i++) ...[
-                        Expanded(child: actions[i]),
-                        if (i != actions.length - 1) const SizedBox(width: 8),
-                      ],
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _iconBadge(String iconName, String colorHex, {double size = 54}) {
-    final color = _colorFromHex(colorHex);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Center(
-        child: AppIconPickerDialog.iconWidgetForName(
-          iconName,
-          color: color,
-          size: size * 0.42,
-        ),
-      ),
-    );
-  }
-
   String _monthWordLabel(DateTime date) {
-    return DateFormat('d MMMM', 'ar').format(date);
+    return budgetFormatMediumDate(date);
   }
 
   String _recurrenceLabel(String pattern) {
@@ -1196,105 +411,30 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return pattern;
   }
 
-  Color _colorFromHex(String hex) {
-    final cleaned = hex.replaceAll('#', '');
-    final normalized = cleaned.length == 6 ? 'FF$cleaned' : cleaned;
-    return Color(int.tryParse(normalized, radix: 16) ?? 0xFF0F9D7A);
-  }
-
   Color _usageProgressColor(double ratio) {
     final value = ratio.clamp(0.0, 1.0).toDouble();
     if (value <= 0.4) {
       return Color.lerp(
-            const Color(0xFF1D8F62),
-            const Color(0xFFE4B83F),
+            kBudgetIncomeGreenMed,
+            kBudgetWarningYellow,
             value / 0.4,
           ) ??
-          const Color(0xFF1D8F62);
+          kBudgetIncomeGreenMed;
     }
     if (value <= 0.7) {
       return Color.lerp(
-            const Color(0xFFE4B83F),
-            const Color(0xFFE78A2E),
+            kBudgetWarningYellow,
+            kBudgetWarningOrange,
             (value - 0.4) / 0.3,
           ) ??
-          const Color(0xFFE4B83F);
+          kBudgetWarningYellow;
     }
     return Color.lerp(
-          const Color(0xFFE78A2E),
-          const Color(0xFFC63D32),
+          kBudgetWarningOrange,
+          kBudgetDangerRed,
           (value - 0.7) / 0.3,
         ) ??
-        const Color(0xFFC63D32);
-  }
-
-  // Widget _trackingSheetGrabHandle(ThemeData theme) {
-  //   return Center(
-  //     child: Container(
-  //       width: 40,
-  //       height: 4,
-  //       margin: const EdgeInsets.only(bottom: 14),
-  //       decoration: BoxDecoration(
-  //         color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-  //         borderRadius: BorderRadius.circular(999),
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _trackingSheetTransactionsHeader(ThemeData theme) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       Divider(
-  //         height: 32,
-  //         thickness: 1,
-  //         color: theme.colorScheme.outlineVariant,
-  //       ),
-  //       Text(
-  //         'معاملات الشهر',
-  //         style: theme.textTheme.titleSmall?.copyWith(
-  //           fontWeight: FontWeight.w900,
-  //         ),
-  //       ),
-  //       const SizedBox(height: 10),
-  //     ],
-  //   );
-  // }
-
-  Widget _trackingDetailHeroShell({
-    required Color accent,
-    required List<Widget> children,
-    VoidCallback? onEdit,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (onEdit != null)
-            Align(
-              alignment: Alignment.topLeft,
-              child: IconButton.filledTonal(
-                onPressed: onEdit,
-                tooltip: 'تعديل',
-                icon: const Icon(Icons.settings_rounded, size: 20),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.72),
-                  foregroundColor: accent,
-                ),
-              ),
-            ),
-          if (onEdit != null) const SizedBox(height: 8),
-          ...children,
-        ],
-      ),
-    );
+        kBudgetDangerRed;
   }
 
   Widget _trackingMonthTransactionTile(
@@ -1302,509 +442,26 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     ThemeData theme,
     TransactionEntity item,
   ) {
-    final isIncome = item.type == TransactionType.income.value;
-    final isExpense = item.type == TransactionType.expense.value;
-    final amtColor = isIncome
-        ? const Color(0xFF0F9D7A)
-        : (isExpense ? theme.colorScheme.error : theme.colorScheme.primary);
-    final icon = isIncome
-        ? Icons.add_rounded
-        : (isExpense ? Icons.remove_rounded : Icons.swap_horiz_rounded);
-    final defaultTitle = isIncome ? 'دخل' : (isExpense ? 'مصروف' : 'تحويل');
-    final prefix = isIncome ? '+' : (isExpense ? '-' : '');
-
-    // اسم المعاملة: الفئة أولاً → الملاحظات → النوع
-    final categories = widget.cubit.state.categories;
-    String txTitle = defaultTitle;
-    String? txNotes;
-    if (item.categoryId != null && item.categoryId!.isNotEmpty) {
-      try {
-        final cat = categories.firstWhere((c) => c.id == item.categoryId);
-        txTitle = cat.name;
-        if (item.notes != null && item.notes!.isNotEmpty) {
-          txNotes = item.notes;
-        }
-      } catch (_) {
-        txTitle = item.notes?.isNotEmpty == true ? item.notes! : defaultTitle;
-      }
-    } else if (item.notes?.isNotEmpty == true) {
-      txTitle = item.notes!;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            Navigator.pop(sheetContext);
-            final parentContext = context;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              openTransactionDetailsSheet(
-                parentContext,
-                cubit: widget.cubit,
-                transaction: item,
-              );
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant,
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: amtColor.withValues(alpha: 0.14),
-                  child: Icon(icon, color: amtColor, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        txTitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (txNotes != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          txNotes,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 2),
-                      Text(
-                        DateFormat('d MMMM · h:mm a', 'ar')
-                            .format(item.createdAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  '$prefix${item.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    color: amtColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return SharedTransactionCard(
+      transaction: item,
+      appState: widget.cubit.state,
+      grouped: true,
+      onTap: () {
+        Navigator.pop(sheetContext);
+        final parentContext = context;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          openTransactionDetailsSheet(
+            parentContext,
+            cubit: widget.cubit,
+            transaction: item,
+          );
+        });
+      },
     );
   }
-
-  // Widget _trackingSheetTxList(
-  //   BuildContext sheetContext,
-  //   ThemeData theme,
-  //   List<TransactionEntity> transactions,
-  //   String emptyMessage,
-  // ) {
-  //   return Column(
-  //     children: [
-  //       ...transactions.map(
-  //         (item) => _trackingMonthTransactionTile(sheetContext, theme, item),
-  //       ),
-  //       if (transactions.isEmpty)
-  //         Padding(
-  //           padding: const EdgeInsets.symmetric(vertical: 12),
-  //           child: Text(
-  //             emptyMessage,
-  //             style: TextStyle(
-  //               color: theme.colorScheme.onSurfaceVariant,
-  //               fontWeight: FontWeight.w600,
-  //             ),
-  //           ),
-  //         ),
-  //     ],
-  //   );
-  // }
-
-  Widget _inlineSectionCard({
-    required String title,
-    required String subtitle,
-    required double amount,
-    required bool isExpanded,
-    required VoidCallback onTap,
-    List<Widget> expandedChildren = const <Widget>[],
-    bool incomeTotalLayout = false,
-    Color? accentColor,
-  }) {
-    final theme = Theme.of(context);
-    final accent = accentColor ??
-        (title == 'الدخل الكلي'
-            ? const Color(0xFF0F9D7A)
-            : const Color(0xFFC65D2E));
-    final shellColor = incomeTotalLayout
-        ? accent.withValues(alpha: isExpanded ? 0.12 : 0.08)
-        : accent.withValues(alpha: 0.10);
-    final shellBorder = incomeTotalLayout
-        ? accent.withValues(alpha: isExpanded ? 0.28 : 0.16)
-        : accent.withValues(alpha: 0.22);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.fromLTRB(
-            incomeTotalLayout ? 18 : 16,
-            incomeTotalLayout ? 18 : 16,
-            incomeTotalLayout ? 18 : 16,
-            incomeTotalLayout ? 16 : 14,
-          ),
-          decoration: BoxDecoration(
-            color: shellColor,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: shellBorder),
-            boxShadow: incomeTotalLayout
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: isExpanded ? 0.12 : 0.07),
-                      blurRadius: isExpanded ? 26 : 22,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                title,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: incomeTotalLayout
-                                      ? theme.colorScheme.onSurface
-                                      : accent,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              amount.toStringAsFixed(2),
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: incomeTotalLayout
-                                    ? accent.withValues(alpha: 0.96)
-                                    : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: accent,
-                    size: 28,
-                  ),
-                ],
-              ),
-              if (isExpanded && expandedChildren.isNotEmpty) ...[
-                Padding(
-                  padding: EdgeInsets.only(top: incomeTotalLayout ? 16 : 14),
-                  child: Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: accent.withValues(alpha: 0.14),
-                  ),
-                ),
-                if (incomeTotalLayout) const SizedBox(height: 8),
-                incomeTotalLayout
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: expandedChildren,
-                      )
-                    : _sectionCurtainBody(children: expandedChildren),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionCurtainBody({required List<Widget> children}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Theme.of(context)
-              .colorScheme
-              .outlineVariant
-              .withValues(alpha: 0.32),
-        ),
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  bool _hasPendingIncome(
-    BudgetSetupEntity budget,
-    List<TransactionEntity> incomeTx,
-  ) {
-    final state = widget.cubit.state;
-    for (final source in budget.incomeSources) {
-      final sourceTx =
-          incomeTx.where((t) => t.incomeSourceId == source.id).toList();
-      final pendingMeta = _incomePendingMeta(state, source, sourceTx);
-      if (pendingMeta?['pending'] == true) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // bool _hasPendingDebt(
-  //   AppStateEntity state,
-  //   BudgetSetupEntity budget,
-  //   List<TransactionEntity> monthTx,
-  // ) {
-  //   for (final debt in budget.debts) {
-  //     final recurring = _linkedRecurringDebt(state, debt);
-  //     final tx = monthTx.where((t) => t.notes?.contains(debt.name) == true);
-  //     final paid = tx.fold<double>(0, (s, t) => s + t.amount);
-  //     final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
-  //     final pendingMeta = _expensePendingMeta(recurring);
-  //     if (pendingMeta?['pending'] == true && remaining > 0) {
-  //       return true;
-  //     }
-  //   }
-  //   return false;
-  // }
 
   bool _isCurrentMonthView() => _isCurrentCycle(widget.cubit.state.budgetSetup);
-
-  RecurringTransactionEntity? _linkedRecurringIncome(
-    AppStateEntity state,
-    IncomeSourceEntity source,
-  ) {
-    final linked = state.recurringTransactions.where(
-      (item) =>
-          item.type == TransactionType.income.value &&
-          item.budgetScope == BudgetScope.withinBudget.value &&
-          (item.incomeSourceId == source.id ||
-              ((item.incomeSourceId ?? '').isEmpty &&
-                  item.name == source.name &&
-                  item.walletId == source.targetWalletId)),
-    );
-    if (linked.isEmpty) {
-      return null;
-    }
-    return linked.first;
-  }
-
-  Map<String, dynamic>? _incomePendingMeta(
-    AppStateEntity state,
-    IncomeSourceEntity source,
-    List<TransactionEntity> sourceTx,
-  ) {
-    if (source.isVariable || sourceTx.isNotEmpty || !_isCurrentMonthView()) {
-      return null;
-    }
-    final recurring = _linkedRecurringIncome(state, source);
-    final dueDate = _incomeDueDateForMonth(source, _month);
-    final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
-    final canEarly = reminderLeadDays > 0 &&
-        !today.isBefore(reminderDate) &&
-        today.isBefore(dueDate);
-    final isDueOrLate = !today.isBefore(dueDate);
-    if (!canEarly && !isDueOrLate) return null;
-
-    // ── snooze check ──────────────────────────────────────────────────────
-    if (source.isSnoozed) {
-      final until = source.snoozedUntilDate!;
-      return <String, dynamic>{
-        'pending': false,
-        'snoozed': true,
-        'canEarly': false,
-        'isDueOrLate': isDueOrLate,
-        'status': 'مؤجل حتى ${DateFormat('d/M - HH:mm', 'ar').format(until)}',
-        'dateLabel': '${dueDate.day}/${dueDate.month}',
-        'timeLabel': null,
-      };
-    }
-
-    final dateLabel = '${dueDate.day}/${dueDate.month}';
-    final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
-        ? recurring!.scheduledTime!
-        : null;
-    final status = isDueOrLate
-        ? 'مستحق الآن • $dateLabel${timeLabel == null ? '' : ' • $timeLabel'}'
-        : 'بكر • $dateLabel${timeLabel == null ? '' : ' • $timeLabel'}';
-    return <String, dynamic>{
-      'pending': true,
-      'snoozed': false,
-      'canEarly': canEarly,
-      'isDueOrLate': isDueOrLate,
-      'status': status,
-      'dateLabel': dateLabel,
-      'timeLabel': timeLabel,
-    };
-  }
-
-  Widget _compactActionButton({
-    required String label,
-    required VoidCallback onPressed,
-    bool filled = true,
-    Color? color,
-  }) {
-    return filled
-        ? FilledButton(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              backgroundColor: color,
-              minimumSize: const Size.fromHeight(36),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            child: Text(label),
-          )
-        : OutlinedButton(
-            onPressed: onPressed,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: color,
-              side: color != null ? BorderSide(color: color) : null,
-              minimumSize: const Size.fromHeight(36),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            child: Text(label),
-          );
-  }
-
-  double _incomeDisplayPool(IncomeSourceEntity source, double received) {
-    if (source.isVariable) return 0;
-    return received > 0 ? received : source.amount;
-  }
-
-  double _spentAttributedToIncomeSource(
-    BudgetSetupEntity budget,
-    List<TransactionEntity> monthTx,
-    String incomeSourceId,
-  ) {
-    final counted = <String>{};
-    var total = 0.0;
-
-    for (final alloc in budget.allocations) {
-      final fromThis = alloc.funding
-          .where((f) => f.incomeSourceId == incomeSourceId)
-          .fold<double>(0, (s, f) => s + f.plannedAmount);
-      if (fromThis <= 0) continue;
-      final plannedTotal =
-          alloc.funding.fold<double>(0, (s, f) => s + f.plannedAmount);
-      if (plannedTotal <= 0) continue;
-      final share = fromThis / plannedTotal;
-      for (final t in monthTx.where((x) =>
-          x.type == TransactionType.expense.value &&
-          x.allocationId == alloc.id)) {
-        counted.add(t.id);
-        total += t.amount * share;
-      }
-    }
-
-    for (final debt in budget.debts) {
-      if (debt.fundingSource != incomeSourceId) continue;
-      for (final t in monthTx.where((x) =>
-          x.type == TransactionType.expense.value &&
-          x.notes?.contains(debt.name) == true)) {
-        if (!counted.contains(t.id)) {
-          counted.add(t.id);
-          total += t.amount;
-        }
-      }
-    }
-
-    return total;
-  }
-
-  double? _incomeRemainingProgress(
-    IncomeSourceEntity source,
-    double received,
-    BudgetSetupEntity budget,
-    List<TransactionEntity> monthTx,
-  ) {
-    if (source.isVariable) return null;
-    final pool = _incomeDisplayPool(source, received);
-    if (pool <= 0) return null;
-    final spent = _spentAttributedToIncomeSource(budget, monthTx, source.id);
-    final ratio = ((pool - spent) / pool).clamp(0.0, 1.0);
-    return ratio;
-  }
-
-  List<TransactionEntity> _monthTransactionsForIncomeSource(
-    List<TransactionEntity> sourceIncomeTx,
-  ) {
-    final incomeOnly = [...sourceIncomeTx];
-    incomeOnly.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return incomeOnly;
-  }
 
   List<Widget> _incomeInlineCards(
     AppStateEntity state,
@@ -1812,23 +469,29 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     List<TransactionEntity> incomeTx,
     List<TransactionEntity> monthTx,
   ) {
+    final isCurrentMonthView = _isCurrentMonthView();
     final children = <Widget>[
       ...budget.incomeSources.map((source) {
         final sourceTx =
             incomeTx.where((t) => t.incomeSourceId == source.id).toList();
         final received = sourceTx.fold<double>(0, (s, t) => s + t.amount);
-        final recurring = _linkedRecurringIncome(state, source);
-        final pendingMeta = _incomePendingMeta(state, source, sourceTx);
+        final recurring =
+            BudgetCycleService.linkedRecurringIncome(state, source);
+        final pendingMeta = BudgetCycleService.incomePendingMeta(
+            state, source, sourceTx, isCurrentMonthView, _month);
         final isSnoozed = pendingMeta?['snoozed'] == true;
-        final displayedAmount = received <= 0 ? source.amount : received;
-        final pool = _incomeDisplayPool(source, received);
-        final spent =
-            _spentAttributedToIncomeSource(budget, monthTx, source.id);
+        final displayedAmount = received;
+        final pool =
+            BudgetIncomeMetricsService.incomeDisplayPool(source, received);
+        final spent = BudgetIncomeMetricsService.spentAttributedToIncomeSource(
+            budget, monthTx, source.id);
         final afterSpend = (pool - spent).clamp(0.0, pool);
-        final remProgress =
-            _incomeRemainingProgress(source, received, budget, monthTx);
+        final remProgress = BudgetIncomeMetricsService.incomeRemainingProgress(
+            source, received, budget, monthTx);
+        final sourceAccent =
+            BudgetIconBadge.colorFromHex(recurring?.iconColor ?? '#165b47');
         final incomeProgressColor = remProgress == null
-            ? const Color(0xFF0F9D7A)
+            ? sourceAccent
             : _usageProgressColor(1 - remProgress);
 
         // ── snooze chip ──────────────────────────────────────────────────
@@ -1837,23 +500,23 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           snoozeChip = Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
+              color: kBudgetPendingAmber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(kBudgetRadiusL),
               border: Border.all(
-                color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+                color: kBudgetPendingAmber.withValues(alpha: 0.4),
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.schedule_rounded,
-                    size: 13, color: Color(0xFFF5A623)),
+                    size: 13, color: kBudgetPendingAmber),
                 const SizedBox(width: 4),
                 Text(
                   pendingMeta!['status'] as String,
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Color(0xFFF5A623),
+                    color: kBudgetPendingAmber,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1862,18 +525,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           );
         }
 
-        return _entityTile(
+        return BudgetEntityTile(
           title: source.name,
-          leading: _iconBadge(
+          leading: BudgetIconBadge(
             recurring?.icon ?? 'cash',
-            recurring?.iconColor ?? '#0f9d7a',
+            recurring?.iconColor ?? '#165b47',
             // حجم أصغر لو مأجل
-            size: isSnoozed ? 44 : 56,
+            size: isSnoozed ? 44 : 54,
+            solid: true,
           ),
           amountText: displayedAmount.truncate().toString(),
           metaText: source.isVariable
               ? 'غير ثابت'
-              : _monthWordLabel(_incomeDueDateForMonth(source, _month)),
+              : _monthWordLabel(
+                  BudgetCycleService.incomeDueDateForMonth(source, _month)),
           trailingTopText: recurring?.scheduledTime?.isNotEmpty == true
               ? recurring!.scheduledTime!
               : null,
@@ -1891,6 +556,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
+                            color: Color.lerp(sourceAccent, Colors.black, 0.35),
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -1898,58 +564,48 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           afterSpend.toStringAsFixed(2),
                           style: TextStyle(
                             fontSize: 11,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.92),
+                            color: Color.lerp(sourceAccent, Colors.black, 0.35),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-          tint: isSnoozed
-              ? const Color(0xFFF5A623).withValues(alpha: 0.6)
-              : const Color(0xFF0F9D7A),
+          tint: isSnoozed ? kBudgetPendingAmber : sourceAccent,
+          amountColor: Color.lerp(
+              isSnoozed ? kBudgetPendingAmber : sourceAccent,
+              Colors.black,
+              0.35),
+          strongTint: !isSnoozed,
           compactMeta: source.isVariable || isSnoozed,
           progress: isSnoozed ? null : remProgress,
           progressColor: incomeProgressColor,
-          embeddedInIncomeCard: true,
           onTap: () =>
               _openIncomeDetailsSheet(source, sourceTx, budget, monthTx),
           actions: (pendingMeta == null || isSnoozed)
               ? isSnoozed
                   ? <Widget>[
-                      _compactActionButton(
+                      BudgetCompactActionButton(
                         label: 'إلغاء التأجيل',
                         filled: false,
-                        onPressed: () async {
-                          final setup = widget.cubit.state.budgetSetup;
-                          final updated = setup.incomeSources.map((i) {
-                            if (i.id != source.id) return i;
-                            return i.copyWith(snoozedUntil: '');
-                          }).toList();
-                          await widget.cubit.updateBudgetSetup(
-                            setup.copyWith(incomeSources: updated),
-                          );
-                        },
+                        onPressed: () => _clearIncomePostpone(source),
                       ),
                     ]
                   : const <Widget>[]
               : <Widget>[
                   if (pendingMeta['canEarly'] == true)
-                    _compactActionButton(
+                    BudgetCompactActionButton(
                       label: 'بكر',
                       filled: false,
                       onPressed: () =>
                           _recordIncomeFromTracking(source, early: true),
                     ),
                   if (pendingMeta['isDueOrLate'] == true)
-                    _compactActionButton(
+                    BudgetCompactActionButton(
                       label: 'نزول',
                       onPressed: () => _recordIncomeFromTracking(source),
                     ),
                   if (pendingMeta['isDueOrLate'] == true)
-                    _compactActionButton(
+                    BudgetCompactActionButton(
                       label: 'تأجيل',
                       filled: false,
                       onPressed: () => _postponeIncome(source),
@@ -1958,20 +614,22 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         );
       }),
       ...incomeTx.where((t) => t.incomeSourceId == null).map(
-            (t) => _entityTile(
+            (t) => BudgetEntityTile(
               title: t.notes?.isNotEmpty == true ? t.notes! : 'دخل إضافي',
-              leading: _iconBadge('cash', '#0f9d7a', size: 56),
+              leading:
+                  BudgetIconBadge('cash', '#165b47', size: 54, solid: true),
               amountText: t.amount.toStringAsFixed(2),
-              metaText: DateFormat('d MMMM', 'ar').format(t.createdAt),
+              metaText: budgetFormatMediumDate(t.createdAt),
               trailingTopText: DateFormat('HH:mm', 'ar').format(t.createdAt),
-              tint: const Color(0xFF0F9D7A),
-              embeddedInIncomeCard: true,
+              tint: kBudgetIncomeGreen,
+              strongTint: true,
+              amountColor: kBudgetIncomeGreen,
               onTap: () => _openTxSheet(title: 'دخل إضافي', tx: [t]),
             ),
           ),
     ];
     if (children.isEmpty) {
-      children.add(const _StaticInfoCard(
+      children.add(const BudgetStaticInfoCard(
           text: 'لا يوجد دخل مسجل أو مخطط في هذه الدورة.'));
     }
     return children;
@@ -2007,16 +665,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       pendingChip = Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(20),
+          color: kBudgetPendingAmber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(kBudgetRadiusL),
           border: Border.all(
-            color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+            color: kBudgetPendingAmber.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
           children: [
             const Icon(Icons.schedule_rounded,
-                size: 13, color: Color(0xFFF5A623)),
+                size: 13, color: kBudgetPendingAmber),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -2025,7 +683,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Color(0xFFF5A623),
+                  color: kBudgetPendingAmber,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -2035,10 +693,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       );
     }
 
-    return _entityTile(
+    return BudgetEntityTile(
       title: allocation.name,
-      leading: _iconBadge(allocation.icon, allocation.iconColor,
-          size: hasPending ? 44 : 54),
+      leading: BudgetIconBadge(
+        allocation.icon,
+        allocation.iconColor,
+        size: hasPending ? 44 : 54,
+        solid: true,
+      ),
       amountText: hasPending
           ? allocation.pendingDistribution.toStringAsFixed(2)
           : remaining.toStringAsFixed(2),
@@ -2048,18 +710,25 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       compactMeta: hasPending,
       progress: hasPending ? null : ratio,
       progressColor: hasPending ? null : color,
-      tint: hasPending ? const Color(0xFFF5A623).withValues(alpha: 0.6) : null,
+      tint: hasPending
+          ? kBudgetPendingAmber
+          : BudgetIconBadge.colorFromHex(allocation.iconColor),
+      amountColor: Color.lerp(
+          BudgetIconBadge.colorFromHex(allocation.iconColor),
+          Colors.black,
+          0.35),
+      strongTint: true,
       onTap: () => _openAllocationSheet(state, allocation, monthTx),
       actions: hasPending
           ? [
-              _compactActionButton(
+              BudgetCompactActionButton(
                 label: 'تأكيد التحويل',
                 onPressed: () async {
                   await widget.cubit
                       .confirmAllocationDistribution(allocation.id);
                 },
               ),
-              _compactActionButton(
+              BudgetCompactActionButton(
                 label: 'تأجيل',
                 filled: false,
                 onPressed: () async {
@@ -2072,26 +741,28 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Widget _jarSummaryTile(AppStateEntity state, LinkedWalletEntity jar,
-      List<TransactionEntity> monthTx) {
+  Widget _jarSummaryTile(LinkedWalletEntity jar) {
     final hasPending = jar.pendingDistribution > 0;
+    final budgetAllocated = jar.funding.isNotEmpty
+        ? jar.funding.fold<double>(0, (s, f) => s + f.plannedAmount)
+        : jar.monthlyAmount;
+    final jarAccent = BudgetIconBadge.colorFromHex(jar.iconColor);
 
-    // ── شيب تأجيل لو في توزيع معلّق ──────────────────────────────────────
     Widget? pendingChip;
     if (hasPending) {
       pendingChip = Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(20),
+          color: kBudgetPendingAmber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(kBudgetRadiusL),
           border: Border.all(
-            color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+            color: kBudgetPendingAmber.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
           children: [
             const Icon(Icons.schedule_rounded,
-                size: 13, color: Color(0xFFF5A623)),
+                size: 13, color: kBudgetPendingAmber),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -2100,7 +771,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Color(0xFFF5A623),
+                  color: kBudgetPendingAmber,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -2110,49 +781,36 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       );
     }
 
-    return _entityTile(
+    return BudgetEntityTile(
       title: jar.name,
-      leading: _iconBadge(jar.icon, jar.iconColor, size: hasPending ? 44 : 54),
+      leading: BudgetIconBadge(
+        jar.icon,
+        jar.iconColor,
+        size: hasPending ? 44 : 54,
+        solid: true,
+      ),
       amountText: jar.balance.toStringAsFixed(2),
-      metaText: 'المخصص الشهري ${jar.monthlyAmount.toStringAsFixed(2)}',
-      supportingText: hasPending ? null : 'إجمالي رصيد الحصالة',
+      metaText: 'مخصص من الميزانية ${budgetAllocated.toStringAsFixed(2)}',
+      supportingText: hasPending ? null : 'الرصيد الحالي',
       supportingCustom: pendingChip,
       compactMeta: hasPending,
-      progress: hasPending
-          ? null
-          : jar.monthlyAmount <= 0
-              ? null
-              : (monthTx
-                          .where((t) =>
-                              t.type == TransactionType.expense.value &&
-                              t.walletId == jar.id)
-                          .fold<double>(0, (s, t) => s + t.amount) /
-                      jar.monthlyAmount)
-                  .clamp(0.0, 1.0)
-                  .toDouble(),
-      progressColor: hasPending
-          ? null
-          : jar.monthlyAmount <= 0
-              ? null
-              : _usageProgressColor((monthTx
-                          .where((t) =>
-                              t.type == TransactionType.expense.value &&
-                              t.walletId == jar.id)
-                          .fold<double>(0, (s, t) => s + t.amount) /
-                      jar.monthlyAmount)
-                  .clamp(0.0, 1.0)
-                  .toDouble()),
-      tint: hasPending ? const Color(0xFFF5A623).withValues(alpha: 0.6) : null,
+      tint: hasPending ? kBudgetPendingAmber : jarAccent,
+      amountColor: Color.lerp(
+        hasPending ? kBudgetPendingAmber : jarAccent,
+        Colors.black,
+        0.35,
+      ),
+      strongTint: !hasPending,
       onTap: () => _openJarDetailsSheet(jar),
       actions: hasPending
           ? [
-              _compactActionButton(
+              BudgetCompactActionButton(
                 label: 'تأكيد التحويل',
                 onPressed: () async {
                   await widget.cubit.confirmJarDistribution(jar.id);
                 },
               ),
-              _compactActionButton(
+              BudgetCompactActionButton(
                 label: 'تأجيل',
                 filled: false,
                 onPressed: () async {
@@ -2164,424 +822,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
-    final state = widget.cubit.state;
-    final distribution = {
-      for (final s in jar.walletSources) s.walletId: s.amount
-    };
-    final relevantTransactions = state.transactions
-        .where((t) => t.toWalletId == jar.id || t.walletId == jar.id)
-        .where((t) =>
-            // تحويلات الحصالة الداخلية
-            t.transferType == TransferType.jarAllocation.value ||
-            t.transferType == TransferType.jarAllocationCancel.value ||
-            t.transferType == TransferType.jarAllocationSpend.value ||
-            t.transferType == TransferType.jarFundingPhysical.value ||
-            t.transferType == TransferType.depositWithJarLabel.value ||
-            t.transferType == TransferType.allocationToJar.value ||
-            t.transferType == TransferType.jarToAllocation.value ||
-            (t.type == TransactionType.income.value &&
-                t.budgetScope == BudgetScope.withinBudget.value) ||
-            // مصروفات حقيقية مخصومة من الحصالة
-            (t.type == TransactionType.expense.value &&
-                t.walletId == jar.id &&
-                t.transferType == null))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    final accent = _colorFromHex(jar.iconColor);
-
-    await showModalBottomSheet<void>(
+  Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) {
+    return showJarDetailsSheet(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: const Color(0xFFFFFBF1),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      builder: (ctx) {
-        var showWallets = false;
-        return StatefulBuilder(builder: (ctx, setSheet) {
-          return DraggableScrollableSheet(
-            initialChildSize: 0.88,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
-            expand: false,
-            builder: (ctx, scrollCtrl) {
-              final theme = Theme.of(ctx);
-              return ListView(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                children: [
-                  // ── Hero Card ────────────────────────────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          accent.withValues(alpha: 0.95),
-                          accent.withValues(alpha: 0.72),
-                        ],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
-                      borderRadius: BorderRadius.circular(26),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.30),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Center(
-                                  child: AppIconPickerDialog.iconWidgetForName(
-                                      jar.icon,
-                                      color: Colors.white,
-                                      size: 32),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(jar.name,
-                                        style: const TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w900,
-                                            color: Colors.white)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${jar.balance.toStringAsFixed(2)} جنيه',
-                                      style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.85)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _jarIconAction(Icons.settings_outlined,
-                                  onTap: () {
-                                Navigator.of(ctx).pop();
-                                Future.microtask(() {
-                                  if (!mounted) return;
-                                  _openBudgetSetupScreen();
-                                });
-                              }, tooltip: 'تعديل'),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                  child: _jarGlassMetric(
-                                      label: 'الرصيد الكلي',
-                                      value: jar.balance.toStringAsFixed(2),
-                                      accent: accent)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: _jarGlassMetric(
-                                      label: 'شهري مخطط',
-                                      value:
-                                          jar.monthlyAmount.toStringAsFixed(2),
-                                      accent: accent)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: _jarGlassMetric(
-                                      label: 'المحافظ',
-                                      value: distribution.length.toString(),
-                                      accent: accent)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: () =>
-                              setSheet(() => showWallets = !showWallets),
-                          child: Container(
-                            margin: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.28)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                AnimatedRotation(
-                                  turns: showWallets ? 0.5 : 0,
-                                  duration: const Duration(milliseconds: 260),
-                                  child: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.white,
-                                      size: 20),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  showWallets
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات من المحافظ',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Wallet distribution ────────────────────────────────
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    child: showWallets
-                        ? Container(
-                            margin: const EdgeInsets.only(top: 10),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                  color: accent.withValues(alpha: 0.12)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(children: [
-                                  Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: accent.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                        Icons.account_balance_wallet_rounded,
-                                        color: accent,
-                                        size: 17),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text('التخصيصات من المحافظ',
-                                      style: TextStyle(
-                                          color: accent,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 15)),
-                                ]),
-                                const SizedBox(height: 14),
-                                if (distribution.isEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFBF1),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                          color:
-                                              accent.withValues(alpha: 0.10)),
-                                    ),
-                                    child: const Text(
-                                      'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                          color: Color(0xFF8A7F72),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13),
-                                    ),
-                                  )
-                                else
-                                  ...distribution.entries.map((e) {
-                                    final currentState = widget.cubit.state;
-                                    final matchedWallets = currentState.wallets
-                                        .where((w) => w.id == e.key)
-                                        .toList();
-                                    final walletName = matchedWallets.isEmpty
-                                        ? 'محفظة'
-                                        : matchedWallets.first.name;
-                                    final walletIcon = matchedWallets.isEmpty
-                                        ? 'account_balance_wallet'
-                                        : (matchedWallets.first.icon ??
-                                            'account_balance_wallet');
-                                    final ratio = jar.balance <= 0
-                                        ? 0.0
-                                        : (e.value / jar.balance)
-                                            .clamp(0.0, 1.0);
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFFBF1),
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          border: Border.all(
-                                              color: accent.withValues(
-                                                  alpha: 0.14)),
-                                        ),
-                                        child: Column(children: [
-                                          Row(children: [
-                                            Container(
-                                              width: 36,
-                                              height: 36,
-                                              decoration: BoxDecoration(
-                                                color: accent.withValues(
-                                                    alpha: 0.10),
-                                                borderRadius:
-                                                    BorderRadius.circular(11),
-                                              ),
-                                              child: Center(
-                                                child: AppIconPickerDialog
-                                                    .iconWidgetForName(
-                                                        walletIcon,
-                                                        color: accent,
-                                                        size: 18),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                                child: Text(walletName,
-                                                    style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 14))),
-                                            Text(e.value.toStringAsFixed(2),
-                                                style: TextStyle(
-                                                    color: accent,
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 15)),
-                                          ]),
-                                          const SizedBox(height: 10),
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            child: LinearProgressIndicator(
-                                              value: ratio,
-                                              minHeight: 5,
-                                              backgroundColor: accent
-                                                  .withValues(alpha: 0.12),
-                                              valueColor:
-                                                  AlwaysStoppedAnimation(
-                                                      accent),
-                                            ),
-                                          ),
-                                        ]),
-                                      ),
-                                    );
-                                  }),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-
-                  const SizedBox(height: 20),
-                  // ── Transactions ─────────────────────────────────────────
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: const Text('المعاملات',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w900)),
-                  ),
-                  const SizedBox(height: 10),
-                  if (relevantTransactions.isEmpty)
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Text(
-                        'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Color(0xFF8A7F72),
-                            fontWeight: FontWeight.w600),
-                      ),
-                    )
-                  else
-                    ...relevantTransactions.map(
-                        (t) => _trackingMonthTransactionTile(ctx, theme, t)),
-                ],
-              );
-            },
-          );
-        });
-      },
-    );
-  }
-
-  Widget _jarGlassMetric({
-    required String label,
-    required String value,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: Colors.white)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.white.withValues(alpha: 0.82),
-                  fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-
-  Widget _jarIconAction(IconData icon,
-      {required VoidCallback onTap, required String tooltip}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Tooltip(
-        message: tooltip,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.20),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-      ),
+      cubit: widget.cubit,
+      jarId: jar.id,
+      onEditJar: (_) => _openBudgetSetupScreen(),
     );
   }
 
@@ -2592,12 +838,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) {
     final installments = budget.debts.where((d) => d.isInstallment).toList();
     if (installments.isEmpty) {
-      return [const _StaticInfoCard(text: 'لا توجد ديون أو أقساط مسجلة.')];
+      return [const BudgetStaticInfoCard(text: 'لا توجد ديون أو أقساط مسجلة.')];
     }
     final widgets = <Widget>[];
     for (final debt in installments) {
       final recurring = _linkedRecurringDebt(state, debt);
-      final allDebtTx = _allDebtPayments(state, debt);
+      final allDebtTx = BudgetRecurringPlanService.allDebtPayments(state, debt);
       final paid = allDebtTx.fold<double>(0, (s, t) => s + t.amount);
       final principal = debt.principalTotal ?? debt.amount;
       final remaining = (principal - paid).clamp(0.0, principal);
@@ -2605,17 +851,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           principal <= 0 ? 0.0 : (paid / principal).clamp(0.0, 1.0);
       final pct = (paidRatio * 100).round().clamp(0, 100);
       final monthPaid = monthTx
-          .where((t) => _transactionCountsTowardDebt(t, debt))
+          .where((t) =>
+              BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
-      final pendingMeta = _expensePendingMeta(recurring);
+      final pendingMeta =
+          BudgetRecurringPlanService.expensePendingMeta(recurring);
       final isSnoozed = pendingMeta?['snoozed'] == true;
       final isPending =
           pendingMeta?['pending'] == true && monthPaid < debt.amount;
       final remainingInstallments =
           debt.amount > 0 ? ((remaining - monthPaid) / debt.amount).ceil() : 0;
-      widgets.add(_entityTile(
+      widgets.add(BudgetEntityTile(
         title: debt.name,
-        leading: _iconBadge(
+        leading: BudgetIconBadge(
           recurring?.icon ?? 'receipt',
           recurring?.iconColor ?? '#c65d2e',
           size: 54,
@@ -2626,13 +874,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         supportingText: 'الأصل ${principal.toStringAsFixed(2)}',
         progress: paidRatio,
         progressColor: Colors.green,
-        tint: isPending ? const Color(0xFFC65D2E) : null,
+        tint: isPending ? kBudgetDangerOrange : null,
         onTap: () => _openDebtDetailsSheet(debt, allDebtTx, remaining),
         actions: recurring == null
             ? <Widget>[]
             : isSnoozed
                 ? <Widget>[
-                    _compactActionButton(
+                    BudgetCompactActionButton(
                       label: 'إلغاء التأجيل',
                       filled: false,
                       onPressed: () => _clearDebtPostpone(recurring),
@@ -2640,13 +888,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   ]
                 : isPending
                     ? <Widget>[
-                        _compactActionButton(
+                        BudgetCompactActionButton(
                           label: 'تسديد الآن',
                           onPressed: () {
                             _confirmDebtPayment(state, budget, debt, recurring);
                           },
                         ),
-                        _compactActionButton(
+                        BudgetCompactActionButton(
                           label: 'تأجيل',
                           filled: false,
                           onPressed: () => _postponeDebt(recurring),
@@ -2744,9 +992,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           'المتبقي: ${record.outstandingLentAmount.toStringAsFixed(0)}';
       final statusLabel = isOverdue ? ' · متأخر ⚠️' : '';
 
-      return _entityTile(
+      return BudgetEntityTile(
         title: personName,
-        leading: _iconBadge(
+        leading: BudgetIconBadge(
           record.icon.isEmpty ? 'handshake' : record.icon,
           record.iconColor.isEmpty ? '#1a7a4a' : record.iconColor,
           size: 48,
@@ -2754,8 +1002,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         amountText: out > 0 ? out.toStringAsFixed(2) : inc.toStringAsFixed(2),
         metaText: '$activityLabel\n$balanceLabel$statusLabel',
         tint: isOverdue
-            ? const Color(0xFFC65D2E)
-            : (out > 0 ? null : const Color(0xFF1a7a4a)),
+            ? kBudgetDangerOrange
+            : (out > 0 ? null : kBudgetLentGreen),
         onTap: () => _openBudgetLentDetailsSheet(record, state),
         embeddedInIncomeCard: true,
         actions: const [],
@@ -2768,13 +1016,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(kBudgetRadiusCard),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(kBudgetRadiusCard),
             onTap: () => setState(() => _isLentExpanded = !_isLentExpanded),
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -2782,7 +1030,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 children: [
                   Row(
                     children: [
-                      _iconBadge('handshake', '#1a7a4a', size: 54),
+                      BudgetIconBadge('handshake', '#1a7a4a', size: 54),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -2803,7 +1051,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: hasOverdueGlobal
-                                    ? const Color(0xFFC65D2E)
+                                    ? kBudgetDangerOrange
                                     : theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
@@ -2818,7 +1066,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF165B47),
+                              color: kBudgetIncomeGreen,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -2856,7 +1104,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     RecurringTransactionEntity person,
     AppStateEntity state,
   ) async {
-    const accent = Color(0xFF1a7a4a);
+    const accent = kBudgetLentGreen;
     final personName = person.lentPersonName ?? person.name;
     final theme = Theme.of(context);
 
@@ -2874,7 +1122,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+      builder: (sheetContext) => BudgetDraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: allPersonTxs,
@@ -2885,7 +1133,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             _trackingMonthTransactionTile(sheetContext, theme, item),
         topSectionAfterGrab: [
           // ── Hero Shell: بيانات الشخص + زر الإعداد ──────────────────
-          _trackingDetailHeroShell(
+          BudgetTrackingDetailHeroShell(
             accent: accent,
             onEdit: () {
               Navigator.pop(sheetContext);
@@ -2898,7 +1146,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _iconBadge(
+                  BudgetIconBadge(
                     person.icon.isEmpty ? 'handshake' : person.icon,
                     person.iconColor.isEmpty ? '#1a7a4a' : person.iconColor,
                     size: 56,
@@ -2976,12 +1224,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           .cast<RecurringTransactionEntity?>()
                           .firstWhere((_) => true, orElse: () => null) ??
                       person;
-                  return _BudgetLentPendingCard(
+                  return BudgetLentPendingCard(
                     theme: theme,
                     accent: accent,
                     person: cur,
-                    cubit: widget.cubit,
-                    sheetCtx: sheetContext,
                   );
                 },
               ),
@@ -3006,7 +1252,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         : (state.wallets.isNotEmpty ? state.wallets.first.id : '');
     DateTime lentDate = DateTime.now();
     DateTime returnDate = DateTime.now().add(const Duration(days: 30));
-    const accent = Color(0xFF1a7a4a);
+    const accent = kBudgetLentGreen;
     final personName = person.lentPersonName ?? person.name;
 
     await showModalBottomSheet<void>(
@@ -3029,7 +1275,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     height: 5,
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                     ),
                   ),
                 ),
@@ -3038,11 +1284,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)],
+                      colors: [
+                        kBudgetLentDialogGradientDark,
+                        kBudgetLentDialogGradientLight
+                      ],
                       begin: Alignment.topRight,
                       end: Alignment.bottomLeft,
                     ),
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusXL),
                   ),
                   child: Row(children: [
                     Container(
@@ -3092,7 +1341,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusM),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -3112,7 +1361,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   const SizedBox(height: 12),
                 ],
                 InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusM),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: ctx,
@@ -3128,7 +1377,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusM),
                     ),
                     child: Row(children: [
                       Icon(Icons.calendar_month_outlined,
@@ -3142,7 +1391,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 ),
                 const SizedBox(height: 10),
                 InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusM),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: ctx,
@@ -3159,7 +1408,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(kBudgetRadiusM),
                     ),
                     child: Row(children: [
                       Icon(Icons.calendar_month_outlined,
@@ -3234,7 +1483,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) {
     final subscriptions = budget.debts.where((d) => d.isSubscription).toList();
     if (subscriptions.isEmpty) {
-      return [const _StaticInfoCard(text: 'لا توجد اشتراكات مسجلة.')];
+      return [const BudgetStaticInfoCard(text: 'لا توجد اشتراكات مسجلة.')];
     }
     final widgets = <Widget>[];
     for (final debt in subscriptions) {
@@ -3255,7 +1504,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       );
       final cycleDue = amountPerOccurrence * cycleDates.length;
       final cyclePaid = monthTx
-          .where((t) => _transactionCountsTowardDebt(t, debt))
+          .where((t) =>
+              BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
 
       int paidCount = amountPerOccurrence > 0
@@ -3269,7 +1519,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
       final today = DateTime.now();
       final todayMidnight = DateTime(today.year, today.month, today.day);
-      final pendingMeta = _expensePendingMeta(recurring);
+      final pendingMeta =
+          BudgetRecurringPlanService.expensePendingMeta(recurring);
       final isSnoozed = pendingMeta?['snoozed'] == true;
 
       bool isDueOrLate = false;
@@ -3296,9 +1547,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         }
       }
 
-      widgets.add(_entityTile(
+      widgets.add(BudgetEntityTile(
         title: debt.name,
-        leading: _iconBadge(
+        leading: BudgetIconBadge(
           recurring?.icon ?? 'subscriptions',
           recurring?.iconColor ?? '#4a7c59',
           size: 54,
@@ -3311,9 +1562,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ? null
             : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble(),
         progressColor: Colors.teal,
-        tint: (isDueOrLate || shouldShowDecision)
-            ? const Color(0xFFC65D2E)
-            : null,
+        tint: (isDueOrLate || shouldShowDecision) ? kBudgetDangerOrange : null,
         onTap: () => _openSubscriptionDetailsSheet(
           debt: debt,
           recurring: recurring,
@@ -3326,7 +1575,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ? const <Widget>[]
             : isSnoozed
                 ? <Widget>[
-                    _compactActionButton(
+                    BudgetCompactActionButton(
                       label: 'إلغاء التأجيل',
                       filled: false,
                       onPressed: () => _clearDebtPostpone(recurring),
@@ -3334,12 +1583,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   ]
                 : shouldShowDecision
                     ? <Widget>[
-                        _compactActionButton(
+                        BudgetCompactActionButton(
                           label: 'تسديد الآن',
                           onPressed: () => _confirmDebtPayment(
                               state, budget, debt, recurring),
                         ),
-                        _compactActionButton(
+                        BudgetCompactActionButton(
                           label: 'تأجيل',
                           filled: false,
                           onPressed: () => _postponeDebt(recurring),
@@ -3350,7 +1599,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     }
     if (widgets.isEmpty) {
       return [
-        const _StaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')
+        const BudgetStaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')
       ];
     }
     return widgets;
@@ -3365,10 +1614,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required List<TransactionEntity> monthTx,
   }) async {
     final theme = Theme.of(context);
-    final accent = _colorFromHex(recurring?.iconColor ?? '#4a7c59');
+    final accent =
+        BudgetIconBadge.colorFromHex(recurring?.iconColor ?? '#4a7c59');
 
     final tx = monthTx
-        .where((t) => _transactionCountsTowardDebt(t, debt))
+        .where((t) =>
+            BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -3380,7 +1631,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+      builder: (sheetContext) => BudgetDraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: tx,
@@ -3390,13 +1641,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         tileBuilder: (item) =>
             _trackingMonthTransactionTile(sheetContext, theme, item),
         topSectionAfterGrab: [
-          _trackingDetailHeroShell(
+          BudgetTrackingDetailHeroShell(
             accent: accent,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _iconBadge(
+                  BudgetIconBadge(
                     recurring?.icon ?? 'subscriptions',
                     recurring?.iconColor ?? '#4a7c59',
                     size: 56,
@@ -3444,7 +1695,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 final statusColor = isPaid
                     ? Colors.green
                     : (isDueOrLate
-                        ? const Color(0xFFC65D2E)
+                        ? kBudgetDangerOrange
                         : theme.colorScheme.onSurfaceVariant);
 
                 return Padding(
@@ -3496,7 +1747,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     List<TransactionEntity> monthTx,
   ) async {
     final theme = Theme.of(context);
-    final accent = _colorFromHex(allocation.iconColor);
+    final accent = BudgetIconBadge.colorFromHex(allocation.iconColor);
     final planned = allocation.funding.fold<double>(
       0,
       (s, f) => s + f.plannedAmount,
@@ -3521,14 +1772,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final ratio = funded <= 0 ? 0.0 : (remaining / funded).clamp(0.0, 1.0);
     final progressColor = _usageProgressColor(1 - ratio);
     final tx = state.transactions
-        .where((t) => !_isJarReserveTx(t) && t.allocationId == allocation.id)
+        .where((t) =>
+            !BudgetTransactionFilter.isJarReserveTx(t) &&
+            t.allocationId == allocation.id)
         .toList();
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+      builder: (sheetContext) => BudgetDraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: tx,
@@ -3538,8 +1791,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         tileBuilder: (item) =>
             _trackingMonthTransactionTile(sheetContext, theme, item),
         topSectionAfterGrab: [
-          _trackingDetailHeroShell(
+          BudgetTrackingDetailHeroShell(
             accent: accent,
+            strongTint: true,
             onEdit: () {
               Navigator.pop(sheetContext);
               Future.microtask(() {
@@ -3551,7 +1805,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _iconBadge(allocation.icon, allocation.iconColor, size: 56),
+                  BudgetIconBadge(
+                    allocation.icon,
+                    allocation.iconColor,
+                    size: 56,
+                    solid: true,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -3596,7 +1855,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ),
               const SizedBox(height: 8),
               ClipRRect(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                 child: LinearProgressIndicator(
                   value: ratio,
                   minHeight: 8,
@@ -3614,7 +1873,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   Future<void> _editAllocation(AllocationEntity _) async {
     final state = widget.cubit.state;
-    final budget = _budgetForMonth(state);
+    final budget = BudgetCycleService.budgetForMonth(
+        state, _cycleStart, _cycleEnd, _isCurrentCycle(state.budgetSetup));
     final result = await openAllocationEditorScreen(
       context,
       current: _,
@@ -3646,27 +1906,30 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     List<TransactionEntity> monthTx,
   ) async {
     final theme = Theme.of(context);
-    const accent = Color(0xFF0F9D7A);
-    final dueDate = _incomeDueDateForMonth(source, _month);
+    const accent = kBudgetDefaultAccent;
+    final dueDate = BudgetCycleService.incomeDueDateForMonth(source, _month);
     final received = sourceIncomeTx.fold<double>(0, (s, t) => s + t.amount);
     final displayedAmount = received <= 0 ? source.amount : received;
-    final pool = _incomeDisplayPool(source, received);
-    final spent = _spentAttributedToIncomeSource(budget, monthTx, source.id);
+    final pool = BudgetIncomeMetricsService.incomeDisplayPool(source, received);
+    final spent = BudgetIncomeMetricsService.spentAttributedToIncomeSource(
+        budget, monthTx, source.id);
     final afterSpend = (pool - spent).clamp(0.0, pool);
-    final remProgress =
-        _incomeRemainingProgress(source, received, budget, monthTx);
-    final pendingMeta =
-        _incomePendingMeta(widget.cubit.state, source, sourceIncomeTx);
+    final remProgress = BudgetIncomeMetricsService.incomeRemainingProgress(
+        source, received, budget, monthTx);
+    final pendingMeta = BudgetCycleService.incomePendingMeta(widget.cubit.state,
+        source, sourceIncomeTx, _isCurrentMonthView(), _month);
     final canEarly = pendingMeta?['canEarly'] == true;
     final isDueOrLate = pendingMeta?['isDueOrLate'] == true;
-    final recurring = _linkedRecurringIncome(widget.cubit.state, source);
-    final cycleTx = _monthTransactionsForIncomeSource(sourceIncomeTx);
+    final recurring =
+        BudgetCycleService.linkedRecurringIncome(widget.cubit.state, source);
+    final cycleTx =
+        BudgetTransactionFilter.sortedForIncomeSource(sourceIncomeTx);
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+      builder: (sheetContext) => BudgetDraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: cycleTx,
@@ -3676,7 +1939,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         tileBuilder: (item) =>
             _trackingMonthTransactionTile(sheetContext, theme, item),
         topSectionAfterGrab: [
-          _trackingDetailHeroShell(
+          BudgetTrackingDetailHeroShell(
             accent: accent,
             onEdit: () {
               Navigator.pop(sheetContext);
@@ -3689,7 +1952,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _iconBadge(
+                  BudgetIconBadge(
                     recurring?.icon ?? 'cash',
                     recurring?.iconColor ?? '#0f9d7a',
                     size: 56,
@@ -3770,7 +2033,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 if (remProgress != null) ...[
                   const SizedBox(height: 8),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                     child: LinearProgressIndicator(
                       value: remProgress,
                       minHeight: 8,
@@ -3787,7 +2050,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   children: [
                     if (canEarly)
                       Expanded(
-                        child: _compactActionButton(
+                        child: BudgetCompactActionButton(
                           label: 'بكر',
                           filled: false,
                           onPressed: () {
@@ -3802,7 +2065,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     if (canEarly && isDueOrLate) const SizedBox(width: 8),
                     if (isDueOrLate)
                       Expanded(
-                        child: _compactActionButton(
+                        child: BudgetCompactActionButton(
                           label: 'نزول',
                           onPressed: () {
                             Navigator.pop(sheetContext);
@@ -3816,7 +2079,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     if (isDueOrLate) ...[
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _compactActionButton(
+                        child: BudgetCompactActionButton(
                           label: 'تأجيل',
                           filled: false,
                           onPressed: () {
@@ -3845,7 +2108,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     double remaining,
   ) async {
     final theme = Theme.of(context);
-    const accent = Color(0xFFC65D2E);
+    const accent = kBudgetDangerOrange;
     final state = widget.cubit.state;
     final budget = state.budgetSetup;
     final recurring = _linkedRecurringDebt(state, debt);
@@ -3877,7 +2140,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     // حسابات دفعات القسط في هذه الدورة
     final monthTx = state.transactions
-        .where((t) => _transactionCountsTowardDebt(t, debt))
+        .where((t) =>
+            BudgetRecurringPlanService.transactionCountsTowardDebt(t, debt))
         .where((t) =>
             !t.createdAt.isBefore(_cycleStart) &&
             !t.createdAt.isAfter(_cycleEnd))
@@ -3905,7 +2169,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+      builder: (sheetContext) => BudgetDraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: sortedTx,
@@ -3915,7 +2179,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         tileBuilder: (item) =>
             _trackingMonthTransactionTile(sheetContext, theme, item),
         topSectionAfterGrab: [
-          _trackingDetailHeroShell(
+          BudgetTrackingDetailHeroShell(
             accent: accent,
             onEdit: () {
               Navigator.pop(sheetContext);
@@ -3928,7 +2192,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _iconBadge(
+                  BudgetIconBadge(
                     recurring?.icon ?? 'receipt',
                     recurring?.iconColor ?? '#c65d2e',
                     size: 56,
@@ -3978,7 +2242,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               if (paidRatio != null) ...[
                 const SizedBox(height: 8),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(kBudgetRadiusPill),
                   child: LinearProgressIndicator(
                     value: paidRatio,
                     minHeight: 8,
@@ -3991,7 +2255,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               // ── قسم الدفعات القابل للتوسع ────────────────────────────
               if (debt.isInstallment && recurring != null) ...[
                 const SizedBox(height: 14),
-                _InstallmentPaymentsCard(
+                BudgetInstallmentPaymentsCard(
                   theme: theme,
                   debt: debt,
                   recurring: recurring,
@@ -4022,7 +2286,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final wallets = state.wallets;
     final fallbackWalletId =
         wallets.isNotEmpty ? wallets.first.id : 'wallet-cash-default';
-    final linkedRecurring = _linkedRecurringIncome(state, current);
+    final linkedRecurring =
+        BudgetCycleService.linkedRecurringIncome(state, current);
     final draftRecurring = linkedRecurring ??
         RecurringTransactionEntity(
           id: '',
@@ -4043,15 +2308,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           isDebtOrSubscription: false,
         );
 
-    final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
+    final result = await Navigator.of(context).push<IncomeSourceEditorResult>(
       MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
+        builder: (_) => IncomeSourceEditorScreen(
           cubit: widget.cubit,
-          initialType: TransactionType.income.value,
-          initialWithinBudget: true,
           initialRecurring: draftRecurring,
-          returnOnSave: true,
           allowDelete: true,
         ),
         fullscreenDialog: true,
@@ -4307,81 +2568,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         debt,
       );
 
-  bool _transactionCountsTowardDebt(
-    TransactionEntity t,
-    DebtEntity debt,
-  ) {
-    if (t.type != TransactionType.expense.value) return false;
-    final n = t.notes ?? '';
-    return n.contains(debt.name);
-  }
-
-  List<TransactionEntity> _allDebtPayments(
-    AppStateEntity state,
-    DebtEntity debt,
-  ) {
-    final list = state.transactions
-        .where((t) => _transactionCountsTowardDebt(t, debt))
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
-  }
-
-  DateTime? _nextRecurringOccurrence(
-    RecurringTransactionEntity recurring,
-    DateTime now,
-  ) =>
-      RecurringScheduleEngine.nextOccurrence(recurring, now);
-
-  Map<String, dynamic>? _expensePendingMeta(
-      RecurringTransactionEntity? recurring) {
-    if (recurring == null) {
-      return null;
-    }
-    final now = DateTime.now();
-    final fallbackOccurrence = _dueOccurrenceNow(recurring, now) ??
-        _nextRecurringOccurrence(recurring, now);
-    final snoozedUntil = recurring.snoozedUntil == null
-        ? null
-        : DateTime.tryParse(recurring.snoozedUntil!);
-    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
-      return <String, dynamic>{
-        'status':
-            'مؤجل حتى ${DateFormat('d MMMM - h:mm a', 'ar').format(snoozedUntil)}',
-        'occurrence': fallbackOccurrence,
-        'pending': false,
-        'snoozed': true,
-      };
-    }
-    final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
-    if (prompt != null) {
-      return <String, dynamic>{
-        'status': switch (prompt.state) {
-          RecurringExpensePromptState.upcoming =>
-            'مستحق قريبًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
-          RecurringExpensePromptState.due =>
-            'مستحق الآن ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
-          RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
-              ? 'دورة فائتة تحتاج قرارًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}'
-              : 'استحقاق متأخر ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
-        },
-        'occurrence': prompt.occurrence,
-        'pending': true,
-        'snoozed': false,
-      };
-    }
-
-    final occurrence = fallbackOccurrence;
-    if (occurrence == null) return null;
-    return <String, dynamic>{
-      'status':
-          'الاستحقاق القادم ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
-      'occurrence': occurrence,
-      'pending': false,
-      'snoozed': false,
-    };
-  }
-
   bool _occurrenceWasHandled(
     RecurringTransactionEntity recurring,
     DateTime occurrence,
@@ -4432,7 +2618,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         }
         if (debt.isInstallment) {
           final paid = monthTx
-              .where((t) => _transactionCountsTowardDebt(t, debt))
+              .where((t) =>
+                  BudgetRecurringPlanService.transactionCountsTowardDebt(
+                      t, debt))
               .fold<double>(0, (sum, t) => sum + t.amount);
           final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
           if (remaining <= 0) {
@@ -4458,30 +2646,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           continue;
         }
 
-        await widget.cubit.addTransaction(
-          walletId: recurring.walletId,
+        await widget.cubit.recordRecurringExpenseOccurrence(
+          recurring: recurring,
           amount: recurring.amount,
-          type: TransactionType.expense.value,
-          budgetScope: BudgetScope.withinBudget.value,
-          createdAt: now,
-          notes: 'خصم تلقائي دين: ${debt.name}',
+          occurrence: occurrence,
+          transactionNotes: 'Auto recurring debt: ${debt.name}',
+          logDetails:
+              'Auto recurring debt posted: ${debt.name} (${recurring.amount.toStringAsFixed(2)})',
+          titleOverride: debt.name,
         );
-        await widget.cubit.updateRecurringTransaction(
-          recurring.copyWith(
-            lastHandledOccurrenceAt: occurrence.toIso8601String(),
-            snoozedUntil: '',
-          ),
-        );
+        continue;
       }
     } finally {
       _processingAutomaticDebts = false;
     }
-  }
-
-  DateTime _incomeDueDateForMonth(IncomeSourceEntity source, DateTime month) {
-    final lastDay = DateTime(month.year, month.month + 1, 0).day;
-    final day = source.date.clamp(1, lastDay);
-    return DateTime(month.year, month.month, day);
   }
 
   Future<void> _recordIncomeFromTracking(IncomeSourceEntity source,
@@ -4513,6 +2691,29 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       if (amount <= 0) return;
     }
     final now = DateTime.now();
+    final recurring = BudgetCycleService.linkedRecurringIncome(
+      widget.cubit.state,
+      source,
+    );
+    if (recurring != null) {
+      final occurrence = early
+          ? (RecurringScheduleEngine.nextOccurrence(recurring, now) ?? now)
+          : (RecurringScheduleEngine.unhandledDueOccurrence(recurring, now) ??
+              RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
+              now);
+      await widget.cubit.recordRecurringIncomeOccurrence(
+        recurring: recurring,
+        amount: amount,
+        occurrence: occurrence,
+        transactionNotes: source.name,
+        logDetails: early
+            ? 'طھط³ط¬ظٹظ„ ط¯ط®ظ„ ظ…طھظƒط± ظ…ط¨ظƒط±: ${source.name} ط¨ظ‚ظٹظ…ط© ${amount.toStringAsFixed(2)}'
+            : 'طھط£ظƒظٹط¯ ظ†ط²ظˆظ„ ط¯ط®ظ„ ظ…طھظƒط±: ${source.name} ط¨ظ‚ظٹظ…ط© ${amount.toStringAsFixed(2)}',
+        titleOverride: source.name,
+      );
+      return;
+    }
+
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
@@ -4529,7 +2730,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   // Removed local _showPostponeDialog in favor of RecurringPostponeDialog
 
   Future<void> _postponeIncome(IncomeSourceEntity source) async {
-    final dueDate = _incomeDueDateForMonth(source, _month);
+    final dueDate = BudgetCycleService.incomeDueDateForMonth(source, _month);
     final result = await RecurringPostponeDialog.show(
       context,
       name: source.name,
@@ -4540,6 +2741,21 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
 
     if (result == null || result is! DateTime) return;
+
+    final recurring = BudgetCycleService.linkedRecurringIncome(
+      widget.cubit.state,
+      source,
+    );
+    if (recurring != null) {
+      await widget.cubit.recordRecurringPostpone(
+        recurring: recurring,
+        snoozedUntil: result,
+        logDetails:
+            'Postponed recurring income: ${source.name} until ${DateFormat('yyyy-MM-dd HH:mm').format(result)}',
+        titleOverride: source.name,
+      );
+      return;
+    }
 
     final setup = widget.cubit.state.budgetSetup;
     final updatedIncomes = setup.incomeSources.map((i) {
@@ -4554,10 +2770,32 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
+  Future<void> _clearIncomePostpone(IncomeSourceEntity source) async {
+    final recurring = BudgetCycleService.linkedRecurringIncome(
+      widget.cubit.state,
+      source,
+    );
+    if (recurring != null) {
+      await widget.cubit.updateRecurringTransaction(
+        recurring.copyWith(snoozedUntil: ''),
+      );
+      return;
+    }
+
+    final setup = widget.cubit.state.budgetSetup;
+    final updated = setup.incomeSources.map((i) {
+      if (i.id != source.id) return i;
+      return i.copyWith(snoozedUntil: '');
+    }).toList();
+    await widget.cubit.updateBudgetSetup(
+      setup.copyWith(incomeSources: updated),
+    );
+  }
+
   Future<void> _postponeDebt(RecurringTransactionEntity recurring) async {
     final now = DateTime.now();
     final occurrence = _dueOccurrenceNow(recurring, now) ??
-        _nextRecurringOccurrence(recurring, now) ??
+        RecurringScheduleEngine.nextOccurrence(recurring, now) ??
         now;
     final result = await RecurringPostponeDialog.show(
       context,
@@ -4604,21 +2842,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     RecurringTransactionEntity recurring,
     DateTime occurrence,
   ) async {
-    await widget.cubit.addTransaction(
-      walletId: recurring.walletId,
+    await widget.cubit.recordRecurringExpenseOccurrence(
+      recurring: recurring,
       amount: debt.amount,
-      type: TransactionType.expense.value,
-      budgetScope: BudgetScope.withinBudget.value,
-      createdAt: DateTime.now(),
-      notes: 'سداد دين: ${debt.name}',
-      details: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
+      occurrence: occurrence,
+      transactionNotes: 'Recurring debt payment: ${debt.name}',
+      logDetails:
+          'Recurring debt payment posted: ${debt.name} (${debt.amount.toStringAsFixed(2)})',
+      titleOverride: debt.name,
     );
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(
-        lastHandledOccurrenceAt: occurrence.toIso8601String(),
-        snoozedUntil: '',
-      ),
-    );
+    return;
   }
 
   Future<void> _confirmDebtPayment(
@@ -4629,7 +2862,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) async {
     final now = DateTime.now();
     final occurrence = _dueOccurrenceNow(recurring, now) ??
-        _nextRecurringOccurrence(recurring, now);
+        RecurringScheduleEngine.nextOccurrence(recurring, now);
     if (occurrence == null) return;
 
     await _recordDebtFromTracking(debt, recurring, occurrence);
@@ -4648,940 +2881,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            ...tx.map((item) => ListTile(
-                  title: Text(
-                      item.notes?.isNotEmpty == true ? item.notes! : 'معاملة'),
-                  subtitle: Text(DateFormat('d MMMM - h:mm a', 'ar')
-                      .format(item.createdAt)),
-                  trailing: Text(item.amount.toStringAsFixed(2)),
-                  onTap: () => openTransactionDetailsSheet(
-                    context,
-                    cubit: widget.cubit,
-                    transaction: item,
-                  ),
-                )),
+            SharedTransactionDayGroups(
+              transactions: tx,
+              appState: widget.cubit.state,
+              onTap: (item) => openTransactionDetailsSheet(
+                context,
+                cubit: widget.cubit,
+                transaction: item,
+              ),
+            ),
             if (tx.isEmpty) const ListTile(title: Text('لا توجد معاملات.')),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _row(String label, double value,
-      {bool danger = false, String? suffix}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            suffix ?? value.toStringAsFixed(2),
-            style: TextStyle(
-              color: danger ? Theme.of(context).colorScheme.error : null,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool _isJarReserveTx(TransactionEntity t) {
-    return t.transferType == TransferType.allocationToJar.value;
-  }
-}
-
-class _BudgetLentPendingCard extends StatelessWidget {
-  const _BudgetLentPendingCard({
-    required this.theme,
-    required this.accent,
-    required this.person,
-    required this.cubit,
-    required this.sheetCtx,
-  });
-
-  final ThemeData theme;
-  final Color accent;
-  final RecurringTransactionEntity person;
-  final AppCubit cubit;
-  final BuildContext sheetCtx;
-
-  @override
-  Widget build(BuildContext context) {
-    final pendingEntries = person.lentEntries
-        .where((entry) => entry['isSettled'] != true)
-        .toList();
-    final pendingCount = pendingEntries.length;
-    final overdueCount = pendingEntries.where((entry) {
-      final date =
-          DateTime.tryParse(entry['expectedReturnDate'] as String? ?? '');
-      return date != null && date.isBefore(DateTime.now());
-    }).length;
-    final totalPending = pendingEntries.fold<double>(0, (sum, entry) {
-      final amount = entry['amount'];
-      if (amount is num) return sum + amount.toDouble();
-      if (amount is String) return sum + (double.tryParse(amount) ?? 0);
-      return sum;
-    });
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'السلفات المعلقة',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (overdueCount > 0)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFC65D2E).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'متأخر $overdueCount',
-                    style: const TextStyle(
-                      color: Color(0xFFC65D2E),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '$pendingCount سلفة معلقة · غير مسترد ${totalPending.toStringAsFixed(2)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (pendingEntries.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: pendingEntries.take(3).map((entry) {
-                final amount = entry['amount'];
-                final amountText = amount is num
-                    ? amount.toStringAsFixed(2)
-                    : (amount is String ? amount : '0.00');
-                final retDate = entry['expectedReturnDate'] as String?;
-                final dateText = retDate != null && retDate.isNotEmpty
-                    ? 'استحقاق ${retDate.split('T').first}'
-                    : 'بدون موعد';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.pending_outlined,
-                          size: 18, color: Color(0xFF165B47)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '$amountText ج.م · $dateText',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── ويدجت قسم الدفعات القابل للتوسع ──────────────────────────────────────
-
-class _InstallmentPaymentsCard extends StatefulWidget {
-  const _InstallmentPaymentsCard({
-    required this.theme,
-    required this.debt,
-    required this.recurring,
-    required this.installmentAmt,
-    required this.currentPaid,
-    required this.nextPaid,
-    required this.showNextPayment,
-    required this.dueDate,
-    required this.onPayCurrent,
-    required this.onPayNext,
-  });
-
-  final ThemeData theme;
-  final DebtEntity debt;
-  final RecurringTransactionEntity recurring;
-  final double installmentAmt;
-  final bool currentPaid;
-  final bool nextPaid;
-  final bool showNextPayment;
-  final DateTime dueDate;
-  final VoidCallback onPayCurrent;
-  final VoidCallback onPayNext;
-
-  @override
-  State<_InstallmentPaymentsCard> createState() =>
-      _InstallmentPaymentsCardState();
-}
-
-class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final accent = const Color(0xFFC65D2E);
-    final now = DateTime.now();
-    final nextMonth = DateTime(
-      now.year,
-      now.month + 1,
-      widget.debt.executionDay.clamp(1, 28),
-    );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Column(
-        children: [
-          // رأس القسم
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.credit_card_rounded,
-                        color: accent, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'دفعات هذه الدورة',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // المحتوى القابل للتوسع
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: _expandedContent(theme, accent, nextMonth),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _expandedContent(ThemeData theme, Color accent, DateTime nextMonth) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: Column(
-        children: [
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-
-          // ── الدفعة الحالية ─────────────────────────────────────
-          _paymentRow(
-            theme: theme,
-            label: widget.showNextPayment ? 'الدفعة الحالية' : 'دفعة واحدة',
-            date: DateFormat('d MMMM yyyy', 'ar').format(widget.dueDate),
-            amount: widget.installmentAmt,
-            isPaid: widget.currentPaid,
-            buttonLabel: 'دفع الآن',
-            onPay: widget.currentPaid ? null : widget.onPayCurrent,
-          ),
-          if (widget.showNextPayment) ...[
-            const SizedBox(height: 10),
-            _paymentRow(
-              theme: theme,
-              label: 'الدفعة القادمة',
-              date: DateFormat('d MMMM yyyy', 'ar').format(nextMonth),
-              amount: widget.installmentAmt,
-              isPaid: widget.nextPaid,
-              buttonLabel: 'تسديد الآن',
-              onPay: widget.nextPaid ? null : widget.onPayNext,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _paymentRow({
-    required ThemeData theme,
-    required String label,
-    required String date,
-    required double amount,
-    required bool isPaid,
-    required String buttonLabel,
-    required VoidCallback? onPay,
-  }) {
-    final accent = const Color(0xFFC65D2E);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isPaid
-            ? Colors.green.withValues(alpha: 0.07)
-            : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isPaid
-              ? Colors.green.withValues(alpha: 0.3)
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: isPaid
-                  ? Colors.green.withValues(alpha: 0.12)
-                  : accent.withValues(alpha: 0.09),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isPaid
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isPaid ? Colors.green : accent,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 13)),
-                Text(date,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-          Text(
-            amount.toStringAsFixed(2),
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-          ),
-          if (!isPaid && onPay != null) ...[
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: onPay,
-              style: FilledButton.styleFrom(
-                backgroundColor: accent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle:
-                    const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-              ),
-              child: Text(buttonLabel),
-            ),
-          ] else if (isPaid) ...[
-            const SizedBox(width: 8),
-            Text(
-              'مدفوعة ✓',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: Colors.green.shade700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-enum _TxKindFilter { all, expense, income, transfer }
-
-enum _TxDateFilter { day, week, month, year, custom, all }
-
-class _DraggableFilterableTxSheet extends StatefulWidget {
-  const _DraggableFilterableTxSheet({
-    required this.theme,
-    required this.accent,
-    required this.topSectionAfterGrab,
-    required this.transactions,
-    required this.initialMonth,
-    required this.emptyMessage,
-    required this.sheetContext,
-    required this.tileBuilder,
-  });
-
-  final ThemeData theme;
-  final Color accent;
-  final List<Widget> topSectionAfterGrab;
-  final List<TransactionEntity> transactions;
-  final DateTime initialMonth;
-  final String emptyMessage;
-  final BuildContext sheetContext;
-  final Widget Function(TransactionEntity item) tileBuilder;
-
-  @override
-  State<_DraggableFilterableTxSheet> createState() =>
-      _DraggableFilterableTxSheetState();
-}
-
-class _DraggableFilterableTxSheetState
-    extends State<_DraggableFilterableTxSheet> {
-  bool _newestFirst = true;
-  _TxKindFilter _kind = _TxKindFilter.all;
-  _TxDateFilter _dateFilter = _TxDateFilter.month;
-  DateTime? _selectedDay;
-  DateTime? _selectedWeekStart;
-  DateTimeRange? _customRange;
-
-  static bool _isTransfer(TransactionEntity t) {
-    return t.type != TransactionType.expense.value &&
-        t.type != TransactionType.income.value;
-  }
-
-  List<TransactionEntity> get _visible {
-    var list = List<TransactionEntity>.from(widget.transactions);
-    switch (_kind) {
-      case _TxKindFilter.all:
-        break;
-      case _TxKindFilter.expense:
-        list =
-            list.where((t) => t.type == TransactionType.expense.value).toList();
-        break;
-      case _TxKindFilter.income:
-        list =
-            list.where((t) => t.type == TransactionType.income.value).toList();
-        break;
-      case _TxKindFilter.transfer:
-        list = list.where(_isTransfer).toList();
-        break;
-    }
-    list = list.where(_matchesDateFilter).toList();
-    list.sort((a, b) => _newestFirst
-        ? b.createdAt.compareTo(a.createdAt)
-        : a.createdAt.compareTo(b.createdAt));
-    return list;
-  }
-
-  bool _matchesDateFilter(TransactionEntity transaction) {
-    final date = transaction.createdAt;
-    switch (_dateFilter) {
-      case _TxDateFilter.all:
-        return true;
-      case _TxDateFilter.month:
-        return date.year == widget.initialMonth.year &&
-            date.month == widget.initialMonth.month;
-      case _TxDateFilter.year:
-        return date.year == widget.initialMonth.year;
-      case _TxDateFilter.day:
-        final day = _selectedDay ?? widget.initialMonth;
-        return date.year == day.year &&
-            date.month == day.month &&
-            date.day == day.day;
-      case _TxDateFilter.week:
-        final start = _selectedWeekStart ?? widget.initialMonth;
-        final normalizedStart = DateTime(start.year, start.month, start.day);
-        final normalizedEnd = normalizedStart
-            .add(const Duration(days: 6, hours: 23, minutes: 59));
-        return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd);
-      case _TxDateFilter.custom:
-        final range = _customRange;
-        if (range == null) {
-          return true;
-        }
-        final start = DateTime(
-          range.start.year,
-          range.start.month,
-          range.start.day,
-        );
-        final end = DateTime(
-          range.end.year,
-          range.end.month,
-          range.end.day,
-          23,
-          59,
-          59,
-        );
-        return !date.isBefore(start) && !date.isAfter(end);
-    }
-  }
-
-  String get _dateFilterLabel {
-    switch (_dateFilter) {
-      case _TxDateFilter.day:
-        final day = _selectedDay ?? widget.initialMonth;
-        return 'يوم ${DateFormat('d MMMM yyyy', 'ar').format(day)}';
-      case _TxDateFilter.week:
-        final start = _selectedWeekStart ?? widget.initialMonth;
-        final end = start.add(const Duration(days: 6));
-        return 'أسبوع ${DateFormat('d/M', 'ar').format(start)} - ${DateFormat('d/M', 'ar').format(end)}';
-      case _TxDateFilter.month:
-        return DateFormat('MMMM yyyy', 'ar').format(widget.initialMonth);
-      case _TxDateFilter.year:
-        return 'سنة ${widget.initialMonth.year}';
-      case _TxDateFilter.custom:
-        if (_customRange == null) return 'مدى مخصص';
-        return '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}';
-      case _TxDateFilter.all:
-        return 'كل المعاملات';
-    }
-  }
-
-  String get _kindFilterLabel {
-    switch (_kind) {
-      case _TxKindFilter.expense:
-        return 'مصروفات فقط';
-      case _TxKindFilter.income:
-        return 'دخل فقط';
-      case _TxKindFilter.transfer:
-        return 'تحويلات فقط';
-      case _TxKindFilter.all:
-        return 'كل الأنواع';
-    }
-  }
-
-  String get _sortLabel => _newestFirst ? 'الأحدث أولًا' : 'الأقدم أولًا';
-
-  Future<void> _openFilterSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (ctx) {
-        Widget sectionTitle(String title, IconData icon) {
-          return Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: widget.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: widget.accent, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: widget.theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          );
-        }
-
-        Widget optionTile({
-          required String title,
-          String? subtitle,
-          required bool selected,
-          required VoidCallback onTap,
-        }) {
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? widget.accent.withValues(alpha: 0.10)
-                      : widget.theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: selected
-                        ? widget.accent.withValues(alpha: 0.34)
-                        : widget.theme.colorScheme.outlineVariant
-                            .withValues(alpha: 0.55),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              subtitle,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    widget.theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      selected
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: selected
-                          ? widget.accent
-                          : widget.theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'تصفية المعاملات',
-                    style: widget.theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'اختر نوع المعاملات والفترة المناسبة، ويمكنك تغيير الترتيب من الشاشة الرئيسية مباشرة.',
-                    style: widget.theme.textTheme.bodySmall?.copyWith(
-                      color: widget.theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  sectionTitle('نوع المعاملة', Icons.tune_rounded),
-                  const SizedBox(height: 10),
-                  optionTile(
-                    title: 'كل المعاملات',
-                    selected: _kind == _TxKindFilter.all,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.all);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'مصروفات فقط',
-                    selected: _kind == _TxKindFilter.expense,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.expense);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'دخل فقط',
-                    selected: _kind == _TxKindFilter.income,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.income);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'تحويلات فقط',
-                    selected: _kind == _TxKindFilter.transfer,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.transfer);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  sectionTitle('الفترة', Icons.date_range_rounded),
-                  const SizedBox(height: 10),
-                  optionTile(
-                    title: 'الشهر المعروض',
-                    subtitle: DateFormat('MMMM yyyy', 'ar')
-                        .format(widget.initialMonth),
-                    selected: _dateFilter == _TxDateFilter.month,
-                    onTap: () {
-                      setState(() => _dateFilter = _TxDateFilter.month);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'السنة المعروضة',
-                    subtitle: '${widget.initialMonth.year}',
-                    selected: _dateFilter == _TxDateFilter.year,
-                    onTap: () {
-                      setState(() => _dateFilter = _TxDateFilter.year);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'يوم محدد',
-                    subtitle: _selectedDay == null
-                        ? 'اختر يومًا بعينه'
-                        : DateFormat('d MMMM yyyy', 'ar').format(_selectedDay!),
-                    selected: _dateFilter == _TxDateFilter.day,
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDay ?? widget.initialMonth,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked == null) return;
-                      setState(() {
-                        _selectedDay = picked;
-                        _dateFilter = _TxDateFilter.day;
-                      });
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'أسبوع',
-                    subtitle: _selectedWeekStart == null
-                        ? 'اختر بداية الأسبوع'
-                        : '${DateFormat('d/M', 'ar').format(_selectedWeekStart!)} - ${DateFormat('d/M', 'ar').format(_selectedWeekStart!.add(const Duration(days: 6)))}',
-                    selected: _dateFilter == _TxDateFilter.week,
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedWeekStart ?? widget.initialMonth,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked == null) return;
-                      setState(() {
-                        _selectedWeekStart = picked;
-                        _dateFilter = _TxDateFilter.week;
-                      });
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'من تاريخ إلى تاريخ',
-                    subtitle: _customRange == null
-                        ? 'حدد مدى زمني مخصص'
-                        : '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}',
-                    selected: _dateFilter == _TxDateFilter.custom,
-                    onTap: () async {
-                      final picked = await showDateRangePicker(
-                        context: context,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                        initialDateRange: _customRange,
-                      );
-                      if (picked == null) return;
-                      setState(() {
-                        _customRange = picked;
-                        _dateFilter = _TxDateFilter.custom;
-                      });
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'كل الفترات',
-                    selected: _dateFilter == _TxDateFilter.all,
-                    onTap: () {
-                      setState(() => _dateFilter = _TxDateFilter.all);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = _visible;
-    final theme = widget.theme;
-
-    return SizedBox(
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.76,
-        minChildSize: 0.38,
-        maxChildSize: 1.0,
-        snap: true,
-        snapSizes: const [0.76, 1.0],
-        builder: (context, scrollController) {
-          return ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Material(
-              color: theme.colorScheme.surface,
-              child: ListView(
-                controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 14),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurfaceVariant
-                            .withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  ...widget.topSectionAfterGrab,
-                  Divider(
-                    height: 32,
-                    thickness: 1,
-                    color: theme.colorScheme.outlineVariant,
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'المعاملات',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _dateFilterLabel,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _kindFilterLabel,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: widget.accent,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        style: IconButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor:
-                              widget.accent.withValues(alpha: 0.10),
-                          foregroundColor: widget.accent,
-                        ),
-                        onPressed: () {
-                          setState(() => _newestFirst = !_newestFirst);
-                        },
-                        icon: Icon(
-                          _newestFirst
-                              ? Icons.arrow_downward_rounded
-                              : Icons.arrow_upward_rounded,
-                          size: 20,
-                        ),
-                        tooltip: _sortLabel,
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        style: IconButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor:
-                              widget.accent.withValues(alpha: 0.10),
-                          foregroundColor: widget.accent,
-                        ),
-                        onPressed: _openFilterSheet,
-                        icon: const Icon(Icons.filter_list_rounded, size: 22),
-                        tooltip: 'تصفية',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ...visible.map(widget.tileBuilder),
-                  if (visible.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        widget.emptyMessage,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
       ),
     );
   }

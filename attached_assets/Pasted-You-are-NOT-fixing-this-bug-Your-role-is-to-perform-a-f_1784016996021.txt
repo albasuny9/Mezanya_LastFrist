@@ -1,0 +1,171 @@
+You are NOT fixing this bug.
+
+Your role is to perform a forensic investigation only.
+
+Do NOT modify code.
+
+Do NOT suggest implementations.
+
+Do NOT refactor.
+
+Do NOT optimize.
+
+Do NOT stop after finding a possible cause.
+
+Your job is to discover the complete execution path and identify the exact root cause using code evidence.
+
+--------------------------------------------------
+
+Investigation Target
+
+BUG-001 — Wallet Transfer loses its wallet effects after editing Notes.
+
+--------------------------------------------------
+
+Required Investigation
+
+Trace the complete execution flow.
+
+Start from:
+
+User presses Save while editing a Wallet-to-Wallet transfer.
+
+Then follow every method until execution finishes.
+
+Document:
+
+1. UI entry point
+
+2. Cubit / Controller
+
+3. Domain service
+
+4. Transaction processor
+
+5. Wallet update
+
+6. Timeline update
+
+7. Persistence
+
+8. Read model refresh
+
+9. UI refresh
+
+--------------------------------------------------
+
+Answer these questions with code evidence.
+
+1.
+
+How does the system recognize that a transaction is a Wallet Transfer?
+
+Exactly which field determines this?
+
+--------------------------------------------------
+
+2.
+
+Does any logic depend on:
+
+- Notes
+- Description
+- Localized text
+- Generated strings
+- Parsing text
+
+List every occurrence.
+
+--------------------------------------------------
+
+3.
+
+When editing a transfer,
+
+which object is reconstructed?
+
+Which object is reused?
+
+Which object is deleted?
+
+--------------------------------------------------
+
+4.
+
+Why does changing Notes only
+
+cause
+
+• Wallet balances to revert
+
+while
+
+• Timeline still keeps the transaction?
+
+Explain the exact execution path.
+
+--------------------------------------------------
+
+5.
+
+List every file involved.
+
+--------------------------------------------------
+
+6.
+
+List every method involved.
+
+--------------------------------------------------
+
+7.
+
+Find the exact line where the wallet effect is lost.
+
+--------------------------------------------------
+
+Rules
+
+Never guess.
+
+Never infer.
+
+Never assume.
+
+Every statement must be supported by code.
+
+If evidence is missing, explicitly state:
+
+"Not proven."
+
+--------------------------------------------------
+
+Output
+
+Create a new document:
+
+docs/project/investigations/BUG-001 Wallet Transfer Investigation.md
+
+The document must contain:
+
+- Executive Summary
+
+- Investigation Scope
+
+- Execution Flow
+
+- Evidence
+
+- Root Cause
+
+- Unknowns
+
+- Files Involved
+
+- Methods Involved
+
+- Recommended Next Investigation
+
+Do NOT propose a fix.
+
+Stop after identifying the root cause.

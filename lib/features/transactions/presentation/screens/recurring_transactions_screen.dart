@@ -1,11 +1,13 @@
-import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
+import 'package:mezanya_app/core/constants/transaction_types.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
+import '../../domain/services/recurring_schedule_engine.dart';
+import '../widgets/recurring_income_post_dialog.dart';
 import '../widgets/transaction_details_sheet.dart';
 import 'recurring_transaction_composer_screen.dart';
 
@@ -344,9 +346,7 @@ class _RecurringTransactionsScreenState
         record.isVariableIncome ? 'متغير' : record.amount.toStringAsFixed(2);
     final wallet = _walletName(state, record.walletId);
     final execution = _executionLabel(record.executionType);
-    final scope = record.budgetScope == BudgetScope.withinBudget.value
-        ? 'داخل الميزانية'
-        : 'عام';
+    final scope = _scopeLabel(state, record);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -565,6 +565,18 @@ class _RecurringTransactionsScreenState
             ),
             const SizedBox(height: 14),
             _DetailsTable(rows: _detailsRows(state, record)),
+            if (_canPostManually(record)) ...[
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: () => _postOccurrence(sheetContext, record),
+                icon: const Icon(Icons.download_done_rounded),
+                label: Text(
+                  _pendingOccurrence(record) != null
+                      ? 'تسجيل الدفعة المستحقة'
+                      : 'تسجيل معاملة يدويًا',
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             _relatedTransactionsSection(relatedTransactions),
             const SizedBox(height: 14),
@@ -686,9 +698,7 @@ class _RecurringTransactionsScreenState
           ? 'دخل متغير'
           : record.amount.toStringAsFixed(2),
       'المحفظة': _walletName(state, record.walletId),
-      'النطاق': record.budgetScope == BudgetScope.withinBudget.value
-          ? 'داخل الميزانية'
-          : 'عام',
+      'النطاق': _scopeLabel(state, record),
       'التكرار': _recurrenceLabel(record),
       'التنفيذ': _executionLabel(record.executionType),
       if (record.reminderLeadDays != null)
@@ -851,6 +861,9 @@ class _RecurringTransactionsScreenState
         if ((record.incomeSourceId ?? '').isNotEmpty) {
           return transaction.incomeSourceId == record.incomeSourceId;
         }
+        if ((record.targetJarId ?? '').isNotEmpty) {
+          return transaction.toWalletId == record.targetJarId;
+        }
         return transaction.walletId == record.walletId;
       }
       if (transaction.walletId != record.walletId) {
@@ -877,6 +890,100 @@ class _RecurringTransactionsScreenState
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return items.take(12).toList();
+  }
+
+  String _scopeLabel(AppStateEntity state, RecurringTransactionEntity record) {
+    // Jars are never part of the budget, for either income or expense — show
+    // the jar name regardless of type instead of falling through to a
+    // generic label (was previously income-only, leaving jar-targeted
+    // expense rules mislabeled).
+    if ((record.targetJarId ?? '').isNotEmpty) {
+      return 'حصالة: ${_jarName(state, record.targetJarId)}';
+    }
+    if (record.budgetScope == BudgetScope.withinBudget.value) {
+      return 'داخل الميزانية';
+    }
+    return record.type == TransactionType.income.value ? 'دخل عام' : 'عام';
+  }
+
+  // Manual posting is available for both income and expense recurring
+  // items. Both share the exact same due-detection/pending-occurrence
+  // engine (`RecurringScheduleEngine`), confirmation dialog
+  // (`RecurringIncomePostDialog`) and occurrence-generation logic — only
+  // the entity type (and which cubit method records the transaction)
+  // differs.
+  bool _canPostManually(RecurringTransactionEntity record) {
+    if (!record.isActive) return false;
+    if (record.type == TransactionType.income.value) {
+      return (record.incomeSourceId ?? '').isEmpty;
+    }
+    return record.type == TransactionType.expense.value;
+  }
+
+  DateTime? _pendingOccurrence(RecurringTransactionEntity record) {
+    return RecurringScheduleEngine.unhandledDueOccurrence(
+      record,
+      DateTime.now(),
+    );
+  }
+
+  Future<void> _postOccurrence(
+    BuildContext sheetContext,
+    RecurringTransactionEntity record,
+  ) async {
+    final isExpense = record.type == TransactionType.expense.value;
+    final now = DateTime.now();
+
+    final due = _pendingOccurrence(record) ??
+        DateTime(
+          now.year,
+          now.month,
+          record.dayOfMonth.clamp(1, 28),
+        );
+
+    final initialOccurrence = due.isAfter(now) ? now : due;
+
+    final result = await RecurringIncomePostDialog.show(
+      context,
+      name: record.name,
+      defaultAmount: record.amount,
+      occurrence: initialOccurrence,
+      allowVariableAmount: !isExpense && record.isVariableIncome,
+      isExpense: isExpense,
+    );
+    if (!mounted || result == null || !result.approved) return;
+
+    final matches = widget.cubit.state.recurringTransactions
+        .where((item) => item.id == record.id);
+    final latest = matches.isEmpty ? record : matches.first;
+
+    if (isExpense) {
+      final logMessage =
+          'تم تسجيل مصروف متكرر: ${latest.name} (${result.amount.toStringAsFixed(2)})';
+      await widget.cubit.recordRecurringExpenseOccurrence(
+        recurring: latest,
+        amount: result.amount,
+        occurrence: result.occurrenceDate,
+        transactionNotes: latest.name,
+        logDetails: logMessage,
+        titleOverride: logMessage,
+      );
+    } else {
+      final logMessage =
+          'تم تسجيل دخل متكرر: ${latest.name} (${result.amount.toStringAsFixed(2)})';
+      await widget.cubit.recordRecurringIncomeOccurrence(
+        recurring: latest,
+        amount: result.amount,
+        occurrence: result.occurrenceDate,
+        transactionNotes: latest.name,
+        logDetails: logMessage,
+        titleOverride: logMessage,
+      );
+    }
+
+    if (sheetContext.mounted) {
+      Navigator.pop(sheetContext);
+    }
   }
 
   Future<void> _openRecurringComposer({

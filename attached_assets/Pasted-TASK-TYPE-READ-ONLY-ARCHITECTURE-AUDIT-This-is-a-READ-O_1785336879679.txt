@@ -1,0 +1,281 @@
+TASK TYPE: READ-ONLY ARCHITECTURE AUDIT
+
+This is a READ-ONLY investigation.
+
+You are NOT allowed to modify any source file.
+
+You are NOT allowed to refactor.
+
+You are NOT allowed to fix bugs.
+
+You are NOT allowed to create commits.
+
+You are NOT allowed to generate patches.
+
+Your only responsibility is to inspect the codebase and produce a technical architecture report.
+
+===========================================================
+MISSION
+===========================================================
+
+Perform a complete Single Source of Truth Audit for the Mezanya project.
+
+The goal is to identify every place where the same business data may exist in more than one form, causing possible inconsistencies.
+
+This audit is architecture only.
+
+No implementation.
+
+===========================================================
+WHAT IS A SINGLE SOURCE OF TRUTH
+===========================================================
+
+A business value should have exactly one authoritative source.
+
+Examples of possible violations:
+
+Stored balance
++
+Transaction history
+
+Stored remaining amount
++
+Calculated remaining amount
+
+Stored totals
++
+Derived totals
+
+Cached values
++
+Real values
+
+Multiple representations of the same financial state.
+
+===========================================================
+AUDIT SCOPE
+===========================================================
+
+Inspect the entire repository.
+
+Especially inspect:
+
+- AppState
+- Wallet system
+- Jar system
+- Budget
+- Allocation
+- Transactions
+- Recurring transactions
+- Debts
+- Installments
+- Loans
+- Reports
+- Statistics
+- Backup
+- Restore
+- Persistence layer
+- Cubits
+- Services
+- Repositories
+
+===========================================================
+FOR EACH BUSINESS ENTITY
+===========================================================
+
+Determine:
+
+1. What is the authoritative source?
+
+2. What values are persisted?
+
+3. What values are derived?
+
+4. What values are duplicated?
+
+5. Are any values cached?
+
+6. Can the copies diverge?
+
+7. Is reconciliation implemented?
+
+8. Is there any self-healing mechanism?
+
+9. What happens if one copy changes and another does not?
+
+===========================================================
+VERIFY THESE ENTITIES
+===========================================================
+
+Wallet
+
+Determine:
+
+- Is Wallet.balance authoritative?
+- Or should transactions define it?
+- How is it updated?
+- Can it diverge?
+
+-----------------------------------------------------------
+
+Jar
+
+Determine:
+
+- Is Jar.balance authoritative?
+- Or derived?
+- Does reconciliation exist?
+- Can stored balance differ from ledger?
+
+-----------------------------------------------------------
+
+Budget
+
+Determine:
+
+- Total income
+- Total allocated
+- Remaining
+- Unallocated
+
+Which are stored?
+
+Which are calculated?
+
+-----------------------------------------------------------
+
+Allocation
+
+Determine:
+
+- Planned amount
+- Remaining
+- Spent
+
+Are these stored?
+
+Calculated?
+
+Duplicated?
+
+-----------------------------------------------------------
+
+Transactions
+
+Determine:
+
+What data exists only here.
+
+What data is copied elsewhere.
+
+===========================================================
+FOR EVERY DUPLICATED VALUE
+===========================================================
+
+Produce:
+
+Business Value
+
+Authoritative Source
+
+Secondary Copy
+
+Synchronization Method
+
+Failure Risk
+
+Confidence
+
+===========================================================
+LOOK FOR
+===========================================================
+
+Stored totals
+
+Stored balances
+
+Cached balances
+
+Manual synchronization
+
+copyWith chains
+
+Increment/decrement logic
+
+Repeated calculations
+
+Values updated in multiple places
+
+Hidden state
+
+Temporary state becoming permanent
+
+===========================================================
+ALSO IDENTIFY
+===========================================================
+
+Architecture smells:
+
+Multiple sources of truth
+
+Mutable financial state
+
+Hidden coupling
+
+Circular updates
+
+Implicit synchronization
+
+Manual balance maintenance
+
+State duplication
+
+===========================================================
+OUTPUT FORMAT
+===========================================================
+
+Return ONLY a report.
+
+The report must contain:
+
+1. Executive Summary
+
+2. Architecture Overview
+
+3. Entity-by-Entity Analysis
+
+4. Single Source of Truth Matrix
+
+5. Detected Violations
+
+6. High Risk Areas
+
+7. Financial Integrity Risks
+
+8. Architecture Recommendations
+
+9. Suggested Priority Order
+
+10. Confidence Level
+
+===========================================================
+IMPORTANT
+===========================================================
+
+Do not implement anything.
+
+Do not suggest code patches.
+
+Do not modify files.
+
+Do not fix bugs.
+
+Do not generate commits.
+
+Only inspect.
+
+Only analyze.
+
+Only report.
+
+This report will be used later by Claude Code to perform architectural fixes.

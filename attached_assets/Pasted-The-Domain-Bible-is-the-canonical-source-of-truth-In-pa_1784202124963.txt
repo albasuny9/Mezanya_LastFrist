@@ -1,0 +1,188 @@
+The Domain Bible is the canonical source of truth.
+
+In particular, preserve the transfer semantics defined in:
+
+- Chapter 03 — Transfers
+- Chapter 04 — Financial Engine
+- Chapter 10 — Transaction Lifecycle
+
+This is NOT a refactor.
+
+This is NOT a redesign.
+
+This is NOT a new feature.
+
+Your task is to restore the correct Transfer behavior that was broken during the TransactionEntryForm migration.
+
+=========================================================
+OBJECTIVE
+=========================================================
+
+Wallet-to-Wallet Transfer must remain a first-class Transfer transaction throughout its entire lifecycle.
+
+Editing a transfer must NEVER convert it into a normal expense or income.
+
+The transfer identity must remain intact.
+
+=========================================================
+CURRENT PROBLEM
+=========================================================
+
+After the TransactionEntryForm migration:
+
+- existing transfers open as if they were normal transactions
+- destination wallet information is lost
+- saving the form recreates the transaction without transfer metadata
+- editing a transfer corrupts the transfer itself
+
+This is a regression introduced by the unfinished migration.
+
+=========================================================
+REQUIRED BEHAVIOR
+=========================================================
+
+When opening an existing transfer:
+
+- preserve transaction.type == transfer
+- load source wallet
+- load destination wallet
+- load amount
+- load date/time
+- load notes
+- load every transfer-specific property
+
+The form must recognize that it is editing a Transfer.
+
+=========================================================
+WHEN SAVING
+=========================================================
+
+Do NOT delete the transfer and recreate it as a generic transaction.
+
+Preserve the Transfer identity.
+
+The save operation must behave as a Transfer update, not an Expense update.
+
+All transfer metadata must survive editing.
+
+=========================================================
+TRANSFER SCREEN
+=========================================================
+
+Review the Wallet Transfer screen.
+
+If the current UI is missing fields that already exist for normal transactions:
+
+Add support for:
+
+- transaction date
+- transaction time
+- notes
+
+These are part of the transaction itself and must be editable.
+
+Do NOT redesign the screen.
+
+Only complete the missing transaction fields.
+
+=========================================================
+EDIT EXPERIENCE
+=========================================================
+
+Opening an existing transfer must display:
+
+Source Wallet
+
+↓
+
+Destination Wallet
+
+↓
+
+Amount
+
+↓
+
+Date
+
+↓
+
+Time
+
+↓
+
+Notes
+
+The user must never see the generic expense editor for a Transfer.
+
+=========================================================
+TRANSACTION LIFECYCLE
+=========================================================
+
+Transfer is its own transaction category.
+
+Do not map it internally to Expense.
+
+Do not map it internally to Income.
+
+Respect the Transaction Lifecycle already defined by the Domain Bible.
+
+=========================================================
+DO NOT TOUCH
+=========================================================
+
+Do NOT modify:
+
+- Money Location
+- Allocation
+- Budget logic
+- Jar logic
+- Financial Engine rules
+
+This task is limited to restoring correct Transfer behavior.
+
+=========================================================
+VERIFICATION
+=========================================================
+
+Run flutter analyze.
+
+Launch the application.
+
+Verify:
+
+✓ Create Wallet→Wallet transfer.
+
+✓ Edit transfer.
+
+✓ Destination wallet is preserved.
+
+✓ Source wallet is preserved.
+
+✓ Date survives editing.
+
+✓ Time survives editing.
+
+✓ Notes survive editing.
+
+✓ Amount survives editing.
+
+✓ Transfer remains type=transfer.
+
+✓ No transfer becomes an expense.
+
+✓ No duplicate transactions are created.
+
+=========================================================
+FINAL REPORT
+=========================================================
+
+Report:
+
+- Root cause.
+- Files modified.
+- Transfer loading path.
+- Transfer saving path.
+- Analyzer status.
+- Runtime verification.
+- Remaining transfer-related technical debt.

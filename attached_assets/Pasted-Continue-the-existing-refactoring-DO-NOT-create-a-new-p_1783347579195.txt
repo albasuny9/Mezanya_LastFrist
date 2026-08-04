@@ -1,0 +1,244 @@
+Continue the existing refactoring.
+
+DO NOT create a new plan.
+
+DO NOT revisit Phases 1 or 2.
+
+The current baseline already includes:
+
+- Budget Feature Phase 1 — Widget Extraction ✅
+- Budget Feature Phase 2 — Constants & Helpers Extraction ✅
+
+Continue ONLY with:
+
+Budget Feature → Phase 3 → Service Extraction
+
+======================================================================
+READ FIRST
+======================================================================
+
+Read ONLY:
+
+docs/architecture/MEZANYA-STRICT-ARCHITECTURAL-REFACTOR-SPECIFICATION.md
+
+docs/architecture/refactor-budget-feature.md
+
+Then inspect the current implementation after Phases 1 and 2.
+
+Treat the current codebase as the source of truth.
+
+======================================================================
+OBJECTIVE
+======================================================================
+
+Move business logic OUT of budget_tracking_screen.dart into focused domain services.
+
+Move code exactly.
+
+Never redesign.
+
+Never rewrite.
+
+Never optimize.
+
+Never simplify.
+
+======================================================================
+VERY IMPORTANT
+======================================================================
+
+This phase is NOT about creating new architecture.
+
+It is ONLY about moving existing logic into cohesive services.
+
+The extracted service must produce identical results.
+
+======================================================================
+ALLOWED
+======================================================================
+
+Extract ONLY existing business logic such as:
+
+- transaction filtering
+- budget metrics
+- cycle calculations
+- summary calculations
+- presentation-independent calculations
+
+ONLY IF those responsibilities currently exist inside
+budget_tracking_screen.dart.
+
+If an appropriate service already exists:
+
+Reuse it.
+
+Extend it.
+
+Do NOT create a parallel service.
+
+======================================================================
+SEARCH BEFORE CREATING
+======================================================================
+
+Before creating ANY new service:
+
+Search:
+
+lib/features/budget/domain/services/
+
+If a service already has that responsibility:
+
+Move the code there.
+
+Do NOT duplicate responsibilities.
+
+======================================================================
+STRICTLY FORBIDDEN
+======================================================================
+
+Do NOT create services for:
+
+TransactionProcessor
+
+Wallet logic
+
+Jar logic
+
+Recurring logic
+
+Firestore
+
+AppCubit
+
+Repositories
+
+Navigation
+
+Dialogs
+
+Widgets
+
+Formatting
+
+Theme
+
+Presentation
+
+======================================================================
+DO NOT MOVE
+======================================================================
+
+Anything that directly builds Widgets.
+
+Anything that requires BuildContext.
+
+Anything that owns navigation.
+
+Anything that owns dialogs.
+
+Anything that owns bottom sheets.
+
+Those remain inside the screen.
+
+======================================================================
+KEEP INSIDE THE SCREEN
+======================================================================
+
+Navigator
+
+showDialog
+
+showModalBottomSheet
+
+setState
+
+AnimationController
+
+BuildContext
+
+ScrollController
+
+Widget composition
+
+======================================================================
+MOVE TO SERVICES
+======================================================================
+
+Pure business calculations.
+
+Pure filtering.
+
+Pure aggregation.
+
+Pure transformation.
+
+Pure statistics.
+
+Anything that does not require BuildContext.
+
+======================================================================
+NO VIEW MODELS
+======================================================================
+
+Do NOT create ViewModels.
+
+Do NOT create DTOs.
+
+Do NOT introduce abstraction layers.
+
+Only move existing logic.
+
+======================================================================
+NO BEHAVIOR CHANGE
+======================================================================
+
+Every calculation must remain identical.
+
+Every filter must remain identical.
+
+Every financial value must remain identical.
+
+Execution order must remain identical.
+
+Side effects must remain identical.
+
+======================================================================
+WORK IN SMALL STEPS
+======================================================================
+
+Extract ONE cohesive responsibility at a time.
+
+After every extraction:
+
+Run flutter analyze.
+
+Verify compilation.
+
+If compilation fails:
+
+STOP.
+
+Fix only the structural issue.
+
+Continue.
+
+======================================================================
+WHEN FINISHED
+======================================================================
+
+Provide:
+
+- Services created
+- Existing services extended
+- Methods moved
+- Files modified
+- Verification performed
+- flutter analyze result
+- Compile result
+- Remaining work before Phase 4
+
+Then STOP.
+
+Do NOT begin Phase 4.
+
+Wait for further instructions.

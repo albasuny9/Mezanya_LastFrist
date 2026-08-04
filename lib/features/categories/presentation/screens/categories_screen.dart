@@ -60,6 +60,18 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           accent: const Color(0xFF4B7F52),
           iconName: 'cash',
         ),
+        ...budget.linkedWallets.map(
+          (wallet) => _SectionData(
+            key: 'linked-${wallet.id}',
+            title: wallet.name,
+            subtitle: 'فئات إيداع الدخل في الحصالة "${wallet.name}".',
+            target: _CategoryTarget('linked-wallet', wallet.id),
+            categories:
+                wallet.categories.where((c) => c.scope == 'income').toList(),
+            accent: _parseColor(wallet.iconColor),
+            iconName: wallet.icon,
+          ),
+        ),
       ];
     }
 
@@ -90,7 +102,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           title: wallet.name,
           subtitle: 'فئات الحصالة أو الحساب المرتبط "${wallet.name}".',
           target: _CategoryTarget('linked-wallet', wallet.id),
-          categories: wallet.categories,
+          categories:
+              wallet.categories.where((c) => c.scope == 'expense').toList(),
           accent: _parseColor(wallet.iconColor),
           iconName: wallet.icon,
         ),
@@ -251,7 +264,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       size: 20,
                     ),
                     label: Text(
-                      'إضافة فئة جديدة',
+                      '+ إضافة فئة جديدة',
                       style: TextStyle(
                         color: accent,
                         fontWeight: FontWeight.w800,
@@ -305,76 +318,96 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Widget _categoryCard(_CategoryTarget target, CategoryEntity category) {
     final color = _parseColor(category.color);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: AppIconPickerDialog.iconWidgetForName(
-                    category.icon,
-                    color: color,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => _openCategoryEditor(target, editing: category),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.edit_rounded,
-                    size: 16,
-                    color: color.withValues(alpha: 0.75),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              GestureDetector(
-                onTap: () => _deleteCategory(target, category),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 16,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .error
-                        .withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ],
+    final stripeColor = Color.lerp(color, Colors.black, 0.22)!;
+    final iconColor = Color.lerp(color, Colors.black, 0.18)!;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openCategoryEditor(target, editing: category),
+        onLongPress: () => _confirmDeleteCategory(target, category),
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(16),
           ),
-          const SizedBox(height: 8),
-          Text(
-            category.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 16,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AppIconPickerDialog.iconWidgetForName(
+                            category.icon,
+                            color: iconColor,
+                            size: 26,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            category.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              color: Color(0xFF1A1A1A),
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 5,
+                    color: stripeColor,
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmDeleteCategory(
+    _CategoryTarget target,
+    CategoryEntity category,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الفئة'),
+        content: Text('هل تريد حذف "${category.name}"؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف'),
           ),
         ],
       ),
     );
+    if (confirmed == true && mounted) {
+      await _deleteCategory(target, category);
+      return true;
+    }
+    return false;
   }
 
   Widget _emptySection(String text) {
@@ -435,6 +468,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           current: editing,
           scope: _tab,
           target: target,
+          onDelete: editing == null
+              ? null
+              : () => _confirmDeleteCategory(target, editing),
         ),
       ),
     );
@@ -547,17 +583,25 @@ class _CategoryEditorScreen extends StatefulWidget {
     required this.current,
     required this.scope,
     required this.target,
+    this.onDelete,
   });
 
   final CategoryEntity? current;
   final String scope;
   final _CategoryTarget target;
 
+  /// Shows the delete confirmation dialog and performs the deletion.
+  /// Returns `true` if the category was actually deleted, `false` if the
+  /// user cancelled. Only provided when editing an existing category.
+  final Future<bool> Function()? onDelete;
+
   @override
   State<_CategoryEditorScreen> createState() => _CategoryEditorScreenState();
 }
 
 class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
+  static const _saveButtonColor = Color(0xFF165B47);
+
   late final TextEditingController _nameController;
   late String _selectedIcon;
   late String _selectedColor;
@@ -566,8 +610,14 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.current?.name ?? '');
-    _selectedIcon = widget.current?.icon ?? 'category';
-    _selectedColor = widget.current?.color ?? '#2f6f5e';
+    if (widget.current == null) {
+      final randomAppearance = AppIconPickerDialog.randomAppearance();
+      _selectedIcon = randomAppearance.iconName;
+      _selectedColor = randomAppearance.colorHex;
+    } else {
+      _selectedIcon = widget.current!.icon;
+      _selectedColor = widget.current!.color;
+    }
   }
 
   @override
@@ -589,6 +639,15 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
       _selectedIcon = picked.iconName;
       _selectedColor = picked.colorHex;
     });
+  }
+
+  Future<void> _handleDelete() async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null) return;
+    final deleted = await onDelete();
+    if (deleted && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _save() {
@@ -620,7 +679,7 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
   Widget build(BuildContext context) {
     final accent = _parseColor(_selectedColor);
     final isNew = widget.current == null;
-    final categoryName = _nameController.text.trim();
+    final previewName = _nameController.text.trim();
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFFBF1),
@@ -628,6 +687,7 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
         backgroundColor: const Color(0xFFFFFBF1),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        centerTitle: true,
         leading: IconButton(
           icon: Container(
             width: 36,
@@ -636,8 +696,11 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
               color: const Color(0xFFEEEDE6),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.arrow_back_ios_new_rounded,
-                size: 16, color: Color(0xFF555550)),
+            child: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: Color(0xFF555550),
+            ),
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -649,151 +712,114 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
             color: Color(0xFF1A1A1A),
           ),
         ),
-        actions: [
-          if (!isNew)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'تعديل',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                  ),
-                ),
-              ),
-            ),
-          const SizedBox(width: 8),
-        ],
       ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-          child: FilledButton(
-            onPressed: _save,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(54),
-              backgroundColor: accent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isNew ? Icons.add_rounded : Icons.check_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isNew ? 'إضافة الفئة' : 'حفظ التعديلات',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.onDelete != null) ...[
+                TextButton(
+                  onPressed: _handleDelete,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    foregroundColor: Colors.red,
+                  ),
+                  child: const Text(
+                    'حذف الفئة',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.red,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 6),
               ],
-            ),
+              FilledButton(
+                onPressed: _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  backgroundColor: _saveButtonColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isNew ? Icons.add_rounded : Icons.check_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isNew ? 'إضافة الفئة' : 'حفظ التعديلات',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          // ── Live Preview Card ──
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: LinearGradient(
-                colors: [
-                  accent,
-                  accent.withValues(alpha: 0.75),
-                ],
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 132,
+              height: 132,
+              decoration: BoxDecoration(
+                color: _lightTint(accent),
+                borderRadius: BorderRadius.circular(36),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.28),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+              child: Center(
+                child: AppIconPickerDialog.iconWidgetForName(
+                  _selectedIcon,
+                  color: _darkTone(accent),
+                  size: 56,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: AppIconPickerDialog.iconWidgetForName(
-                      _selectedIcon,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        categoryName.isEmpty ? 'اسم الفئة...' : categoryName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 20,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          widget.scope == 'income' ? 'فئة دخل' : 'فئة مصروف',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 20),
-
-          // ── Name Field ──
+          Center(
+            child: Text(
+              previewName.isEmpty ? 'اسم الفئة' : previewName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1A1A1A),
+                letterSpacing: -0.3,
+                height: 1.15,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              isNew ? 'فئة جديدة' : 'تعديل تفاصيل الفئة',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF9A9A92),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
@@ -806,11 +832,11 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
                   'اسم الفئة',
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF888880),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 TextField(
                   controller: _nameController,
                   style: const TextStyle(
@@ -818,21 +844,16 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF1A1A1A),
                   ),
-                  decoration: InputDecoration(
-                    hintText: 'مثل: مطاعم، مواصلات، مكافآت...',
-                    hintStyle: const TextStyle(
+                  decoration: const InputDecoration(
+                    hintText: 'مثل: مطاعم، مواصلات...',
+                    hintStyle: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFFBBBBB5),
                     ),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(
-                        color: accent.withValues(alpha: 0.4),
-                        width: 1.5,
-                      ),
-                    ),
+                    focusedBorder: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -842,105 +863,62 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
-          // ── Icon & Color Picker ──
-          GestureDetector(
-            onTap: _pickIcon,
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFE0DED6)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: accent.withValues(alpha: 0.3),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Center(
-                      child: AppIconPickerDialog.iconWidgetForName(
-                        _selectedIcon,
-                        color: accent,
-                        size: 27,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'الأيقونة واللون',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'اضغط لاختيار أيقونة ولون مناسبَين.',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF888880),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.chevron_left_rounded,
-                      color: accent,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Hint Card ──
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: accent.withValues(alpha: 0.18)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline_rounded, size: 18, color: accent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'الأيقونة واللون سيظهران في قائمة المعاملات وتقارير الفئات.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: accent,
-                    ),
-                  ),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: _pickIcon,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0xFFE0DED6)),
                 ),
-              ],
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: AppIconPickerDialog.iconWidgetForName(
+                          _selectedIcon,
+                          color: accent,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'تغيير الأيقونة واللون',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEEDE6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_left_rounded,
+                        size: 20,
+                        color: Color(0xFF666660),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -951,6 +929,20 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
   Color _parseColor(String hex) {
     final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
     return Color(0xFF000000 | (value ?? 0x2F6F5E));
+  }
+
+  /// A very light tint (~12% opacity) of [color] blended onto white, used
+  /// as the icon preview background.
+  Color _lightTint(Color color) {
+    return Color.alphaBlend(color.withValues(alpha: 0.12), Colors.white);
+  }
+
+  /// A darker, more saturated tone of [color], used for the icon itself so
+  /// it stays legible against the light tint background.
+  Color _darkTone(Color color) {
+    final hsl = HSLColor.fromColor(color);
+    final darkened = hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0));
+    return darkened.toColor();
   }
 }
 

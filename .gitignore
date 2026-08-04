@@ -27,6 +27,9 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+
+# Flutter l10n generated output — tracked in git so clean checkouts compile
+# lib/l10n/generated/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/

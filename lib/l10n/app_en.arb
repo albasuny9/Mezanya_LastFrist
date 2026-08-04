@@ -1,0 +1,53 @@
+{
+  "@@locale": "en",
+  "appTitle": "Mezanya",
+  "@appTitle": {
+    "description": "The application name as shown in the OS and task switcher."
+  },
+
+  "backupTitle": "Backup",
+  "backupLocalSection": "Local Backup",
+  "backupCloudSection": "Cloud Backup",
+  "backupAutomatic": "Automatic Backup",
+  "backupManual": "Manual Backup",
+  "backupNow": "Backup Now",
+  "backupNever": "Never backed up",
+  "backupTimeToday": "Today",
+  "backupTimeYesterday": "Yesterday",
+  "backupConnected": "Connected",
+  "backupSignInGoogle": "Sign in with Google",
+  "backupSignOut": "Sign out",
+  "backupCheckingAccount": "Checking...",
+  "backupNotSignedIn": "Not signed in",
+  "backupMenuRestore": "Restore",
+  "backupMenuChangeFolder": "Change Folder",
+  "backupConfirmTitle": "Restore Backup",
+  "backupConfirmBody": "Your current data will be replaced with the saved backup. Continue?",
+  "backupConfirmProceed": "Proceed",
+  "backupConfirmCancel": "Cancel",
+  "backupNoBackupFound": "No backup found",
+  "backupMsgRestored": "Restored ✓",
+  "backupMsgSaved": "Backup saved ✓",
+  "backupMsgSignInFirst": "Please sign in with Google first",
+  "backupMsgReAuth": "Please sign in with Google again",
+  "backupMsgFolderChanged": "Folder updated ✓",
+  "backupMsgSignInFailed": "Sign-in failed",
+  "backupMsgUploadFailed": "Backup failed",
+  "backupLastBackup": "Last backup",
+  "backupError": "Error",
+  "backupReplaceTitle": "Replace Manual Backup",
+  "backupReplaceBody": "A manual backup already exists. It will be fully replaced with the current app data.",
+  "backupReplaceDate": "Current backup date: {date}",
+  "@backupReplaceDate": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "backupReplaceTxCount": "Transactions: {count}",
+  "@backupReplaceTxCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "backupReplaceWalletCount": "Wallets: {count}",
+  "@backupReplaceWalletCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "backupReplaceConfirm": "Replace Backup"
+}

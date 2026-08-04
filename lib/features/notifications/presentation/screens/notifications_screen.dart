@@ -5,7 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
-import '../../../logs/domain/entities/log_entry_entity.dart';
+import '../../../logs/application/audit_facade.dart';
+import '../../../recovery/domain/entities/recovery_entry.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../domain/entities/notification_entity.dart';
@@ -267,9 +268,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _historyCard(AppStateEntity state, NotificationEntity item) {
-    final relatedLog =
-        state.logs.where((log) => log.id == item.relatedLogId).toList();
-    final log = relatedLog.isEmpty ? null : relatedLog.first;
+    final relatedLogId = item.relatedLogId;
+    final log = relatedLogId == null
+        ? null
+        : AuditFacade.findRecoveryBySourceLogId(state, relatedLogId);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
@@ -283,7 +285,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _openHistorySheet(
     NotificationEntity item,
-    LogEntryEntity? log,
+    RecoveryEntry? log,
   ) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -304,7 +306,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () async {
-                  await widget.cubit.toggleLogRevert(log.id);
+                  await widget.cubit.toggleLogRevert(log.sourceLogId);
                   if (context.mounted) {
                     Navigator.pop(context);
                   }
@@ -358,6 +360,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final isDueOrLate = !today.isBefore(dueDate);
     if (!canEarly && !isDueOrLate) {
       return null;
+    }
+    final snoozedUntil =
+        recurring?.snoozedUntil == null || recurring!.snoozedUntil!.isEmpty
+            ? null
+            : DateTime.tryParse(recurring.snoozedUntil!);
+    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+      return <String, dynamic>{
+        'pending': false,
+        'status':
+            'Snoozed until ${DateFormat('d/M HH:mm').format(snoozedUntil)}',
+      };
     }
     final dateLabel = '${dueDate.day}/${dueDate.month}';
     final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
@@ -611,6 +624,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     }
     final now = DateTime.now();
+    final recurring = _linkedRecurringIncome(widget.cubit.state, source);
+    if (recurring != null) {
+      final occurrence = early
+          ? (_nextRecurringOccurrence(recurring, now) ?? now)
+          : (_dueOccurrenceNow(recurring, now) ??
+              _nextRecurringOccurrence(recurring, now) ??
+              now);
+      await widget.cubit.recordRecurringIncomeOccurrence(
+        recurring: recurring,
+        amount: amount,
+        occurrence: occurrence,
+        transactionNotes: source.name,
+        logDetails: early
+            ? 'Early recurring income posted: ${source.name}'
+            : 'Recurring income confirmed: ${source.name}',
+        titleOverride: source.name,
+      );
+      return;
+    }
+
     await widget.cubit.addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
@@ -636,20 +669,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (picked == null) {
       return;
     }
+    final recurring = _linkedRecurringIncome(widget.cubit.state, source);
+    if (recurring != null) {
+      await widget.cubit.recordRecurringPostpone(
+        recurring: recurring,
+        snoozedUntil: picked,
+        logDetails:
+            'Postponed recurring income: ${source.name} until ${DateFormat('yyyy-MM-dd').format(picked)}',
+        titleOverride: source.name,
+      );
+      return;
+    }
+
     final setup = widget.cubit.state.budgetSetup;
     final incomes = setup.incomeSources
         .map(
           (income) => income.id == source.id
-              ? IncomeSourceEntity(
-                  id: income.id,
-                  name: income.name,
-                  amount: income.amount,
-                  date: picked.day,
-                  type: income.type,
-                  targetWalletId: income.targetWalletId,
-                  isVariable: income.isVariable,
-                  isDefault: income.isDefault,
-                )
+              ? income.copyWith(snoozedUntil: picked.toIso8601String())
               : income,
         )
         .toList();
@@ -662,19 +698,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     RecurringTransactionEntity recurring,
     DateTime occurrence,
   ) async {
-    await widget.cubit.addTransaction(
-      walletId: recurring.walletId,
+    await widget.cubit.recordRecurringExpenseOccurrence(
+      recurring: recurring,
       amount: debt.amount,
-      type: TransactionType.expense.value,
-      budgetScope: BudgetScope.withinBudget.value,
-      createdAt: DateTime.now(),
-      notes: 'سداد دين: ${debt.name}',
-    );
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(
-        lastHandledOccurrenceAt: occurrence.toIso8601String(),
-        snoozedUntil: '',
-      ),
+      occurrence: occurrence,
+      transactionNotes: 'Recurring debt payment: ${debt.name}',
+      logDetails: 'Recurring debt payment posted: ${debt.name}',
+      titleOverride: debt.name,
     );
   }
 
@@ -685,8 +715,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final now = DateTime.now();
     final delayed = now.add(const Duration(hours: 1));
     final nextSnooze = delayed.isAfter(occurrence) ? occurrence : delayed;
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(snoozedUntil: nextSnooze.toIso8601String()),
+    await widget.cubit.recordRecurringPostpone(
+      recurring: recurring,
+      snoozedUntil: nextSnooze,
+      logDetails: 'Postponed recurring transaction: ${recurring.name}',
+      titleOverride: recurring.name,
     );
   }
 }

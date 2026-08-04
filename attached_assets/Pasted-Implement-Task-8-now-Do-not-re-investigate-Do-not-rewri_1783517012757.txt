@@ -1,0 +1,76 @@
+Implement Task #8 now.
+
+Do not re-investigate.
+Do not rewrite the plan.
+Do not redesign the architecture.
+Implement only the approved scope.
+
+Scope:
+- Jar Money Location feature only.
+- Keep moneyDistributions as the only runtime source of truth.
+- Do NOT modify TransactionProcessor.
+- Do NOT modify wallet balance logic.
+- Do NOT modify jar balance logic.
+- Do NOT modify budget calculations.
+- Do NOT modify transaction history.
+- Do NOT introduce any new synchronization between walletSources and moneyDistributions.
+
+Implement the following:
+
+1. Unknown
+- Unknown must never become negative.
+- If jar.balance <= 0, Unknown must always be 0.
+- Unknown represents only positive money whose location has not yet been identified.
+
+2. Review Card
+- Replace the current "تأكيد" button.
+- Primary action becomes "صلّح الآن".
+- Pressing it opens the Money Location Manager.
+- Add a secondary "تجاهل" button that dismisses the review using the existing resolve method.
+
+3. Money Location Manager
+- Never display wallet.balance.
+- Display only the amount of THIS JAR currently located inside each wallet.
+
+4. Unknown behavior
+Do NOT expose Unknown as a wallet in Add mode.
+Do NOT expose Unknown as a wallet in Remove mode.
+
+Because:
+
+Add already means:
+Unknown → Wallet
+
+Remove already means:
+Wallet → Unknown
+
+Unknown is implicit.
+
+Only Transfer may expose Unknown explicitly if required by the current UI.
+
+5. Review lifecycle
+Never resolve a review simply because the user saved changes.
+
+After every save:
+
+- Recalculate Money Location.
+- If the inconsistency no longer exists, resolve the review.
+- Otherwise keep the review active.
+
+6. Empty distributions
+If reviews exist but no distribution entries exist:
+- Keep the review section visible.
+- The "صلّح الآن" action must still open the manager.
+- Do NOT generate fake distribution entries.
+
+Requirements:
+- Keep all existing financial behavior unchanged.
+- Keep existing serialization unchanged.
+- Keep existing AppState structure.
+- Keep DistributionEngine as the owner of Money Distribution rules.
+- Do not add temporary workarounds.
+- Do not suppress validation.
+- Do not leave TODOs.
+- Run dart analyze.
+- Fix every error introduced.
+- Stop only after the feature works and analyze passes.

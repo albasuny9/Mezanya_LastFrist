@@ -1,5 +1,6 @@
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../../core/constants/transaction_types.dart';
+import 'money_location_review_entity.dart';
 
 class IncomeSourceEntity {
   const IncomeSourceEntity({
@@ -12,6 +13,10 @@ class IncomeSourceEntity {
     this.isVariable = false,
     this.isDefault = false,
     this.snoozedUntil,
+    this.icon,
+    this.iconColor,
+    this.companyName,
+    this.notes,
   });
 
   final String id;
@@ -25,6 +30,12 @@ class IncomeSourceEntity {
 
   /// تأجيل مؤقت — ISO string، فارغ = مش مأجل
   final String? snoozedUntil;
+
+  // Identity (Step 2 — schema extension only، لا واجهة بعد):
+  final String? icon;
+  final String? iconColor;
+  final String? companyName;
+  final String? notes;
 
   bool get isSnoozed {
     if (snoozedUntil == null || snoozedUntil!.isEmpty) return false;
@@ -47,6 +58,10 @@ class IncomeSourceEntity {
     bool? isVariable,
     bool? isDefault,
     String? snoozedUntil,
+    String? icon,
+    String? iconColor,
+    String? companyName,
+    String? notes,
   }) =>
       IncomeSourceEntity(
         id: id ?? this.id,
@@ -58,6 +73,10 @@ class IncomeSourceEntity {
         isVariable: isVariable ?? this.isVariable,
         isDefault: isDefault ?? this.isDefault,
         snoozedUntil: snoozedUntil ?? this.snoozedUntil,
+        icon: icon ?? this.icon,
+        iconColor: iconColor ?? this.iconColor,
+        companyName: companyName ?? this.companyName,
+        notes: notes ?? this.notes,
       );
 
   Map<String, dynamic> toMap() => {
@@ -70,6 +89,10 @@ class IncomeSourceEntity {
         'isVariable': isVariable,
         'isDefault': isDefault,
         'snoozedUntil': snoozedUntil,
+        'icon': icon,
+        'iconColor': iconColor,
+        'companyName': companyName,
+        'notes': notes,
       };
 
   factory IncomeSourceEntity.fromMap(Map<String, dynamic> map) =>
@@ -83,6 +106,10 @@ class IncomeSourceEntity {
         isVariable: map['isVariable'] as bool? ?? false,
         isDefault: map['isDefault'] as bool? ?? false,
         snoozedUntil: map['snoozedUntil'] as String?,
+        icon: map['icon'] as String?,
+        iconColor: map['iconColor'] as String?,
+        companyName: map['companyName'] as String?,
+        notes: map['notes'] as String?,
       );
 }
 
@@ -126,6 +153,7 @@ class AllocationEntity {
     this.pendingDistribution = 0,
     this.pendingDistributionWalletId = '',
     this.pendingDistributionSourceId = '',
+    this.pendingDistributionSnoozedUntil = '',
   });
 
   final String id;
@@ -145,6 +173,15 @@ class AllocationEntity {
   final double pendingDistribution;
   final String pendingDistributionWalletId;
   final String pendingDistributionSourceId;
+  final String pendingDistributionSnoozedUntil;
+
+  bool get isPendingDistributionVisible {
+    if (pendingDistribution <= 0) return false;
+    if (pendingDistributionSnoozedUntil.isEmpty) return true;
+    final until = DateTime.tryParse(pendingDistributionSnoozedUntil);
+    if (until == null) return true;
+    return !DateTime.now().isBefore(until);
+  }
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -160,6 +197,7 @@ class AllocationEntity {
         'pendingDistribution': pendingDistribution,
         'pendingDistributionWalletId': pendingDistributionWalletId,
         'pendingDistributionSourceId': pendingDistributionSourceId,
+        'pendingDistributionSnoozedUntil': pendingDistributionSnoozedUntil,
       };
 
   factory AllocationEntity.fromMap(Map<String, dynamic> map) =>
@@ -188,6 +226,8 @@ class AllocationEntity {
             map['pendingDistributionWalletId'] as String? ?? '',
         pendingDistributionSourceId:
             map['pendingDistributionSourceId'] as String? ?? '',
+        pendingDistributionSnoozedUntil:
+            map['pendingDistributionSnoozedUntil'] as String? ?? '',
       );
 
   AllocationEntity copyWith({
@@ -204,6 +244,7 @@ class AllocationEntity {
     double? pendingDistribution,
     String? pendingDistributionWalletId,
     String? pendingDistributionSourceId,
+    String? pendingDistributionSnoozedUntil,
   }) {
     return AllocationEntity(
       id: id ?? this.id,
@@ -221,6 +262,8 @@ class AllocationEntity {
           pendingDistributionWalletId ?? this.pendingDistributionWalletId,
       pendingDistributionSourceId:
           pendingDistributionSourceId ?? this.pendingDistributionSourceId,
+      pendingDistributionSnoozedUntil: pendingDistributionSnoozedUntil ??
+          this.pendingDistributionSnoozedUntil,
     );
   }
 }
@@ -297,6 +340,8 @@ class LinkedWalletEntity {
     this.pendingDistribution = 0,
     this.pendingDistributionWalletId = '',
     this.pendingDistributionSourceId = '',
+    this.pendingDistributionSnoozedUntil = '',
+    this.moneyLocationReviews = const [],
   });
 
   final String id;
@@ -329,13 +374,28 @@ class LinkedWalletEntity {
   /// مصدر الدخل الذي أطلق التوزيع المعلّق
   final String pendingDistributionSourceId;
 
+  final String pendingDistributionSnoozedUntil;
+
+  /// مراجعات مكان الفلوس المعلّقة
+  /// تُنشأ عند اكتشاف تعارض في مكان الفلوس بدلاً من الحذف الصامت.
+  /// لا تحجب إنشاء المعاملات — المستخدم يراجعها لاحقاً في تفاصيل الحصالة.
+  final List<MoneyLocationReview> moneyLocationReviews;
+
+  bool get isPendingDistributionVisible {
+    if (pendingDistribution <= 0) return false;
+    if (pendingDistributionSnoozedUntil.isEmpty) return true;
+    final until = DateTime.tryParse(pendingDistributionSnoozedUntil);
+    if (until == null) return true;
+    return !DateTime.now().isBefore(until);
+  }
+
   // ── helpers ──────────────────────────────────────────────────────────────
 
   /// مجموع المبالغ المصنفة من المحافظ
   double get labeledTotal => walletSources.fold(0.0, (s, e) => s + e.amount);
 
   /// الجزء غير المصنف من رصيد الحصالة
-  double get unlabeledAmount => (balance - labeledTotal).clamp(0.0, balance);
+  double get unlabeledAmount => balance - labeledTotal;
 
   /// تحديث مصدر محفظة معينة (أو إضافته لو مش موجود)
   LinkedWalletEntity withUpdatedSource(String walletId, double amount) {
@@ -364,6 +424,9 @@ class LinkedWalletEntity {
         'pendingDistribution': pendingDistribution,
         'pendingDistributionWalletId': pendingDistributionWalletId,
         'pendingDistributionSourceId': pendingDistributionSourceId,
+        'pendingDistributionSnoozedUntil': pendingDistributionSnoozedUntil,
+        'moneyLocationReviews':
+            moneyLocationReviews.map((r) => r.toMap()).toList(),
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -399,6 +462,13 @@ class LinkedWalletEntity {
             map['pendingDistributionWalletId'] as String? ?? '',
         pendingDistributionSourceId:
             map['pendingDistributionSourceId'] as String? ?? '',
+        pendingDistributionSnoozedUntil:
+            map['pendingDistributionSnoozedUntil'] as String? ?? '',
+        moneyLocationReviews:
+            (map['moneyLocationReviews'] as List<dynamic>? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .map(MoneyLocationReview.fromMap)
+                .toList(),
       );
 
   LinkedWalletEntity copyWith({
@@ -419,6 +489,8 @@ class LinkedWalletEntity {
     double? pendingDistribution,
     String? pendingDistributionWalletId,
     String? pendingDistributionSourceId,
+    String? pendingDistributionSnoozedUntil,
+    List<MoneyLocationReview>? moneyLocationReviews,
   }) {
     return LinkedWalletEntity(
       id: id ?? this.id,
@@ -440,6 +512,10 @@ class LinkedWalletEntity {
           pendingDistributionWalletId ?? this.pendingDistributionWalletId,
       pendingDistributionSourceId:
           pendingDistributionSourceId ?? this.pendingDistributionSourceId,
+      pendingDistributionSnoozedUntil: pendingDistributionSnoozedUntil ??
+          this.pendingDistributionSnoozedUntil,
+      moneyLocationReviews:
+          moneyLocationReviews ?? this.moneyLocationReviews,
     );
   }
 }

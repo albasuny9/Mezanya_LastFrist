@@ -1,0 +1,157 @@
+We want to simplify the Recurring Transaction editor.
+
+This is a UI/Form refactoring task only.
+
+Do NOT modify:
+
+- recurring execution engine
+- business rules
+- scheduling logic
+- transaction generation
+- financial logic
+
+Only redesign the recurring transaction editor.
+
+--------------------------------------------------
+
+Problem
+
+The current recurring transaction form behaves as if a recurring transaction is its own business entity.
+
+It has:
+
+- Name
+- Icon
+- Color
+
+Then later asks for the actual transaction information.
+
+This creates duplicate concepts.
+
+The generated transaction already has:
+
+- category
+- category icon
+- category name
+- notes
+
+The recurring template should not duplicate those concepts.
+
+--------------------------------------------------
+
+Desired Concept
+
+A recurring transaction is simply:
+
+A normal transaction template
+
++
+
+A schedule.
+
+Nothing more.
+
+--------------------------------------------------
+
+Implementation Goals
+
+Remove these recurring-specific fields:
+
+- Name
+- Icon
+- Color
+
+The recurring form should reuse the same transaction information used when creating a normal transaction.
+
+The form should contain:
+
+• Amount
+
+• Wallet
+
+• Destination (Jar / Allocation / etc. depending on transaction type)
+
+• Category (optional)
+
+• Notes (optional)
+
+These should behave exactly like the normal transaction screen.
+
+--------------------------------------------------
+
+Scheduling
+
+Instead of Date & Time, the recurring editor should contain a dedicated Schedule section.
+
+This section is the only recurring-specific part.
+
+It should include the existing scheduling controls such as:
+
+- recurrence type
+- daily
+- weekly
+- monthly
+- custom
+- execution time
+- weekly days
+- monthly day
+- existing recurrence settings
+
+Reuse existing scheduling widgets whenever possible.
+
+Do not redesign scheduling behavior.
+
+--------------------------------------------------
+
+Transaction Preview
+
+The resulting recurring template should generate exactly the same transaction structure as a manually created transaction.
+
+Meaning:
+
+If Notes are empty:
+Display name comes from Category.
+
+If Notes exist:
+Display Notes as the primary title.
+Display Category below as secondary text.
+
+Exactly like normal transactions.
+
+--------------------------------------------------
+
+Keep
+
+Keep all existing recurring functionality:
+
+- enable/disable
+- next occurrence
+- recurrence rules
+- editing existing recurring transactions
+
+Only simplify the editor.
+
+--------------------------------------------------
+
+Verification
+
+After implementation verify:
+
+1.
+Creating recurring expense.
+
+2.
+Creating recurring income.
+
+3.
+Editing existing recurring transactions.
+
+4.
+Existing schedules still execute correctly.
+
+5.
+No visual regressions.
+
+If visual verification cannot be completed, explicitly state what was verified by code and what was not visually verified.
+
+Commit and push after verification.

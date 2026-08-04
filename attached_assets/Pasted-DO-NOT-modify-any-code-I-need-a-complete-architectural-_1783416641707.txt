@@ -1,0 +1,197 @@
+DO NOT modify any code.
+
+I need a complete architectural investigation of how "Jar Money Location / Reserved Money" currently works.
+
+Your task is ONLY to read the code and produce a report.
+
+Search the entire repository for everything related to:
+
+- walletSources
+- reserved money
+- reservedAmount
+- jar funding
+- jar balance
+- funding
+- depositWithJarLabel
+- jarFunding
+- jarFundingPhysical
+- allocationToJar
+- jarToAllocation
+- jarToJar
+- jarAllocation
+- jarAllocationSpend
+- jarAllocationCancel
+- SavingsJar
+- WalletSource
+- MoneyLocation
+
+Then produce a detailed report with the following sections.
+
+# 1. Data Model
+
+Locate every model/entity that stores:
+
+- jar balance
+- wallet reservations
+- walletSources
+- funding metadata
+- money location information
+
+For each field explain:
+
+- purpose
+- type
+- where it is updated
+- where it is read
+
+---
+
+# 2. Transaction Processing
+
+Find every place where each TransferType is processed.
+
+For every one of these:
+
+- jarFunding
+- jarFundingPhysical
+- depositWithJarLabel
+- allocationToJar
+- jarToAllocation
+- jarToJar
+- jarAllocation
+- jarAllocationSpend
+- jarAllocationCancel
+
+show:
+
+- file
+- function
+- exact responsibilities
+
+Explain:
+
+- what changes inside the wallet
+- what changes inside the jar
+- what changes inside walletSources
+- whether reservations are increased
+- whether reservations are decreased
+
+---
+
+# 3. Reservation Flow
+
+Trace the complete lifecycle.
+
+Starting from:
+
+User deposits money into a jar
+
+↓
+
+Every object that changes
+
+↓
+
+User spends from the jar
+
+↓
+
+Every object that changes
+
+↓
+
+User deletes a transaction
+
+↓
+
+Every object that changes
+
+↓
+
+User edits a transaction
+
+↓
+
+Every object that changes
+
+---
+
+# 4. Invariants
+
+List every invariant the current code assumes.
+
+Example:
+
+Jar.balance == ?
+
+Sum(walletSources) == ?
+
+Can reservations exceed balance?
+
+Can reservations become negative?
+
+Can balance exist without reservation?
+
+Can reservation exist without balance?
+
+---
+
+# 5. UI
+
+Locate every screen that displays:
+
+- reserved money
+- walletSources
+- money locations
+
+Show how those values are calculated.
+
+---
+
+# 6. Existing Problems
+
+Based ONLY on the existing implementation (do not redesign anything),
+
+identify every scenario where reservations become inconsistent.
+
+Examples:
+
+- deleting transactions
+- editing transactions
+- spending from jars
+- moving between wallets
+- partial withdrawals
+- importing backups
+- restoring backups
+
+For each scenario explain exactly why it becomes inconsistent.
+
+---
+
+# 7. Final Architecture Diagram
+
+Draw a textual flow like:
+
+Transaction
+    ↓
+Transaction Processor
+    ↓
+Wallet Balance
+    ↓
+Jar Balance
+    ↓
+Wallet Reservations
+    ↓
+Budget Cards
+    ↓
+UI
+
+Explain who is the source of truth.
+
+IMPORTANT:
+
+Do NOT propose fixes.
+Do NOT write code.
+Do NOT refactor.
+
+Only document the current architecture in extreme detail.

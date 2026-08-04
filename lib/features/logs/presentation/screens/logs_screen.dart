@@ -1,16 +1,16 @@
 import 'package:mezanya_app/core/constants/transaction_types.dart';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../recovery/domain/entities/recovery_entry.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
-import '../../domain/entities/log_entry_entity.dart';
+import '../../application/audit_facade.dart';
 
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key, required this.cubit});
@@ -41,8 +41,9 @@ class _LogsScreenState extends State<LogsScreen> {
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        final logs = _filtered(state.logs);
-        final total = state.logs.length;
+        final recovery = AuditFacade.recoveryHistory(state);
+        final logs = _filtered(recovery);
+        final total = recovery.length;
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -92,7 +93,7 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  Color _accentForLog(LogEntryEntity log) {
+  Color _accentForLog(RecoveryEntry log) {
     return switch (log.action) {
       'delete' => _red,
       'edit' => _amber,
@@ -290,7 +291,7 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  List<LogEntryEntity> _filtered(List<LogEntryEntity> logs) {
+  List<RecoveryEntry> _filtered(List<RecoveryEntry> logs) {
     final now = DateTime.now();
     var filtered = logs.where((log) {
       if (_range == 'day') return now.difference(log.timestamp).inHours <= 24;
@@ -713,7 +714,7 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  Future<void> _openDetails(AppStateEntity state, LogEntryEntity log) async {
+  Future<void> _openDetails(AppStateEntity state, RecoveryEntry log) async {
     final rows = _detailRowsForLog(state, log);
     final changeRows = _changeRowsForEdit(state, log);
     final transaction = _currentTransaction(state, log.entityId);
@@ -855,7 +856,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   _infoRow(
                     Icons.fingerprint_rounded,
                     'معرف السجل',
-                    log.id,
+                    log.sourceLogId,
                     Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 6),
@@ -988,7 +989,7 @@ class _LogsScreenState extends State<LogsScreen> {
             if (canUndoDelete) ...[
               OutlinedButton.icon(
                 onPressed: () async {
-                  await widget.cubit.toggleLogRevert(log.id);
+                  await widget.cubit.toggleLogRevert(log.sourceLogId);
                   if (sheetContext.mounted) Navigator.pop(sheetContext);
                 },
                 icon: const Icon(Icons.undo_rounded),
@@ -1035,7 +1036,7 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  String _actionSentence(AppStateEntity state, LogEntryEntity log) {
+  String _actionSentence(AppStateEntity state, RecoveryEntry log) {
     final actionAr = _actionName(log.action);
     final entityAr = _entityTypeName(log.entityType);
     if (log.details.trim().isNotEmpty) return log.details.trim();
@@ -1065,7 +1066,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   /// Returns a list of (field, before, after) for edit actions.
   List<(String, String, String)> _changeRowsForEdit(
-      AppStateEntity state, LogEntryEntity log) {
+      AppStateEntity state, RecoveryEntry log) {
     if (log.action != 'edit') return [];
     final before = _snapshotForLog(log, preferBefore: true);
     final after = _snapshotForLog(log, preferBefore: false);
@@ -1130,7 +1131,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   Map<String, String> _detailRowsForLog(
     AppStateEntity currentState,
-    LogEntryEntity log,
+    RecoveryEntry log,
   ) {
     if (log.entityType == 'transaction') {
       final tx = _transactionForLog(currentState, log);
@@ -1147,7 +1148,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   TransactionEntity? _transactionForLog(
     AppStateEntity currentState,
-    LogEntryEntity log,
+    RecoveryEntry log,
   ) {
     return _currentTransaction(currentState, log.entityId) ??
         _snapshotForLog(log, preferBefore: log.action == 'delete')
@@ -1159,7 +1160,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   RecurringTransactionEntity? _recurringForLog(
     AppStateEntity currentState,
-    LogEntryEntity log,
+    RecoveryEntry log,
   ) {
     return _currentRecurring(currentState, log.entityId) ??
         _snapshotForLog(log, preferBefore: log.action == 'delete')
@@ -1170,15 +1171,10 @@ class _LogsScreenState extends State<LogsScreen> {
   }
 
   AppStateEntity? _snapshotForLog(
-    LogEntryEntity log, {
+    RecoveryEntry log, {
     required bool preferBefore,
   }) {
-    final raw = preferBefore ? log.beforeState : log.afterState;
-    try {
-      return AppStateEntity.fromMap(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
-      return null;
-    }
+    return AuditFacade.reconstructSnapshot(log, preferBefore: preferBefore);
   }
 
   TransactionEntity? _currentTransaction(AppStateEntity state, String id) {
@@ -1242,7 +1238,7 @@ class _LogsScreenState extends State<LogsScreen> {
     };
   }
 
-  String _pretty(LogEntryEntity log) {
+  String _pretty(RecoveryEntry log) {
     if (log.details.trim().isNotEmpty) return log.details.trim();
     return '${_actionName(log.action)} على ${_entityTypeName(log.entityType)}';
   }
@@ -1372,7 +1368,7 @@ class _LogCard extends StatelessWidget {
     this.amount,
   });
 
-  final LogEntryEntity log;
+  final RecoveryEntry log;
   final String title;
   final String actionName;
   final String entityName;

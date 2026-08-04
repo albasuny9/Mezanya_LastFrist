@@ -1,0 +1,298 @@
+You are continuing the Documentation Governance work for the Mezanya project.
+
+This is Documentation Phase 2.
+
+DO NOT modify any Dart code.
+DO NOT modify Flutter UI.
+DO NOT modify tests.
+DO NOT refactor business logic.
+DO NOT migrate Domain Bible content yet.
+
+Only work on documentation governance.
+
+==================================================
+GOAL
+==================================================
+
+Strengthen the documentation system so every future AI agent follows a single, strict documentation pipeline before touching code.
+
+==================================================
+TASK 1
+Review the documentation governance files you created.
+
+Improve them where necessary.
+
+Files:
+
+.agents/README.md
+
+.agents/PROJECT_INDEX.md
+
+.agents/DOCUMENTATION_MAP.md
+
+.agents/AGENT_WORKFLOW.md
+
+.agents/DOCUMENTATION_RULES.md
+
+==================================================
+TASK 2
+README
+
+Add a new section:
+
+# Golden Rules
+
+Include rules such as:
+
+- The Domain Bible is the ONLY source of truth for business rules.
+- Never duplicate business logic.
+- Never implement a second pipeline.
+- Never redesign architecture without approval.
+- Always search existing implementations before creating new ones.
+- One Domain.
+- One Pipeline.
+- One Source of Truth.
+
+This section should be short but strict.
+
+==================================================
+TASK 3
+AGENT_WORKFLOW
+
+Update the mandatory workflow.
+
+The required order is now:
+
+README
+
+↓
+
+PROJECT_INDEX
+
+↓
+
+Task Plan (current project task)
+
+↓
+
+Domain Bible
+
+↓
+
+Related ADR
+
+↓
+
+Current Source Code
+
+↓
+
+Implementation Documentation
+
+↓
+
+Agent Memory (only if required)
+
+↓
+
+Implementation
+
+No agent should ever skip or reorder these steps.
+
+==================================================
+TASK 4
+PROJECT_INDEX
+
+Expand every documentation entry.
+
+Every document/folder must contain:
+
+Purpose
+
+Authority
+
+Owner
+
+Read When
+
+Dependencies
+
+Related Documents
+
+If any value is unknown, explicitly state Unknown.
+
+==================================================
+TASK 5
+DOCUMENTATION_MAP
+
+Resolve documentation authority.
+
+There must be exactly ONE permanent business source of truth:
+
+Domain Bible
+
+All other documentation must be classified as one of:
+
+Reference
+
+Implementation
+
+Historical
+
+Temporary
+
+If another document currently claims to be a source of truth, explicitly mark it as superseded by the Domain Bible.
+
+==================================================
+TASK 6
+DOCUMENTATION_RULES
+
+Strengthen the rules.
+
+Add sections for:
+
+Permanent Knowledge
+
+Implementation Knowledge
+
+Temporary Knowledge
+
+Historical Knowledge
+
+For each category explain:
+
+Where it belongs
+
+Who owns it
+
+When it should be updated
+
+==================================================
+TASK 7
+DOCUMENTATION_AUDIT_REPORT
+
+Replace summaries with detailed tables.
+
+For every duplicated document include:
+
+File
+
+Duplicate Of
+
+Reason
+
+Recommended Action
+
+Keep
+
+Merge
+
+Archive
+
+Delete
+
+Do this for every duplicate discovered.
+
+==================================================
+TASK 8
+Agent Memory Review
+
+Review every file under:
+
+.agents/memory/
+
+For each file determine:
+
+Current Status
+
+Still Useful
+
+Obsolete
+
+Contains Permanent Domain Knowledge
+
+Candidate for Migration
+
+Do NOT migrate anything.
+
+Only produce the classification.
+
+==================================================
+TASK 9
+Migration Plan
+
+Create a new file:
+
+.agents/DOCUMENTATION_MIGRATION_PLAN.md
+
+For every future migration specify:
+
+Source File
+
+Destination File
+
+Section
+
+Reason
+
+Risk
+
+Dependencies
+
+Migration Priority
+
+Do NOT move any content.
+
+This is only the migration roadmap.
+
+==================================================
+TASK 10
+STRICT RULES
+
+Do NOT edit the Domain Bible.
+
+Do NOT edit ADRs.
+
+Do NOT delete any documentation.
+
+Do NOT move any documentation.
+
+Do NOT touch Flutter code.
+
+Do NOT touch Dart files.
+
+==================================================
+DELIVERABLES
+
+Update:
+
+.agents/README.md
+
+.agents/PROJECT_INDEX.md
+
+.agents/DOCUMENTATION_MAP.md
+
+.agents/AGENT_WORKFLOW.md
+
+.agents/DOCUMENTATION_RULES.md
+
+DOCUMENTATION_AUDIT_REPORT.md
+
+Create:
+
+.agents/DOCUMENTATION_MIGRATION_PLAN.md
+
+Finally produce a concise report containing:
+
+• Files updated
+
+• Documentation authority improvements
+
+• Duplicate inventory
+
+• Migration roadmap
+
+• Remaining documentation debt
+
+Stop after completing the documentation governance improvements.
+Do NOT begin any migration or cleanup.

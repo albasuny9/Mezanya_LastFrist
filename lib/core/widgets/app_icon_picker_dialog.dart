@@ -208,7 +208,7 @@ class AppIconPickerDialog extends StatefulWidget {
       ('bank', 'بنك', Icons.account_balance),
       ('cash', 'نقدي', Icons.payments),
       ('receipt', 'فاتورة', Icons.receipt_long),
-      ('savings', 'ادخار', Icons.savings),
+      ('savings', 'ادخار', Icons.monetization_on),
       ('attach_money', 'دولار', Icons.attach_money),
       ('currency_exchange', 'تحويل', Icons.currency_exchange),
       ('price_check', 'سعر', Icons.price_check),
@@ -537,7 +537,7 @@ class AppIconPickerDialog extends StatefulWidget {
       if (name.contains(item.name)) return item.icon;
     }
     const legacyMap = <String, dynamic>{
-      'PiggyBank': Icons.savings,
+      'PiggyBank': Icons.monetization_on,
       'Wallet2': Icons.account_balance_wallet,
       'UtensilsCrossed': Icons.restaurant,
       'BriefcaseBusiness': Icons.work,
@@ -593,6 +593,62 @@ class AppIconPickerDialog extends StatefulWidget {
     );
   }
 
+  static const presetHexColors = [
+    '#E57373',
+    '#E53935',
+    '#C62828',
+    '#AD1457',
+    '#D81B60',
+    '#EC407A',
+    '#F48FB1',
+    '#CE93D8',
+    '#AB47BC',
+    '#8E24AA',
+    '#6A1B9A',
+    '#5E35B1',
+    '#7E57C2',
+    '#B39DDB',
+    '#9FA8DA',
+    '#5C6BC0',
+    '#3949AB',
+    '#283593',
+    '#1E88E5',
+    '#42A5F5',
+    '#90CAF9',
+    '#039BE5',
+    '#00ACC1',
+    '#4DD0E1',
+    '#26A69A',
+    '#00897B',
+    '#0F766E',
+    '#165b47',
+    '#2F6F5E',
+    '#43A047',
+    '#7CB342',
+    '#9CCC65',
+    '#F9A825',
+    '#FB8C00',
+    '#F4511E',
+    '#8D6E63',
+    '#6D4C41',
+    '#37474F',
+    '#546E7A',
+    '#90A4AE',
+    '#1A1A1A',
+  ];
+
+  static IconPickerResult randomAppearance([math.Random? random]) {
+    final rng = random ?? math.Random();
+    final icons = iconsForCategory('all');
+    if (icons.isEmpty) {
+      return const IconPickerResult(iconName: 'category', colorHex: '#165b47');
+    }
+    return IconPickerResult(
+      iconName: icons[rng.nextInt(icons.length)].name,
+      colorHex: presetHexColors[rng.nextInt(presetHexColors.length)],
+    );
+  }
+
   @override
   State<AppIconPickerDialog> createState() => _AppIconPickerDialogState();
 }
@@ -604,33 +660,7 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   int _step = 0;
   bool _useCustomPicker = false;
 
-  static const _presetHexColors = [
-    '#E53935',
-    '#D81B60',
-    '#8E24AA',
-    '#5E35B1',
-    '#3949AB',
-    '#1E88E5',
-    '#039BE5',
-    '#00ACC1',
-    '#00897B',
-    '#43A047',
-    '#7CB342',
-    '#F9A825',
-    '#FB8C00',
-    '#F4511E',
-    '#6D4C41',
-    '#165b47',
-    '#0F766E',
-    '#2F6F5E',
-    '#546E7A',
-    '#37474F',
-    '#C62828',
-    '#283593',
-    '#4527A0',
-    '#558B2F',
-    '#1A1A1A',
-  ];
+  static const _presetHexColors = AppIconPickerDialog.presetHexColors;
 
   @override
   void initState() {
@@ -683,29 +713,15 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.name ?? widget.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _step == 0 ? 'اختر الأيقونة' : 'اختر اللون',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _selectedColor.withValues(alpha: 0.7),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        widget.name ?? widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF1A1A1A),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -908,16 +924,16 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
 
   Widget _colorPickerToggle() {
     return Container(
-      height: 44,
-      padding: const EdgeInsets.all(4),
+      height: 52,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: const Color(0xFFEEEDE6),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           _colorToggleTab(false, 'ألوان مقترحة', Icons.auto_awesome_rounded),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
           _colorToggleTab(true, 'لون مخصص', Icons.colorize_rounded),
         ],
       ),
@@ -931,15 +947,16 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
         onTap: () => setState(() => _useCustomPicker = custom),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             color: active ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: active
                 ? [
                     const BoxShadow(
                         color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2))
+                        blurRadius: 6,
+                        offset: Offset(0, 3))
                   ]
                 : null,
           ),
@@ -947,13 +964,13 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 14,
+                  size: 16,
                   color: active ? _selectedColor : const Color(0xFF888880)),
-              const SizedBox(width: 6),
+              const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w800,
                   color: active ? Colors.black : const Color(0xFF888880),
                 ),
@@ -1112,6 +1129,8 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
         final hex = _presetHexColors[index];
         final color = _hexToColor(hex);
         final selected = colorHex.toLowerCase() == hex.toLowerCase();
+        final isLight = color.computeLuminance() > 0.6;
+        final markColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
         return GestureDetector(
           onTap: () => setState(() => _selectedColor = color),
           child: AnimatedContainer(
@@ -1120,8 +1139,12 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
               color: color,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: selected ? Colors.white : Colors.transparent,
-                width: 3.5,
+                color: selected
+                    ? markColor
+                    : (isLight
+                        ? const Color(0xFFDDD8CC)
+                        : Colors.transparent),
+                width: selected ? 3.5 : (isLight ? 1 : 0),
               ),
               boxShadow: selected
                   ? [
@@ -1140,10 +1163,10 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                     ],
             ),
             child: selected
-                ? const Center(
+                ? Center(
                     child: Icon(
                       Icons.check_rounded,
-                      color: Colors.white,
+                      color: markColor,
                       size: 22,
                     ),
                   )
@@ -1169,28 +1192,6 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
         '${blue.toRadixString(16).padLeft(2, '0')}';
   }
 }
-
-// class _ColorWheel extends StatelessWidget {
-//   const _ColorWheel({
-//     required this.color,
-//     required this.onChanged,
-//   });
-
-//   final Color color;
-//   final ValueChanged<Color> onChanged;
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return SizedBox(
-//       width: 190,
-//       height: 190,
-//       child: _ColorWheelGesture(
-//         color: color,
-//         onChanged: onChanged,
-//       ),
-//     );
-//   }
-// }
 
 class _ColorWheelGesture extends StatefulWidget {
   const _ColorWheelGesture({
@@ -1297,7 +1298,7 @@ class _WheelPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _ColorBoxPicker extends StatelessWidget {
+class _ColorBoxPicker extends StatefulWidget {
   const _ColorBoxPicker({
     required this.color,
     required this.onChanged,
@@ -1307,61 +1308,197 @@ class _ColorBoxPicker extends StatelessWidget {
   final ValueChanged<Color> onChanged;
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return GestureDetector(
-          onPanDown: (d) => _update(d.localPosition, constraints.biggest),
-          onPanUpdate: (d) => _update(d.localPosition, constraints.biggest),
-          child: CustomPaint(
-            size: Size.infinite,
-            painter: _ColorBoxPainter(),
-          ),
-        );
-      },
-    );
+  State<_ColorBoxPicker> createState() => _ColorBoxPickerState();
+}
+
+class _ColorBoxPickerState extends State<_ColorBoxPicker> {
+  late HSVColor _hsv;
+
+  @override
+  void initState() {
+    super.initState();
+    _hsv = HSVColor.fromColor(widget.color);
   }
 
-  void _update(Offset pos, Size size) {
+  @override
+  void didUpdateWidget(covariant _ColorBoxPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // لو اللون اتغيّر من بره (مثلاً اختيار لون جاهز) زامن الحالة الداخلية
+    final current = _hsv.toColor();
+    if (current.toARGB32() != widget.color.toARGB32()) {
+      _hsv = HSVColor.fromColor(widget.color);
+    }
+  }
+
+  void _updateSatVal(Offset pos, Size size) {
     final x = (pos.dx / size.width).clamp(0.0, 1.0);
     final y = (pos.dy / size.height).clamp(0.0, 1.0);
+    setState(() {
+      _hsv = _hsv.withSaturation(x).withValue(1 - y);
+    });
+    widget.onChanged(_hsv.toColor());
+  }
 
-    final hue = x * 360;
-    final saturation = 1.0;
-    final value = 1 - y;
+  void _updateHue(Offset pos, double width) {
+    final x = (pos.dx / width).clamp(0.0, 1.0);
+    setState(() {
+      _hsv = _hsv.withHue(x * 360);
+    });
+    widget.onChanged(_hsv.toColor());
+  }
 
-    final color = HSVColor.fromAHSV(1, hue, saturation, value).toColor();
-    onChanged(color);
+  @override
+  Widget build(BuildContext context) {
+    final pureHueColor = HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor();
+    final markerOnLight = _hsv.value > 0.6 && _hsv.saturation < 0.4;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── مربع التشبّع/الإضاءة لنفس درجة اللون (Hue) المختارة ──
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = constraints.biggest;
+                final markerX = _hsv.saturation * size.width;
+                final markerY = (1 - _hsv.value) * size.height;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: GestureDetector(
+                    onPanDown: (d) => _updateSatVal(d.localPosition, size),
+                    onPanUpdate: (d) => _updateSatVal(d.localPosition, size),
+                    child: Stack(
+                      children: [
+                        CustomPaint(
+                          size: Size.infinite,
+                          painter: _SatValBoxPainter(hueColor: pureHueColor),
+                        ),
+                        Positioned(
+                          left: markerX - 13,
+                          top: markerY - 13,
+                          child: IgnorePointer(
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _hsv.toColor(),
+                                border: Border.all(
+                                  color: markerOnLight
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
+                                  width: 3,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          // ── شريط اختيار درجة اللون (Hue) ──
+          SizedBox(
+            height: 34,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final markerX = (_hsv.hue / 360) * width;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: GestureDetector(
+                    onPanDown: (d) => _updateHue(d.localPosition, width),
+                    onPanUpdate: (d) => _updateHue(d.localPosition, width),
+                    child: Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: List.generate(
+                                13,
+                                (i) => HSVColor.fromAHSV(
+                                        1, (i * 30).toDouble(), 1, 1)
+                                    .toColor(),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: (markerX - 16).clamp(0.0, width - 32),
+                          child: IgnorePointer(
+                            child: Container(
+                              width: 32,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: pureHueColor,
+                                borderRadius: BorderRadius.circular(999),
+                                border:
+                                    Border.all(color: Colors.white, width: 3),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class _ColorBoxPainter extends CustomPainter {
+class _SatValBoxPainter extends CustomPainter {
+  _SatValBoxPainter({required this.hueColor});
+
+  final Color hueColor;
+
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // Gradient أفقي (Hue)
-    final hueGradient = LinearGradient(
-      colors: List.generate(
-        7,
-        (i) => HSVColor.fromAHSV(1, i * 60, 1, 1).toColor(),
-      ),
-    );
+    // التشبّع: من الأبيض (يسار) إلى لون الـ Hue الصافي (يمين)
+    final satPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [Colors.white, hueColor],
+      ).createShader(rect);
+    canvas.drawRect(rect, satPaint);
 
-    final paint = Paint()..shader = hueGradient.createShader(rect);
-    canvas.drawRect(rect, paint);
-
-    // Gradient رأسي (Brightness)
-    final shade = Paint()
+    // الإضاءة: من شفاف (أعلى) إلى أسود (أسفل)
+    final valPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [Colors.transparent, Colors.black],
       ).createShader(rect);
-
-    canvas.drawRect(rect, shade);
+    canvas.drawRect(rect, valPaint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SatValBoxPainter oldDelegate) =>
+      oldDelegate.hueColor != hueColor;
 }

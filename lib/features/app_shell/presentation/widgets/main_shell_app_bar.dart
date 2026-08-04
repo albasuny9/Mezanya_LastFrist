@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mezanya_app/core/theme/app_theme.dart';
 
 class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
   const MainShellAppBar({
@@ -18,19 +19,18 @@ class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      titleSpacing: 12,
+      titleSpacing: 1,
       title: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-            child: Icon(
-              Icons.insights_rounded,
-              size: 18,
-              color: Theme.of(context).colorScheme.primary,
+          SizedBox(
+            width: 50,
+            height: 55,
+            child: Image.asset(
+              'assets/appbar_icon.png',
+              fit: BoxFit.contain,
             ),
           ),
-          const SizedBox(width: 8),
+          //const SizedBox(width: 1),
           const Text('الميزانية'),
           const Spacer(),
           FutureBuilder<String>(
@@ -38,7 +38,11 @@ class MainShellAppBar extends StatelessWidget implements PreferredSizeWidget {
             builder: (context, snapshot) {
               return Text(
                 snapshot.data ?? '',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: AppTheme.dateTextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               );
             },
           ),

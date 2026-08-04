@@ -1,11 +1,13 @@
 import 'package:mezanya_app/core/constants/transaction_types.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../domain/entities/goal_entity.dart';
+import '../../../wallets/presentation/widgets/jar_details_sheet.dart';
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key, required this.cubit});
@@ -38,24 +40,34 @@ class _GoalsScreenState extends State<GoalsScreen> {
           0,
           (sum, goal) => sum + goal.targetAmount,
         );
-        final completed = state.goals
+        final completedGoals = state.goals
             .where((goal) => _progress(goal, savedAmount) >= 1)
             .length;
+        final remainingAmount =
+            (totalTargets - savedAmount).clamp(0.0, double.infinity);
+        final completedAmount = totalTargets <= 0
+            ? 0.0
+            : savedAmount.clamp(0.0, totalTargets).toDouble();
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             _heroCard(
               goalsCount: state.goals.length,
-              completedCount: completed,
+              completedAmount: completedAmount,
               totalTargets: totalTargets,
-              savedAmount: savedAmount,
+              remainingAmount: remainingAmount,
             ),
             const SizedBox(height: 14),
-            _savingsJarCard(jarName: jar?.name, savedAmount: savedAmount),
-            const SizedBox(height: 14),
-            _sectionHeader('الأهداف', '${state.goals.length} هدف'),
-            const SizedBox(height: 10),
+            _savingsJarCard(
+              jar: jar,
+              savedAmount: savedAmount,
+            ),
+            const SizedBox(height: 18),
+            if (state.goals.isNotEmpty) ...[
+              _sectionHeader('الأهداف', '$completedGoals مكتمل'),
+              const SizedBox(height: 10),
+            ],
             if (state.goals.isEmpty)
               _emptyGoalsCard()
             else
@@ -68,7 +80,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  dynamic _savingsJar(AppStateEntity state) {
+  LinkedWalletEntity? _savingsJar(AppStateEntity state) {
     final matches = state.budgetSetup.linkedWallets
         .where((wallet) => wallet.id == 'linked-savings-default')
         .toList();
@@ -77,98 +89,161 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Widget _heroCard({
     required int goalsCount,
-    required int completedCount,
+    required double completedAmount,
     required double totalTargets,
-    required double savedAmount,
+    required double remainingAmount,
   }) {
-    const accent = Color(0xFF1F6F54);
+    const accent = Color(0xFF165B47);
     final theme = Theme.of(context);
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
-          colors: [Color(0xFF1F6F54), Color(0xFF7BAF73)],
+          colors: [Color(0xFF0A3D36), Color(0xFF165B47), Color(0xFF1F6F54)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
+            color: accent.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 66,
-                height: 66,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(
-                  Icons.flag_rounded,
-                  color: Colors.white,
-                  size: 34,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
+          const Positioned.fill(
+            child: CustomPaint(
+              painter: _GoalsNightSkyPainter(),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'أهداف التوفير',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'أهداف التوفير',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 22,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'حوّل كل هدف لخطة واضحة بمبلغ ومدة وأيقونة مميزة.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'حوّل كل هدف لخطة واضحة بمبلغ ومدة وأيقونة مميزة.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        fontWeight: FontWeight.w700,
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.flag_rounded,
+                        color: Colors.white,
+                        size: 28,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroMetric(label: 'الأهداف', value: '$goalsCount'),
-              _HeroMetric(label: 'المكتمل', value: '$completedCount'),
-              _HeroMetric(
-                label: 'المستهدف',
-                value: totalTargets.toStringAsFixed(0),
-              ),
-              _HeroMetric(
-                label: 'المتاح',
-                value: savedAmount.toStringAsFixed(0),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () => _openGoalEditor(widget.cubit.state),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('إضافة هدف جديد'),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: accent,
-              minimumSize: const Size.fromHeight(50),
+                const SizedBox(height: 18),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: IntrinsicHeight(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _HeroStatCell(
+                            icon: Icons.schedule_rounded,
+                            label: 'المتبقي',
+                            value: _formatGoalAmount(remainingAmount),
+                            unit: 'جنيه',
+                          ),
+                        ),
+                        _heroStatDivider(),
+                        Expanded(
+                          child: _HeroStatCell(
+                            icon: Icons.star_outline_rounded,
+                            label: 'الأهداف',
+                            value: '$goalsCount',
+                            unit: 'هدف',
+                          ),
+                        ),
+                        _heroStatDivider(),
+                        Expanded(
+                          child: _HeroStatCell(
+                            icon: Icons.check_circle_outline_rounded,
+                            label: 'المكتمل',
+                            value: _formatGoalAmount(completedAmount),
+                            unit: 'جنيه',
+                          ),
+                        ),
+                        _heroStatDivider(),
+                        Expanded(
+                          child: _HeroStatCell(
+                            icon: Icons.savings_outlined,
+                            label: 'المستهدف',
+                            value: _formatGoalAmount(totalTargets),
+                            unit: 'جنيه',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => _openGoalEditor(widget.cubit.state),
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: const Text('إضافة هدف جديد'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: accent,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -176,34 +251,114 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
+  Widget _heroStatDivider() {
+    return Container(
+      width: 1,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      color: Colors.white.withValues(alpha: 0.18),
+    );
+  }
+
+  String _formatGoalAmount(double value) {
+    return NumberFormat('#,##0', 'en').format(value.round());
+  }
+
   Widget _savingsJarCard({
-    required String? jarName,
+    required LinkedWalletEntity? jar,
     required double savedAmount,
   }) {
+    const accent = Color(0xFF165B47);
     final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
+        color: const Color(0xFFF5F8F2),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+          color: accent.withValues(alpha: 0.12),
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F6F54).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.savings_rounded,
-              color: Color(0xFF1F6F54),
-              size: 30,
-            ),
+          Column(
+            children: [
+              SizedBox(
+                width: 72,
+                height: 72,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.monetization_on_rounded,
+                        color: accent,
+                        size: 34,
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      left: 6,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF9A825),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.monetization_on_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: jar == null
+                    ? null
+                    : () => showJarDetailsSheet(
+                          context: context,
+                          cubit: widget.cubit,
+                          jarId: jar.id,
+                          onEditJar: (_) {},
+                        ),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'تفاصيل الرصيد',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: accent,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_left_rounded,
+                        size: 16,
+                        color: accent,
+                        textDirection: TextDirection.ltr,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -211,9 +366,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  jarName ?? 'حصالة التوفير',
+                  jar?.name ?? 'التوفير',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
+                    color: accent,
+                    fontSize: 17,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -221,17 +378,40 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   'الرصيد المتاح لتحقيق الأهداف',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
           ),
-          Text(
-            savedAmount.toStringAsFixed(2),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF1F6F54),
-              fontWeight: FontWeight.w900,
-            ),
+          Container(
+            width: 1,
+            height: 54,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            color: accent.withValues(alpha: 0.15),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                savedAmount.toStringAsFixed(2),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 24,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'جنيه',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -605,7 +785,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 child: Column(
                   children: [
                     _InfoStrip(
-                      icon: Icons.savings_rounded,
+                      icon: Icons.monetization_on_rounded,
                       title: 'الرصيد الحالي',
                       value: jar.balance.toStringAsFixed(2),
                     ),
@@ -1098,42 +1278,144 @@ class _GoalEditorScreenState extends State<_GoalEditorScreen> {
   String _formatDate(DateTime date) => DateFormat('d/M/yyyy').format(date);
 }
 
-class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({required this.label, required this.value});
+class _HeroStatCell extends StatelessWidget {
+  const _HeroStatCell({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
 
+  final IconData icon;
   final String label;
   final String value;
+  final String unit;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  fontWeight: FontWeight.w700,
-                ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white.withValues(alpha: 0.9), size: 18),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.78),
+            fontWeight: FontWeight.w600,
+            fontSize: 11,
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            height: 1,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          unit,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.72),
+            fontWeight: FontWeight.w600,
+            fontSize: 10,
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _GoalsNightSkyPainter extends CustomPainter {
+  const _GoalsNightSkyPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final mountainPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+
+    final farMountain = Path()
+      ..moveTo(0, size.height * 0.72)
+      ..lineTo(size.width * 0.18, size.height * 0.58)
+      ..lineTo(size.width * 0.36, size.height * 0.68)
+      ..lineTo(size.width * 0.52, size.height * 0.5)
+      ..lineTo(size.width * 0.72, size.height * 0.64)
+      ..lineTo(size.width, size.height * 0.54)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(farMountain, mountainPaint);
+
+    final nearMountain = Paint()
+      ..color = Colors.black.withValues(alpha: 0.24)
+      ..style = PaintingStyle.fill;
+    final nearPath = Path()
+      ..moveTo(0, size.height * 0.82)
+      ..lineTo(size.width * 0.24, size.height * 0.66)
+      ..lineTo(size.width * 0.48, size.height * 0.78)
+      ..lineTo(size.width * 0.7, size.height * 0.62)
+      ..lineTo(size.width, size.height * 0.74)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(nearPath, nearMountain);
+
+    final starPaint = Paint()..color = Colors.white.withValues(alpha: 0.85);
+    const stars = <Offset>[
+      Offset(0.12, 0.18),
+      Offset(0.28, 0.1),
+      Offset(0.44, 0.16),
+      Offset(0.58, 0.08),
+      Offset(0.72, 0.14),
+      Offset(0.86, 0.2),
+      Offset(0.34, 0.28),
+      Offset(0.64, 0.24),
+    ];
+    for (final point in stars) {
+      canvas.drawCircle(
+        Offset(point.dx * size.width, point.dy * size.height),
+        1.6,
+        starPaint,
+      );
+    }
+
+    final moonPaint = Paint()..color = Colors.white.withValues(alpha: 0.9);
+    canvas.drawCircle(
+      Offset(size.width * 0.18, size.height * 0.2),
+      10,
+      moonPaint,
+    );
+    final moonCutPaint = Paint()
+      ..color = const Color(0xFF0F4F45)
+      ..blendMode = BlendMode.srcOver;
+    canvas.drawCircle(
+      Offset(size.width * 0.2, size.height * 0.18),
+      9,
+      moonCutPaint,
+    );
+
+    final shootingPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.45)
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * 0.7, size.height * 0.12),
+      Offset(size.width * 0.82, size.height * 0.18),
+      shootingPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _GoalMiniData extends StatelessWidget {

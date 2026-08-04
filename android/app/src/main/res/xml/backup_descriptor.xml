@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 11 and below (API ≤ 30) backup exclusion rules.
+    Referenced by android:fullBackupContent in AndroidManifest.xml.
+
+    EXCLUDED:
+      FlutterSharedPreferences.xml — contains korassa_app_state (the entire
+      financial database: wallets, transactions, budget, jars, goals, etc.).
+      Financial data must only be restored through Mezanya's own
+      Backup/Restore system, never automatically by the OS.
+
+    NOTE: The Flutter shared_preferences plugin stores ALL SharedPreferences
+    in a single file (FlutterSharedPreferences.xml). Android backup rules
+    operate at the file level, not the key level, so excluding only one key
+    (korassa_app_state) within the file is not supported by the Android
+    backup API without code changes.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+</full-backup-content>

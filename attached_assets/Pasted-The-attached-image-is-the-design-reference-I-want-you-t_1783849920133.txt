@@ -1,0 +1,201 @@
+The attached image is the design reference.
+
+I want you to rebuild the Backup Settings screen to closely match the provided design while preserving the existing Mezanya visual identity.
+
+Important
+
+This is a UI/UX refactor only.
+
+Do NOT modify:
+
+Backup business logic.
+Backup services.
+Cloud or local backup implementation.
+Restore logic.
+Upload logic.
+Auto backup triggers.
+Rotation logic.
+Storage paths.
+Firestore structure.
+Backup state management.
+Existing Cubit/Bloc behavior.
+
+Only rebuild the presentation layer and connect it to the existing state.
+
+Page Structure
+
+Keep a single Backup page.
+
+It contains only two main sections:
+
+Local Backup
+Cloud Backup
+
+Do not split them into separate pages.
+
+Section Layout
+
+Each section contains two compact cards:
+
+Automatic Backup
+Manual Backup
+
+The cards should be visually lightweight and highly consistent.
+
+Card Design
+
+Use the attached design as the base.
+
+Requirements:
+
+Minimal visual noise.
+Compact cards.
+Consistent spacing.
+Same corner radius across cards.
+Same internal padding.
+Same icon style.
+Same typography hierarchy.
+Keep Mezanya colors.
+Automatic Backup Card
+
+Contains:
+
+Title
+Toggle switch
+Three-dot menu
+Folder summary
+Last backup time
+
+The switch and the Manual button should have approximately the same visual size.
+
+Manual Backup Card
+
+Contains:
+
+Title
+Small "Backup Now" button
+Three-dot menu
+Folder summary
+Last backup time
+
+Do NOT use a large full-width button.
+
+The button should remain compact and visually balanced with the Automatic switch.
+
+Folder Display
+
+Never display the complete filesystem path.
+
+Display only the last two folders.
+
+Example:
+
+Mezanya Backup / Auto
+
+or
+
+Mezanya Backup / Manual
+
+If the name is long, truncate with ellipsis.
+
+Last Backup Display
+
+Use smart relative formatting.
+
+Examples:
+
+Today • 9:45 PM
+
+Yesterday • 10:12 PM
+
+Wednesday • 8:30 AM
+
+4 July 2026
+
+Do not display raw timestamps.
+
+Three-dot Menu
+Local Backup
+
+Menu contains:
+
+Restore Backup
+Change Backup Folder
+Cloud Backup
+
+Menu contains:
+
+Restore Backup
+
+Nothing else.
+
+Google Account Card
+
+Keep the account row.
+
+Display:
+
+Signed-in email
+Connected / Disconnected badge
+
+If not signed in, show a proper Sign in with Google state instead of an empty email.
+
+Alignment
+
+Maintain a consistent layout grid.
+
+The following should align across all cards:
+
+Three-dot menu
+Toggle switch
+Backup Now button
+
+Spacing should be identical between cards.
+
+Localization
+
+Do NOT hardcode any UI strings.
+
+Every visible text must come from Flutter localization.
+
+Use:
+
+app_ar.arb
+app_en.arb
+
+and access them through AppLocalizations.
+
+This includes every label, menu item, button, status, and message.
+
+Performance
+
+Keep the existing independent loading behavior.
+
+Each card must continue loading independently.
+
+Do not introduce any global loading indicator.
+
+Reuse
+
+Avoid duplicate widgets.
+
+Extract reusable widgets where appropriate for:
+
+Backup Card
+Metadata Row
+Folder Row
+Last Backup Row
+Popup Menu
+Responsiveness
+
+The layout must scale correctly across different phone sizes.
+
+Avoid overflow.
+
+Avoid fixed widths.
+
+Final Requirement
+
+The final result should look almost identical to the attached design while keeping the existing backup functionality completely untouched.
+
+Focus only on improving the presentation layer, code quality, localization, and widget organization.

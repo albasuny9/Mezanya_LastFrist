@@ -25,7 +25,8 @@ enum TransferType {
   jarAllocationSpend('jar-allocation-spend'),
   depositWithJarLabel('deposit-with-jar-label'),
   allocationToJar('allocation-to-jar'),
-  jarToAllocation('jar-to-allocation');
+  jarToAllocation('jar-to-allocation'),
+  jarToJar('jar-to-jar');
 
   const TransferType(this.value);
 

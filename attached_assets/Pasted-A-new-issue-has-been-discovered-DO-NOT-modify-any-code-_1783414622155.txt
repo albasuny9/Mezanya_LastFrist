@@ -1,0 +1,240 @@
+A new issue has been discovered.
+
+DO NOT modify any code.
+
+DO NOT fix anything yet.
+
+Your task is INVESTIGATION ONLY.
+
+======================================================================
+ISSUE
+======================================================================
+
+After uninstalling the app and installing it again, the application automatically restores OLD LOCAL DATA.
+
+This happens:
+
+- Before signing into any account.
+- Without Firebase authentication.
+- Without Google account login.
+- Without the user explicitly choosing a backup.
+
+The restored data is NOT the latest data.
+
+It appears to be an old local snapshot.
+
+This automatic restore behavior is NOT desired.
+
+We first need to understand WHY it happens.
+
+======================================================================
+YOUR TASK
+======================================================================
+
+Perform a complete investigation of every possible source of automatic local data restoration.
+
+Do NOT change code.
+
+Only inspect and report.
+
+======================================================================
+SEARCH THE ENTIRE PROJECT
+======================================================================
+
+Look for:
+
+Automatic restore
+
+Automatic backup import
+
+Startup initialization
+
+App bootstrap
+
+Hive initialization
+
+Isar initialization
+
+SQLite initialization
+
+SharedPreferences initialization
+
+BackupManager
+
+RestoreManager
+
+BackupService
+
+RestoreService
+
+StorageService
+
+Local database bootstrap
+
+File import
+
+Backup folders
+
+App startup lifecycle
+
+main()
+
+bootstrap()
+
+init()
+
+AppCubit startup
+
+Repository initialization
+
+======================================================================
+CHECK SPECIFICALLY
+======================================================================
+
+1.
+
+Does the app automatically search for backup files on startup?
+
+If yes:
+
+Where?
+
+When?
+
+Which method?
+
+2.
+
+Does the app automatically import the newest backup?
+
+3.
+
+Does it automatically import the oldest backup?
+
+4.
+
+Does it automatically restore after reinstall?
+
+5.
+
+Does it restore after detecting an empty database?
+
+6.
+
+Does it restore after opening Hive?
+
+7.
+
+Does it restore inside AppCubit initialization?
+
+8.
+
+Does any BackupService execute automatically?
+
+9.
+
+Does any RestoreService execute automatically?
+
+10.
+
+Does bootstrap() trigger restore?
+
+11.
+
+Does main() trigger restore?
+
+12.
+
+Does any screen trigger restore on first launch?
+
+======================================================================
+LOCAL STORAGE
+======================================================================
+
+Identify exactly where local data is stored.
+
+Examples:
+
+Hive
+
+Hive Boxes
+
+SQLite
+
+Isar
+
+SharedPreferences
+
+Files
+
+Application Documents
+
+External Storage
+
+Downloads
+
+Android/media
+
+Any custom folder
+
+======================================================================
+CHECK DELETION
+======================================================================
+
+Verify what happens when the app is uninstalled.
+
+Which folders survive uninstall?
+
+Which folders are deleted?
+
+Is the backup stored outside the application sandbox?
+
+======================================================================
+CHECK MANIFEST
+======================================================================
+
+Inspect Android configuration.
+
+Verify:
+
+android:allowBackup
+
+android:fullBackupContent
+
+dataExtractionRules
+
+Explain whether any Android backup mechanism could contribute.
+
+======================================================================
+EXPECTED OUTPUT
+======================================================================
+
+Provide ONLY a report.
+
+Do NOT change code.
+
+The report must include:
+
+1. Every automatic restore path found.
+
+2. Every backup location.
+
+3. Every startup execution path.
+
+4. Whether the behavior is intentional.
+
+5. The exact method responsible.
+
+6. File names.
+
+7. Function names.
+
+8. Call chain from app startup until restore.
+
+9. Whether uninstall should have removed the data.
+
+10. Your recommendation for fixing it (without implementing it).
+
+STOP after the report.
+
+Do NOT modify any files.

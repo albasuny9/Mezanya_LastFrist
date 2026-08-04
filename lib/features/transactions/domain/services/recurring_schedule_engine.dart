@@ -294,6 +294,16 @@ class RecurringScheduleEngine {
     return null;
   }
 
+  static DateTime? unhandledDueOccurrence(
+    RecurringTransactionEntity recurring,
+    DateTime now,
+  ) {
+    final due = dueOccurrenceNow(recurring, now);
+    if (due == null) return null;
+    if (wasOccurrenceHandled(recurring, due)) return null;
+    return due;
+  }
+
   static bool wasOccurrenceHandled(
     RecurringTransactionEntity recurring,
     DateTime occurrence,

@@ -1,6 +1,38 @@
 import 'package:flutter/material.dart';
 
+import 'app_fonts.dart';
+
 class AppTheme {
+  static TextStyle classicTextStyle({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+  }) {
+    return TextStyle(
+      fontFamily: AppFonts.classic,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+    );
+  }
+
+  static TextStyle dateTextStyle({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+  }) {
+    return TextStyle(
+      fontFamily: AppFonts.classic,
+      fontSize: fontSize != null ? fontSize + 2 : 18,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+    );
+  }
+
   static ThemeData tactileManuscript() {
     const primary = Color(0xFF2F6F5E);
     const primaryDim = Color(0xFF1F4F43);
