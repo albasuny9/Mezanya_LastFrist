@@ -7,10 +7,12 @@ import '../../../budget/domain/entities/budget_setup_entity.dart';
 class JarEditorResult {
   const JarEditorResult({
     this.entity,
+    this.requestedBalance,
     this.deleteRequested = false,
   });
 
   final LinkedWalletEntity? entity;
+  final double? requestedBalance;
   final bool deleteRequested;
 }
 
@@ -32,6 +34,7 @@ class JarEditorScreen extends StatefulWidget {
 
 class _JarEditorScreenState extends State<JarEditorScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _balanceController;
   late int _selectedDay;
   late String _selectedIcon;
   late String _selectedColor;
@@ -44,6 +47,9 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.current?.name ?? '');
+    _balanceController = TextEditingController(
+      text: (widget.current?.balance ?? 0).toStringAsFixed(2),
+    );
     _selectedDay = (widget.current?.executionDay ?? 1).clamp(1, 28);
     // لو حصالة جديدة — اختار لون وأيقونة عشوائية من الباليت
     const jarPalette = [
@@ -69,6 +75,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _balanceController.dispose();
     super.dispose();
   }
 
@@ -76,6 +83,11 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
         0,
         (sum, item) => sum + item.plannedAmount,
       );
+
+  double get _balancePreview =>
+      double.tryParse(_balanceController.text.trim()) ??
+      widget.current?.balance ??
+      0;
 
   Future<void> _pickIcon() async {
     final picked = await AppIconPickerDialog.show(
@@ -162,9 +174,23 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
 
   void _save() {
     final name = _nameController.text.trim();
+    final balanceText = _balanceController.text.trim();
 
     if (name.isEmpty) {
       _showMessage('اكتب اسمًا واضحًا للحصالة أولًا.');
+      return;
+    }
+
+    if (balanceText.isEmpty) {
+      _showMessage('Current balance is required.');
+      return;
+    }
+
+    final balance = double.tryParse(balanceText);
+    if (balance == null || balance < 0) {
+      _showMessage(
+        'Current balance must be a number greater than or equal to 0.',
+      );
       return;
     }
 
@@ -174,26 +200,41 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
         )
         .toList();
 
-    final entity = LinkedWalletEntity(
-      id: widget.current?.id ?? widget.idFactory('linked'),
-      name: name,
-      balance: widget.current?.balance ?? 0,
-      monthlyAmount: cleanedFunding.fold(
-        0,
-        (sum, item) => sum + item.plannedAmount,
-      ),
-      executionDay: _selectedDay,
-      fundingSource:
-          cleanedFunding.isNotEmpty ? cleanedFunding.first.incomeSourceId : '',
-      funding: cleanedFunding,
-      icon: _selectedIcon,
-      iconColor: _selectedColor,
-      automationType: _automationType,
-      categories: widget.current?.categories ?? const [],
+    final monthlyAmount = cleanedFunding.fold(
+      0.0,
+      (sum, item) => sum + item.plannedAmount,
     );
+    final fundingSource =
+        cleanedFunding.isNotEmpty ? cleanedFunding.first.incomeSourceId : '';
+    final current = widget.current;
+    final entity = current == null
+        ? LinkedWalletEntity(
+            id: widget.idFactory('linked'),
+            name: name,
+            balance: 0,
+            monthlyAmount: monthlyAmount,
+            executionDay: _selectedDay,
+            fundingSource: fundingSource,
+            funding: cleanedFunding,
+            icon: _selectedIcon,
+            iconColor: _selectedColor,
+            automationType: _automationType,
+            categories: const [],
+          )
+        : current.copyWith(
+            name: name,
+            balance: current.balance,
+            monthlyAmount: monthlyAmount,
+            executionDay: _selectedDay,
+            fundingSource: fundingSource,
+            funding: cleanedFunding,
+            icon: _selectedIcon,
+            iconColor: _selectedColor,
+            automationType: _automationType,
+          );
 
     Navigator.of(context).pop(
-      JarEditorResult(entity: entity),
+      JarEditorResult(entity: entity, requestedBalance: balance),
     );
   }
 
@@ -302,7 +343,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'الرصيد الحالي ${(widget.current?.balance ?? 0).toStringAsFixed(2)}',
+                        'الرصيد الحالي ${_balancePreview.toStringAsFixed(2)}',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.white.withValues(alpha: 0.92),
                           fontWeight: FontWeight.w600,
@@ -325,8 +366,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
           const SizedBox(height: 18),
           _JarEditorSection(
             title: 'البيانات الأساسية',
-            subtitle:
-                'حدد اسم الحصالة وشكلها. الرصيد الفعلي يأتي من التخصيصات والتحويلات وليس من كتابة رقم يدوي.',
+            subtitle: 'حدد اسم الحصالة ورصيدها الحالي وشكلها.',
             child: Column(
               children: [
                 TextField(
@@ -338,43 +378,15 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(
-                      alpha: 0.30,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: colorScheme.outlineVariant.withValues(alpha: 0.55),
-                    ),
+                TextField(
+                  controller: _balanceController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'الرصيد الحالي',
+                    hintText: '0.00',
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'الرصيد الحالي',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        (widget.current?.balance ?? 0).toStringAsFixed(2),
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'يتغير هذا الرقم من التخصيصات الفعلية والتحويل الداخلي، وليس من هذه الشاشة.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 InkWell(

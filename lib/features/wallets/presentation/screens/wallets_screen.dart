@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -1985,7 +1985,41 @@ class _WalletsScreenState extends State<WalletsScreen> {
       } else {
         await widget.cubit.updateLinkedWallet(entity);
       }
+      await _applyManualJarBalanceCorrection(
+        jarId: entity.id,
+        fromBalance: current?.balance ?? 0,
+        toBalance: result.requestedBalance,
+      );
     });
+  }
+
+  Future<void> _applyManualJarBalanceCorrection({
+    required String jarId,
+    required double fromBalance,
+    required double? toBalance,
+  }) async {
+    if (toBalance == null) return;
+    final delta = toBalance - fromBalance;
+    if (delta.abs() < 0.01) return;
+
+    if (delta > 0) {
+      await widget.cubit.addTransaction(
+        toWalletId: jarId,
+        amount: delta,
+        type: TransactionType.transfer.value,
+        transferType: TransferType.jarFunding.value,
+        details: 'Manual jar balance correction',
+      );
+      return;
+    }
+
+    await widget.cubit.addTransaction(
+      toWalletId: jarId,
+      amount: -delta,
+      type: TransactionType.expense.value,
+      budgetScope: BudgetScope.outsideBudget.value,
+      details: 'Manual jar balance correction',
+    );
   }
 
   Map<String, double> _walletReservations(
