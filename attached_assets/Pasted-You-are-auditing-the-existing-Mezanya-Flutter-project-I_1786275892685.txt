@@ -1,0 +1,477 @@
+You are auditing the existing Mezanya Flutter project.
+
+IMPORTANT:
+This is an INVESTIGATION ONLY.
+
+DO NOT MODIFY ANY FILE.
+DO NOT FORMAT ANY FILE.
+DO NOT CREATE ANY FILE.
+DO NOT DELETE ANY FILE.
+DO NOT COMMIT.
+DO NOT "FIX" anything.
+DO NOT refactor anything.
+
+Your job is to reconstruct the ACTUAL recurring-operations lifecycle from
+the current codebase and report confirmed facts only.
+
+Do not infer behavior from generic finance apps.
+Do not assume the architecture is correct.
+Do not assume a method is the authoritative lifecycle owner just because
+its name sounds correct.
+
+========================================================
+DOMAIN SOURCE OF TRUTH
+========================================================
+
+Read these Domain Bible chapters first:
+
+- 04 - Financial Engine.md
+- 06 - Read Models.md
+- 09 - Recurring Operations.md
+- 10 - Transaction Lifecycle.md
+- 11 - Financial Ledger.md
+
+Use the actual current code to verify how these rules are implemented.
+
+If the Bible does not define something, mark it as:
+
+UNRESOLVED
+
+Do not invent an answer.
+
+========================================================
+PRIMARY PROBLEM
+========================================================
+
+Recurring operations currently appear to have multiple overlapping paths.
+
+We have already encountered problems involving:
+
+- recurring salary/income
+- recurring expenses
+- recurring Jar funding
+- automatic posting
+- manual confirmation
+- postpone
+- notifications
+- budget confirmation
+- duplicate transactions
+- duplicate Jar funding
+- occurrence state
+- transaction creation
+- app restart
+- overdue recurring operations
+
+The concern is NOT one isolated bug.
+
+The concern is that multiple parts of the application may independently
+participate in the same recurring lifecycle.
+
+We need to determine whether there is currently:
+
+ONE authoritative lifecycle
+
+or
+
+MULTIPLE competing lifecycle paths.
+
+========================================================
+STEP 1 — FIND EVERY RECURRING ENTRY POINT
+========================================================
+
+Search the entire lib/ and test/ tree.
+
+Find every place that:
+
+- creates recurring operations
+- checks whether recurring operations are due
+- processes due recurring operations
+- creates a TransactionEntity from recurring data
+- calls TransactionProcessor for recurring operations
+- calls addTransaction because of a recurring operation
+- marks recurring operation handled/completed
+- postpones recurring operations
+- changes next occurrence/date
+- creates recurring notifications
+- persists recurring notifications
+- consumes recurring notifications
+- confirms recurring operations
+- automatically posts recurring operations
+- creates recurring income
+- creates recurring expenses
+- creates recurring Jar funding
+- changes budget income state because of recurring income
+- changes Jar state because of recurring operations
+
+Produce an exhaustive list.
+
+For every result give:
+
+FILE
+CLASS / METHOD
+CALLER
+CALLEE
+PURPOSE
+FINANCIAL EFFECT? YES/NO
+RECURRING STATE EFFECT? YES/NO
+NOTIFICATION EFFECT? YES/NO
+BUDGET EFFECT? YES/NO
+
+========================================================
+STEP 2 — TRACE THE FULL LIFECYCLE
+========================================================
+
+Trace at least these scenarios from beginning to end:
+
+1. Recurring income due → manual confirmation
+
+2. Recurring income due → automatic posting
+
+3. Recurring expense due → manual confirmation
+
+4. Recurring expense due → automatic posting
+
+5. Recurring income with automatic Jar funding
+
+6. Recurring income with manually selected target Jar
+
+7. Recurring income with both incomeSourceId and target Jar
+
+8. User postpones recurring income
+
+9. User postpones recurring expense
+
+10. Notification confirmation
+
+11. Budget-screen confirmation
+
+12. App restart while recurring operation is due
+
+13. App restart while confirmation is pending
+
+14. Same notification/action triggered twice
+
+15. Multiple overdue recurring occurrences
+
+For every scenario show the actual call chain:
+
+UI
+→ controller/cubit
+→ service
+→ recurring logic
+→ transaction creation
+→ TransactionProcessor
+→ state mutation
+→ recurring occurrence mutation
+→ notification mutation
+→ budget mutation
+→ persistence
+
+Use actual class and method names.
+
+Do not summarize away important intermediate calls.
+
+========================================================
+STEP 3 — FIND MULTIPLE OWNERS
+========================================================
+
+Specifically identify whether the following responsibilities exist in more
+than one place:
+
+A. "Create the financial transaction"
+
+B. "Mark recurring occurrence as handled"
+
+C. "Post/confirm recurring operation"
+
+D. "Postpone recurring operation"
+
+E. "Generate recurring notification"
+
+F. "Consume recurring notification"
+
+G. "Advance next recurring date"
+
+H. "Update budget income state"
+
+I. "Create automatic Jar funding"
+
+For each responsibility:
+
+CURRENT OWNER(S)
+FILE(S)
+METHOD(S)
+DUPLICATION?
+CONFIRMED CONFLICT?
+EVIDENCE
+
+========================================================
+STEP 4 — OCCURRENCE IDENTITY / DUPLICATION
+========================================================
+
+Determine exactly how the application identifies a recurring occurrence.
+
+Search for:
+
+- recurringOperationId
+- recurring id references
+- occurrence dates
+- transaction references
+- parentId
+- notification identifiers
+- handled flags
+- posted flags
+- next occurrence dates
+- any idempotency mechanism
+
+Answer:
+
+Can the exact same recurring occurrence currently be posted twice?
+
+Do not answer "yes" or "no" without tracing the actual code.
+
+Check these cases:
+
+- same button pressed twice
+- notification and budget screen both confirm
+- app restart and retry
+- notification opened twice
+- automatic processing runs after manual confirmation
+- two overdue-processing passes
+
+========================================================
+STEP 5 — MONEY / FINANCIAL ENGINE BOUNDARY
+========================================================
+
+Verify the Domain Bible rule:
+
+Recurring operation = scheduled intent.
+
+Transaction = financial reality.
+
+Determine whether ANY recurring path changes financial balances without
+creating and processing a TransactionEntity through the Financial Engine.
+
+Search specifically for direct mutations of:
+
+- Wallet.balance
+- LinkedWalletEntity.balance
+- AllocationEntity.balance
+- walletBalances
+- any other financial balance
+
+caused by recurring logic.
+
+Report every confirmed direct mutation.
+
+========================================================
+STEP 6 — INCOME / SALARY
+========================================================
+
+Investigate specifically:
+
+Can planned recurring salary/income appear as received income before a
+real TransactionEntity exists?
+
+Trace the budget metrics/read model.
+
+Identify exactly:
+
+- where planned income comes from
+- where realized income comes from
+- what makes it "received"
+- whether recurring state can accidentally be treated as financial reality
+
+Report the exact code paths.
+
+========================================================
+STEP 7 — JAR FUNDING
+========================================================
+
+This is especially important.
+
+Trace:
+
+Recurring Income
+→ automatic allocation/funding
+→ Jar
+
+Determine:
+
+- who creates the parent transaction
+- who creates child/sub-transactions
+- who changes Jar balance
+- how parentId is assigned
+- how reversal finds child transactions
+- whether manual target Jar and automatic funding can both execute
+- whether the same Jar can receive both effects
+- whether recurring confirmation can execute funding twice
+
+Report facts only.
+
+========================================================
+STEP 8 — NOTIFICATIONS
+========================================================
+
+Determine whether notifications are:
+
+- persisted
+- derived
+- duplicated
+- idempotent
+- lifecycle owners
+- merely triggers/read models
+
+Find every recurring notification creation path.
+
+Find every recurring notification confirmation path.
+
+Determine whether confirmation can bypass the canonical Financial Engine
+path.
+
+========================================================
+STEP 9 — BUDGET
+========================================================
+
+Find every budget-screen path that interacts with recurring operations.
+
+Determine whether Budget UI:
+
+- creates transactions
+- confirms recurring operations
+- postpones recurring operations
+- updates recurring state directly
+- changes realized income directly
+
+Report exact methods.
+
+========================================================
+STEP 10 — EDIT / DELETE
+========================================================
+
+Trace recurring operation edit/delete behavior.
+
+Check:
+
+- before due
+- after due
+- after posting
+- while notification is pending
+- while occurrence is postponed
+
+Determine whether historical financial transactions are modified when the
+recurring definition changes.
+
+========================================================
+STEP 11 — BUILD THE ACTUAL STATE MACHINE
+========================================================
+
+Based ONLY on the existing model, reconstruct the state machine.
+
+Do not invent new states.
+
+Show:
+
+state
+→ trigger
+→ code path
+→ resulting state
+→ financial effect
+→ notification effect
+
+If the current implementation has contradictory states or ambiguous
+transitions, mark them explicitly.
+
+========================================================
+STEP 12 — FINAL REPORT
+========================================================
+
+Return ONE structured report with these sections:
+
+1. Executive Summary
+
+2. Domain Bible Rules Relevant to Recurring
+
+3. Complete Recurring Dependency Graph
+
+4. Complete Lifecycle Call Chains
+
+5. All Recurring Entry Points
+
+6. Responsibility Ownership Matrix
+
+7. Duplicate/Competing Lifecycle Paths
+
+8. Occurrence Identity / Idempotency Analysis
+
+9. Financial Engine Boundary Analysis
+
+10. Recurring Income/Salary Analysis
+
+11. Recurring Jar Funding Analysis
+
+12. Notification Analysis
+
+13. Budget Analysis
+
+14. Edit/Delete Analysis
+
+15. Current State Machine
+
+16. Confirmed Bugs
+
+17. Suspected Risks
+   IMPORTANT: keep these separate from confirmed bugs.
+
+18. Missing Guarantees
+
+19. Proposed Canonical Lifecycle
+   IMPORTANT: this is DESIGN ONLY.
+   Do not modify code.
+
+20. Recommended Single Lifecycle Owner
+
+21. Recommended Short Implementation Stages
+
+22. Exact Files That Would Need Modification
+
+23. Files That Should NOT Be Modified
+
+========================================================
+EVIDENCE STANDARD
+========================================================
+
+Every important conclusion must include:
+
+- exact file
+- class/method
+- relevant line range if available
+- short explanation of what the code proves
+
+Use these labels:
+
+CONFIRMED
+DIRECTLY OBSERVED IN CODE
+
+LIKELY
+STRONG INFERENCE BUT NOT PROVEN
+
+UNRESOLVED
+INSUFFICIENT EVIDENCE
+
+Do NOT call something a bug merely because the architecture looks unusual.
+
+Do NOT propose a fix merely because another architecture would be cleaner.
+
+========================================================
+FINAL RULE
+========================================================
+
+STOP after producing the report.
+
+No code changes.
+No commit.
+No refactor.
+
+The next implementation will be done separately in small stages based on
+this report.
