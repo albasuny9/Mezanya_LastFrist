@@ -88,6 +88,12 @@ mixin AppCubitTransactionsMixin on AppCubitBase {
       }
     }
 
+    final defaultTitle = type == TransactionType.income.value
+        ? 'دخل'
+        : type == TransactionType.balanceAdjustment.value
+            ? 'تسوية رصيد'
+            : 'مصروف';
+
     await _applyAndLog(
       action: type == TransactionType.transfer.value ? 'transfer' : 'add',
       entityType: 'transaction',
@@ -106,14 +112,10 @@ mixin AppCubitTransactionsMixin on AppCubitBase {
               details ??
               (notes?.isNotEmpty == true
                   ? notes
-                  : incomeName ??
-                      walletName ??
-                      (type == TransactionType.income.value ? 'دخل' : 'مصروف')))
+                  : incomeName ?? walletName ?? defaultTitle))
           : (notes?.isNotEmpty == true
               ? notes
-              : incomeName ??
-                  walletName ??
-                  (type == TransactionType.income.value ? 'دخل' : 'مصروف')),
+              : incomeName ?? walletName ?? defaultTitle),
       apply: () async => TransactionProcessor.apply(state, transaction),
       recordInNotificationHistory: recordInNotificationHistory,
     );
@@ -156,6 +158,9 @@ mixin AppCubitTransactionsMixin on AppCubitBase {
       final alloc = allocationName == null ? '' : ' ضمن مخصص $allocationName';
       final wallet = walletName ?? 'محفظة غير محددة';
       return 'معاملة مصروف بقيمة ${amount.toStringAsFixed(2)} من $wallet ($budgetLabel)$alloc';
+    }
+    if (type == TransactionType.balanceAdjustment.value) {
+      return 'تسوية رصيد بقيمة ${amount.toStringAsFixed(2)}';
     }
     return 'معاملة تحويل بقيمة ${amount.toStringAsFixed(2)}';
   }

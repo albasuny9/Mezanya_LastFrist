@@ -34,10 +34,16 @@ class SharedTransactionCard extends StatelessWidget {
   String _typeLabel() {
     if (transaction.type == TransactionType.income.value) return 'دخل';
     if (transaction.type == TransactionType.expense.value) return 'مصروف';
+    if (transaction.type == TransactionType.balanceAdjustment.value) {
+      return 'تسوية رصيد';
+    }
     return 'تحويل';
   }
 
   Color _typeColor() {
+    if (transaction.type == TransactionType.balanceAdjustment.value) {
+      return const Color(0xFF7C3AED);
+    }
     if (transaction.transferType == TransferType.jarToJar.value &&
         viewingContextId != null) {
       if (transaction.fromWalletId == viewingContextId) {
@@ -69,7 +75,9 @@ class SharedTransactionCard extends StatelessWidget {
   }
 
   bool _isNegative() {
-    return transaction.type == TransactionType.expense.value ||
+    return transaction.transferType ==
+            TransferType.jarBalanceAdjustmentDecrease.value ||
+        transaction.type == TransactionType.expense.value ||
         transaction.transferType == TransferType.jarFundingPhysical.value ||
         transaction.transferType == TransferType.jarAllocationCancel.value ||
         transaction.transferType == TransferType.jarAllocationSpend.value ||
@@ -79,6 +87,9 @@ class SharedTransactionCard extends StatelessWidget {
   }
 
   IconData _fallbackIcon() {
+    if (transaction.type == TransactionType.balanceAdjustment.value) {
+      return Icons.tune_rounded;
+    }
     if (transaction.transferType == TransferType.jarFunding.value ||
         transaction.transferType == TransferType.jarFundingPhysical.value) {
       return Icons.monetization_on_rounded;

@@ -105,6 +105,7 @@ class AuditLogService {
     if (type == TransactionType.income.value) return 'دخل';
     if (type == TransactionType.expense.value) return 'مصروف';
     if (type == TransactionType.transfer.value) return 'تحويل';
+    if (type == TransactionType.balanceAdjustment.value) return 'تسوية رصيد';
     return type;
   }
 }

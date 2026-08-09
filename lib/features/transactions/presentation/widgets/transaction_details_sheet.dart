@@ -725,10 +725,10 @@ Future<void> _openWalletToWalletEditor(
       TextEditingController(text: transaction.amount.toStringAsFixed(2));
   final notesController = TextEditingController(text: transaction.notes ?? '');
   final wallets = cubit.state.wallets;
-  var fromId = transaction.fromWalletId ??
-      (wallets.isNotEmpty ? wallets.first.id : '');
-  var toId = transaction.toWalletId ??
-      (wallets.length > 1 ? wallets[1].id : '');
+  var fromId =
+      transaction.fromWalletId ?? (wallets.isNotEmpty ? wallets.first.id : '');
+  var toId =
+      transaction.toWalletId ?? (wallets.length > 1 ? wallets[1].id : '');
   var selectedDate = transaction.createdAt;
   var selectedTime = TimeOfDay(
     hour: transaction.createdAt.hour,
@@ -805,8 +805,7 @@ Future<void> _openWalletToWalletEditor(
           if (w.id == fromId) fromWallet = w;
           if (w.id == toId) toWallet = w;
         }
-        fromWallet ??=
-            currentWallets.isNotEmpty ? currentWallets.first : null;
+        fromWallet ??= currentWallets.isNotEmpty ? currentWallets.first : null;
         toWallet ??= currentWallets.length > 1
             ? currentWallets[1]
             : (currentWallets.isNotEmpty ? currentWallets.first : null);
@@ -1580,10 +1579,14 @@ String _transactionDisplayTitle(AppStateEntity state, TransactionEntity tx) {
 String _typeLabel(String type) {
   if (type == TransactionType.income.value) return 'دخل';
   if (type == TransactionType.expense.value) return 'مصروف';
+  if (type == TransactionType.balanceAdjustment.value) return 'تسوية رصيد';
   return 'تحويل';
 }
 
 IconData _iconForTransaction(TransactionEntity tx) {
+  if (tx.type == TransactionType.balanceAdjustment.value) {
+    return Icons.tune_rounded;
+  }
   if (tx.type == TransactionType.income.value) return Icons.south_west_rounded;
   if (tx.type == TransactionType.expense.value) return Icons.north_east_rounded;
   return Icons.swap_horiz_rounded;
@@ -1603,5 +1606,13 @@ Color parseCategoryColor(String hexStr) {
 String _signFor(TransactionEntity transaction) {
   if (transaction.type == TransactionType.income.value) return '+';
   if (transaction.type == TransactionType.expense.value) return '-';
+  if (transaction.transferType ==
+      TransferType.jarBalanceAdjustmentIncrease.value) {
+    return '+';
+  }
+  if (transaction.transferType ==
+      TransferType.jarBalanceAdjustmentDecrease.value) {
+    return '-';
+  }
   return '';
 }

@@ -256,15 +256,18 @@ class MoneyTransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNegative = transaction.type == TransactionType.expense.value ||
+        transaction.transferType ==
+            TransferType.jarBalanceAdjustmentDecrease.value;
     return ListTile(
       dense: true,
       title: Text(title),
       subtitle: Text(subtitle),
       trailing: Text(
-        '${transaction.type == TransactionType.expense.value ? '-' : '+'}${transaction.amount.toStringAsFixed(2)}',
+        '${isNegative ? '-' : '+'}${transaction.amount.toStringAsFixed(2)}',
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: transaction.type == TransactionType.expense.value
+          color: isNegative
               ? Theme.of(context).colorScheme.error
               : Theme.of(context).colorScheme.primary,
         ),

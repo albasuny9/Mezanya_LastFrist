@@ -321,8 +321,44 @@ class FinancialIntegrityAnalyzer {
 
     if (type == TransactionType.transfer) {
       _inspectTransferReferences(context, tx, violations);
+    } else if (type == TransactionType.balanceAdjustment) {
+      _inspectBalanceAdjustmentReferences(context, tx, violations);
     } else if (tx.toWalletId != null) {
       _requireAnyFinancialEntity(context, tx.toWalletId!, tx, violations);
+    }
+  }
+
+  static void _inspectBalanceAdjustmentReferences(
+    _IntegrityContext context,
+    TransactionEntity tx,
+    List<FinancialIntegrityViolation> violations,
+  ) {
+    final jarId = tx.toWalletId;
+    if (jarId == null || jarId.isEmpty || !context.jarIds.contains(jarId)) {
+      violations.add(
+        FinancialIntegrityViolation(
+          code: 'missing-jar-reference',
+          severity: FinancialIntegritySeverity.error,
+          confidence: FinancialIntegrityConfidence.proven,
+          explanation:
+              'Balance adjustment ${tx.id} does not reference a valid jar.',
+          relatedIds: jarId == null || jarId.isEmpty ? const [] : [jarId],
+          relatedTransactionIds: [tx.id],
+        ),
+      );
+    }
+    if (tx.transferType != TransferType.jarBalanceAdjustmentIncrease.value &&
+        tx.transferType != TransferType.jarBalanceAdjustmentDecrease.value) {
+      violations.add(
+        FinancialIntegrityViolation(
+          code: 'invalid-balance-adjustment-direction',
+          severity: FinancialIntegritySeverity.error,
+          confidence: FinancialIntegrityConfidence.proven,
+          explanation:
+              'Balance adjustment ${tx.id} has invalid direction ${tx.transferType}.',
+          relatedTransactionIds: [tx.id],
+        ),
+      );
     }
   }
 

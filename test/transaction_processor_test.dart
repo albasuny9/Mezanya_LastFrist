@@ -13,6 +13,149 @@ import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  group('Jar balance adjustment', () {
+    const wallet = WalletEntity(id: 'wallet-1', name: 'Cash', balance: 1000);
+    const allocation = AllocationEntity(
+      id: 'allocation-1',
+      name: 'Food',
+      icon: 'restaurant',
+      iconColor: '#1D4ED8',
+      rolloverBehavior: 'keep',
+      funding: [],
+      categories: [],
+      balance: 300,
+    );
+    const jar = LinkedWalletEntity(
+      id: 'jar-1',
+      name: 'Emergency',
+      balance: 2840,
+      monthlyAmount: 0,
+      executionDay: 1,
+      fundingSource: '',
+      funding: [],
+      icon: 'savings',
+      iconColor: '#165B47',
+      automationType: '',
+      categories: [],
+    );
+
+    AppStateEntity state() => AppStateEntity.initial().copyWith(
+          wallets: const [wallet],
+          budgetSetup: AppStateEntity.initial().budgetSetup.copyWith(
+            linkedWallets: const [jar],
+            allocations: const [allocation],
+          ),
+        );
+
+    TransactionEntity adjustment({
+      required String id,
+      required double amount,
+      required String transferType,
+    }) {
+      return TransactionEntity(
+        id: id,
+        toWalletId: jar.id,
+        amount: amount,
+        type: TransactionType.balanceAdjustment.value,
+        transferType: transferType,
+        createdAt: DateTime(2026, 8, 9),
+      );
+    }
+
+    test('2840 to 3000 applies a positive jar adjustment only', () {
+      final applied = TransactionProcessor.apply(
+        state(),
+        adjustment(
+          id: 'adjust-up',
+          amount: 160,
+          transferType: TransferType.jarBalanceAdjustmentIncrease.value,
+        ),
+      );
+
+      expect(applied.budgetSetup.linkedWallets.single.balance, 3000);
+      expect(applied.wallets.single.balance, 1000);
+      expect(applied.budgetSetup.allocations.single.balance, 300);
+      expect(applied.moneyDistributions, isEmpty);
+      expect(
+        applied.transactions.single.type,
+        TransactionType.balanceAdjustment.value,
+      );
+      expect(applied.transactions.single.type,
+          isNot(TransactionType.income.value));
+      expect(applied.transactions.single.type,
+          isNot(TransactionType.expense.value));
+      expect(applied.transactions.single.type,
+          isNot(TransactionType.transfer.value));
+      expect(
+        applied.transactions.single.transferType,
+        isNot(TransferType.jarFunding.value),
+      );
+    });
+
+    test('2840 to 2000 applies a negative jar adjustment only', () {
+      final applied = TransactionProcessor.apply(
+        state(),
+        adjustment(
+          id: 'adjust-down',
+          amount: 840,
+          transferType: TransferType.jarBalanceAdjustmentDecrease.value,
+        ),
+      );
+
+      expect(applied.budgetSetup.linkedWallets.single.balance, 2000);
+      expect(applied.wallets.single.balance, 1000);
+      expect(applied.budgetSetup.allocations.single.balance, 300);
+      expect(applied.moneyDistributions, isEmpty);
+      expect(applied.transactions.single.type,
+          isNot(TransactionType.expense.value));
+      expect(
+        applied.transactions.single.transferType,
+        isNot(TransferType.jarFunding.value),
+      );
+    });
+
+    test('multiple jar adjustments replay in order', () {
+      final first = TransactionProcessor.apply(
+        state(),
+        adjustment(
+          id: 'adjust-up',
+          amount: 160,
+          transferType: TransferType.jarBalanceAdjustmentIncrease.value,
+        ),
+      );
+      final second = TransactionProcessor.apply(
+        first,
+        adjustment(
+          id: 'adjust-down',
+          amount: 1000,
+          transferType: TransferType.jarBalanceAdjustmentDecrease.value,
+        ),
+      );
+
+      expect(second.budgetSetup.linkedWallets.single.balance, 2000);
+      expect(second.wallets.single.balance, 1000);
+      expect(second.budgetSetup.allocations.single.balance, 300);
+      expect(second.moneyDistributions, isEmpty);
+      expect(second.transactions.length, 2);
+    });
+
+    test('jar adjustment reverses exactly', () {
+      final tx = adjustment(
+        id: 'adjust-up',
+        amount: 160,
+        transferType: TransferType.jarBalanceAdjustmentIncrease.value,
+      );
+      final applied = TransactionProcessor.apply(state(), tx);
+      final reversed = TransactionProcessor.reverse(applied, tx);
+
+      expect(reversed.budgetSetup.linkedWallets.single.balance, 2840);
+      expect(reversed.wallets.single.balance, 1000);
+      expect(reversed.budgetSetup.allocations.single.balance, 300);
+      expect(reversed.moneyDistributions, isEmpty);
+      expect(reversed.transactions, isEmpty);
+    });
+  });
+
   // ═══════════════════════════════════════════════════════════════════════
   // Regression test — Jar double-count bug (Finding B).
   //

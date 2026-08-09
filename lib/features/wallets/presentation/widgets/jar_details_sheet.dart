@@ -75,7 +75,7 @@ Future<void> showJarDetailsSheet({
     builder: (ctx) {
       var showWallets = false;
       var sortDescending = true;
-      var filterType = 'all'; // 'all' | 'income' | 'expense' | 'transfer'
+      var filterType = 'all';
       return BlocBuilder<AppCubit, AppStateEntity>(
         bloc: cubit,
         builder: (ctx, liveState) {
@@ -509,6 +509,10 @@ Future<void> showJarDetailsSheet({
                           if (filterType == 'transfer') {
                             return t.type == TransactionType.transfer.value;
                           }
+                          if (filterType == 'adjustment') {
+                            return t.type ==
+                                TransactionType.balanceAdjustment.value;
+                          }
                           return true;
                         }).toList();
                         if (!sortDescending) {
@@ -530,6 +534,7 @@ Future<void> showJarDetailsSheet({
                                           ('income', 'دخل'),
                                           ('expense', 'خصم'),
                                           ('transfer', 'تحويل'),
+                                          ('adjustment', 'تسوية'),
                                         ])
                                           GestureDetector(
                                             onTap: () => setSheet(() {

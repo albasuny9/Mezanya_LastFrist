@@ -69,8 +69,7 @@ class _BudgetDraggableFilterableTxSheetState
   DateTimeRange? _customRange;
 
   static bool _isTransfer(TransactionEntity t) {
-    return t.type != TransactionType.expense.value &&
-        t.type != TransactionType.income.value;
+    return t.type == TransactionType.transfer.value;
   }
 
   List<TransactionEntity> get _visible {
@@ -79,14 +78,12 @@ class _BudgetDraggableFilterableTxSheetState
       case BudgetTxKindFilter.all:
         break;
       case BudgetTxKindFilter.expense:
-        list = list
-            .where((t) => t.type == TransactionType.expense.value)
-            .toList();
+        list =
+            list.where((t) => t.type == TransactionType.expense.value).toList();
         break;
       case BudgetTxKindFilter.income:
-        list = list
-            .where((t) => t.type == TransactionType.income.value)
-            .toList();
+        list =
+            list.where((t) => t.type == TransactionType.income.value).toList();
         break;
       case BudgetTxKindFilter.transfer:
         list = list.where(_isTransfer).toList();
@@ -116,12 +113,10 @@ class _BudgetDraggableFilterableTxSheetState
             date.day == day.day;
       case BudgetTxDateFilter.week:
         final start = _selectedWeekStart ?? widget.initialMonth;
-        final normalizedStart =
-            DateTime(start.year, start.month, start.day);
+        final normalizedStart = DateTime(start.year, start.month, start.day);
         final normalizedEnd = normalizedStart
             .add(const Duration(days: 6, hours: 23, minutes: 59));
-        return !date.isBefore(normalizedStart) &&
-            !date.isAfter(normalizedEnd);
+        return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd);
       case BudgetTxDateFilter.custom:
         final range = _customRange;
         if (range == null) {
@@ -297,8 +292,8 @@ class _BudgetDraggableFilterableTxSheetState
               onTap: onTap,
               borderRadius: BorderRadius.circular(kBudgetRadiusMd),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: selected
                       ? widget.accent.withValues(alpha: 0.10)
@@ -319,8 +314,7 @@ class _BudgetDraggableFilterableTxSheetState
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w800),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                           if (subtitle != null) ...[
                             const SizedBox(height: 3),
@@ -328,8 +322,8 @@ class _BudgetDraggableFilterableTxSheetState
                               subtitle,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: widget.theme.colorScheme
-                                    .onSurfaceVariant,
+                                color:
+                                    widget.theme.colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -421,8 +415,7 @@ class _BudgetDraggableFilterableTxSheetState
                     subtitle: budgetFormatMonthYear(widget.initialMonth),
                     selected: _dateFilter == BudgetTxDateFilter.month,
                     onTap: () {
-                      setState(
-                          () => _dateFilter = BudgetTxDateFilter.month);
+                      setState(() => _dateFilter = BudgetTxDateFilter.month);
                       Navigator.pop(ctx);
                     },
                   ),
@@ -432,8 +425,7 @@ class _BudgetDraggableFilterableTxSheetState
                     subtitle: '${widget.initialMonth.year}',
                     selected: _dateFilter == BudgetTxDateFilter.year,
                     onTap: () {
-                      setState(
-                          () => _dateFilter = BudgetTxDateFilter.year);
+                      setState(() => _dateFilter = BudgetTxDateFilter.year);
                       Navigator.pop(ctx);
                     },
                   ),
@@ -469,8 +461,7 @@ class _BudgetDraggableFilterableTxSheetState
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
-                        initialDate:
-                            _selectedWeekStart ?? widget.initialMonth,
+                        initialDate: _selectedWeekStart ?? widget.initialMonth,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2100),
                       );
@@ -537,8 +528,8 @@ class _BudgetDraggableFilterableTxSheetState
         snapSizes: const [0.76, 1.0],
         builder: (context, scrollController) {
           return ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(kBudgetRadiusL)),
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(kBudgetRadiusL)),
             child: Material(
               color: theme.colorScheme.surface,
               child: ListView(

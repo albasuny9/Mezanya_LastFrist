@@ -194,6 +194,53 @@ void main() {
         225,
       );
     });
+
+    test('accepts jar balance adjustment as replayable financial operation',
+        () {
+      final state = _applyAll(_baseState(), [
+        _jarAdjustment(
+          id: 'adjust-up',
+          amount: 160,
+          transferType: TransferType.jarBalanceAdjustmentIncrease.value,
+        ),
+        _jarAdjustment(
+          id: 'adjust-down',
+          amount: 40,
+          transferType: TransferType.jarBalanceAdjustmentDecrease.value,
+        ),
+      ]);
+
+      final report = FinancialIntegrityAnalyzer.analyze(state);
+
+      expect(report.status, FinancialIntegrityStatus.healthy);
+      expect(report.violations, isEmpty);
+      expect(report.jarResults.single.storedBalance, 120);
+      expect(report.walletResults.single.storedBalance, 0);
+      expect(report.allocationResults.single.storedBalance, 0);
+    });
+
+    test('detects corrupted jar balance after valid adjustment replay', () {
+      final healthy = _applyAll(_baseState(), [
+        _jarAdjustment(
+          id: 'adjust-up',
+          amount: 160,
+          transferType: TransferType.jarBalanceAdjustmentIncrease.value,
+        ),
+      ]);
+      final broken = healthy.copyWith(
+        budgetSetup: healthy.budgetSetup.copyWith(
+          linkedWallets: [
+            healthy.budgetSetup.linkedWallets.single.copyWith(balance: 999),
+          ],
+        ),
+      );
+
+      final report = FinancialIntegrityAnalyzer.analyze(broken);
+
+      expect(report.status, FinancialIntegrityStatus.corrupted);
+      expect(report.hasViolation('stored-balance-mismatch'), isTrue);
+      expect(report.jarResults.single.expectedBalance, 160);
+    });
   });
 }
 
@@ -320,6 +367,21 @@ TransactionEntity _transfer({
     transferType: transferType,
     parentId: parentId,
     createdAt: DateTime(2026, 1, 2),
+  );
+}
+
+TransactionEntity _jarAdjustment({
+  required String id,
+  required double amount,
+  required String transferType,
+}) {
+  return TransactionEntity(
+    id: id,
+    toWalletId: _jarId,
+    amount: amount,
+    type: TransactionType.balanceAdjustment.value,
+    transferType: transferType,
+    createdAt: DateTime(2026, 1, 3),
   );
 }
 

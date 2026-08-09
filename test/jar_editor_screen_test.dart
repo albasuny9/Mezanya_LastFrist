@@ -5,6 +5,7 @@ import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.
 import 'package:mezanya_app/features/budget/domain/entities/budget_setup_entity.dart';
 import 'package:mezanya_app/features/transactions/domain/entities/transaction_entity.dart';
 import 'package:mezanya_app/features/transactions/domain/services/transaction_processor.dart';
+import 'package:mezanya_app/features/wallets/domain/entities/wallet_entity.dart';
 import 'package:mezanya_app/features/wallets/presentation/screens/jar_editor_screen.dart';
 
 void main() {
@@ -158,12 +159,24 @@ void main() {
     );
   });
 
-  test('initial jar balance is reconstructable from jar funding transaction',
-      () {
+  test('initial jar balance is reconstructable from balance adjustment', () {
     final createdJar = existingJar.copyWith(balance: 0);
     final initialState = AppStateEntity.initial().copyWith(
+      wallets: const [WalletEntity(id: 'wallet-1', name: 'Cash', balance: 900)],
       budgetSetup: AppStateEntity.initial().budgetSetup.copyWith(
         linkedWallets: [createdJar],
+        allocations: const [
+          AllocationEntity(
+            id: 'allocation-1',
+            name: 'Food',
+            icon: 'restaurant',
+            iconColor: '#1D4ED8',
+            rolloverBehavior: 'keep',
+            funding: [],
+            categories: [],
+            balance: 75,
+          ),
+        ],
       ),
     );
 
@@ -173,20 +186,37 @@ void main() {
         id: 'txn-initial-jar-balance',
         toWalletId: createdJar.id,
         amount: 125.75,
-        type: TransactionType.transfer.value,
-        transferType: TransferType.jarFunding.value,
+        type: TransactionType.balanceAdjustment.value,
+        transferType: TransferType.jarBalanceAdjustmentIncrease.value,
         createdAt: DateTime(2026, 8, 9),
       ),
     );
 
     expect(replayed.budgetSetup.linkedWallets.single.balance, 125.75);
+    expect(replayed.wallets.single.balance, 900);
+    expect(replayed.budgetSetup.allocations.single.balance, 75);
+    expect(replayed.transactions.single.type,
+        TransactionType.balanceAdjustment.value);
   });
 
-  test('edited jar balance is reconstructable from correction transactions',
+  test('edited jar balance is reconstructable from adjustment transactions',
       () {
     final initialState = AppStateEntity.initial().copyWith(
+      wallets: const [WalletEntity(id: 'wallet-1', name: 'Cash', balance: 900)],
       budgetSetup: AppStateEntity.initial().budgetSetup.copyWith(
         linkedWallets: [existingJar],
+        allocations: const [
+          AllocationEntity(
+            id: 'allocation-1',
+            name: 'Food',
+            icon: 'restaurant',
+            iconColor: '#1D4ED8',
+            rolloverBehavior: 'keep',
+            funding: [],
+            categories: [],
+            balance: 75,
+          ),
+        ],
       ),
     );
 
@@ -196,12 +226,14 @@ void main() {
         id: 'txn-increase-jar-balance',
         toWalletId: existingJar.id,
         amount: 150,
-        type: TransactionType.transfer.value,
-        transferType: TransferType.jarFunding.value,
+        type: TransactionType.balanceAdjustment.value,
+        transferType: TransferType.jarBalanceAdjustmentIncrease.value,
         createdAt: DateTime(2026, 8, 9),
       ),
     );
     expect(increased.budgetSetup.linkedWallets.single.balance, 250);
+    expect(increased.wallets.single.balance, 900);
+    expect(increased.budgetSetup.allocations.single.balance, 75);
 
     final decreased = TransactionProcessor.apply(
       increased,
@@ -209,12 +241,21 @@ void main() {
         id: 'txn-decrease-jar-balance',
         toWalletId: existingJar.id,
         amount: 200,
-        type: TransactionType.expense.value,
-        budgetScope: BudgetScope.outsideBudget.value,
+        type: TransactionType.balanceAdjustment.value,
+        transferType: TransferType.jarBalanceAdjustmentDecrease.value,
         createdAt: DateTime(2026, 8, 9),
       ),
     );
 
     expect(decreased.budgetSetup.linkedWallets.single.balance, 50);
+    expect(decreased.wallets.single.balance, 900);
+    expect(decreased.budgetSetup.allocations.single.balance, 75);
+    expect(
+      decreased.transactions.map((tx) => tx.transferType),
+      [
+        TransferType.jarBalanceAdjustmentIncrease.value,
+        TransferType.jarBalanceAdjustmentDecrease.value,
+      ],
+    );
   });
 }

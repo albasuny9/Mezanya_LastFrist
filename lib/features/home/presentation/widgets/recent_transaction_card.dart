@@ -96,6 +96,10 @@ class RecentTransactionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isIncome = transaction.type == TransactionType.income.value;
     final isExpense = transaction.type == TransactionType.expense.value;
+    final isAdjustment =
+        transaction.type == TransactionType.balanceAdjustment.value;
+    final isNegativeAdjustment = transaction.transferType ==
+        TransferType.jarBalanceAdjustmentDecrease.value;
 
     final cat = getCategoryForTransaction(state, transaction.categoryId);
 
@@ -105,7 +109,9 @@ class RecentTransactionCard extends StatelessWidget {
             ? const Color(0xFF16A34A)
             : isExpense
                 ? const Color(0xFFDC2626)
-                : const Color(0xFF2563EB);
+                : isAdjustment
+                    ? const Color(0xFF7C3AED)
+                    : const Color(0xFF2563EB);
 
     final iconBg = accent.withValues(alpha: 0.14);
     final iconColor = Color.lerp(accent, Colors.black, 0.20)!;
@@ -114,13 +120,17 @@ class RecentTransactionCard extends StatelessWidget {
         ? const Color(0xFFDC2626)
         : isIncome
             ? const Color(0xFF16A34A)
-            : const Color(0xFF2563EB);
+            : isAdjustment
+                ? const Color(0xFF7C3AED)
+                : const Color(0xFF2563EB);
 
     final accentBarColor = isIncome
         ? const Color(0xFF16A34A)
         : isExpense
             ? const Color(0xFFDC2626)
-            : const Color(0xFF2563EB);
+            : isAdjustment
+                ? const Color(0xFF7C3AED)
+                : const Color(0xFF2563EB);
 
     final icon = cat != null
         ? AppIconPickerDialog.iconDataForName(cat.icon)
@@ -128,23 +138,28 @@ class RecentTransactionCard extends StatelessWidget {
             ? Icons.arrow_downward_rounded
             : isExpense
                 ? Icons.arrow_upward_rounded
-                : Icons.swap_horiz_rounded;
+                : isAdjustment
+                    ? Icons.tune_rounded
+                    : Icons.swap_horiz_rounded;
 
-    final label = (transaction.notes?.isNotEmpty == true
-            ? transaction.notes!
-            : null) ??
-        cat?.name ??
-        (isIncome
-            ? 'دخل'
-            : isExpense
-                ? 'مصروف'
-                : 'تحويل');
+    final label =
+        (transaction.notes?.isNotEmpty == true ? transaction.notes! : null) ??
+            cat?.name ??
+            (isIncome
+                ? 'دخل'
+                : isExpense
+                    ? 'مصروف'
+                    : isAdjustment
+                        ? 'تسوية رصيد'
+                        : 'تحويل');
 
     final sign = isIncome
         ? '+'
         : isExpense
             ? '-'
-            : '';
+            : isAdjustment
+                ? (isNegativeAdjustment ? '-' : '+')
+                : '';
     final timeStr = showDateWithTime
         ? formatTransactionDateTime(transaction.createdAt)
         : formatTransactionTime(transaction.createdAt);

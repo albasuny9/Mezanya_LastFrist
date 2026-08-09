@@ -363,6 +363,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                       'تحويل',
                       Color(0xFF2563EB),
                     ),
+                    (
+                      TransactionType.balanceAdjustment.value,
+                      'تسوية رصيد',
+                      Color(0xFF7C3AED),
+                    ),
                   ],
                   selected: tmpType,
                   onSelect: (v) => setSheet(() => tmpType = v),

@@ -1274,6 +1274,7 @@ class _LogsScreenState extends State<LogsScreen> {
       'income' => 'دخل',
       'expense' => 'مصروف',
       'transfer' => 'تحويل',
+      'balance-adjustment' => 'تسوية رصيد',
       _ => type,
     };
   }

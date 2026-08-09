@@ -1,7 +1,8 @@
 enum TransactionType {
   income('income'),
   expense('expense'),
-  transfer('transfer');
+  transfer('transfer'),
+  balanceAdjustment('balance-adjustment');
 
   const TransactionType(this.value);
 
@@ -27,7 +28,9 @@ enum TransferType {
   depositWithJarLabel('deposit-with-jar-label'),
   allocationToJar('allocation-to-jar'),
   jarToAllocation('jar-to-allocation'),
-  jarToJar('jar-to-jar');
+  jarToJar('jar-to-jar'),
+  jarBalanceAdjustmentIncrease('jar-balance-adjustment-increase'),
+  jarBalanceAdjustmentDecrease('jar-balance-adjustment-decrease');
 
   const TransferType(this.value);
 

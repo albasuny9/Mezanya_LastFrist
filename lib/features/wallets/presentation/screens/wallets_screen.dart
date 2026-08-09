@@ -2006,9 +2006,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
       await widget.cubit.addTransaction(
         toWalletId: jarId,
         amount: delta,
-        type: TransactionType.transfer.value,
-        transferType: TransferType.jarFunding.value,
-        details: 'Manual jar balance correction',
+        type: TransactionType.balanceAdjustment.value,
+        transferType: TransferType.jarBalanceAdjustmentIncrease.value,
+        details: 'Jar balance adjustment',
       );
       return;
     }
@@ -2016,9 +2016,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
     await widget.cubit.addTransaction(
       toWalletId: jarId,
       amount: -delta,
-      type: TransactionType.expense.value,
-      budgetScope: BudgetScope.outsideBudget.value,
-      details: 'Manual jar balance correction',
+      type: TransactionType.balanceAdjustment.value,
+      transferType: TransferType.jarBalanceAdjustmentDecrease.value,
+      details: 'Jar balance adjustment',
     );
   }
 
@@ -2218,12 +2218,6 @@ class _WalletsListPageState extends State<_WalletsListPage> {
     final cleaned = hex.replaceAll('#', '');
     final normalized = cleaned.length == 6 ? 'FF$cleaned' : cleaned;
     return Color(int.tryParse(normalized, radix: 16) ?? 0xFF165B47);
-  }
-
-  Map<String, double> _walletReservations(
-      AppStateEntity state, String walletId) {
-    return DistributionEngine.reservationsForWallet(
-        state.moneyDistributions, walletId);
   }
 
   double _walletReservedAmount(AppStateEntity state, String walletId) {
