@@ -1,4 +1,4 @@
-import '../../../../core/constants/transaction_types.dart';
+﻿import '../../../../core/constants/transaction_types.dart';
 import '../entities/recurring_transaction_entity.dart';
 
 enum RecurringExpensePromptState {
@@ -61,13 +61,13 @@ class RecurringScheduleEngine {
   }) {
     final reference = from ?? DateTime.now();
 
-    // للأنماط الأسبوعية: الـ anchor هو آخر يوم مطابق في الأسبوع الحالي أو السابق
+    // ظ„ظ„ط£ظ†ظ…ط§ط· ط§ظ„ط£ط³ط¨ظˆط¹ظٹط©: ط§ظ„ظ€ anchor ظ‡ظˆ ط¢ط®ط± ظٹظˆظ… ظ…ط·ط§ط¨ظ‚ ظپظٹ ط§ظ„ط£ط³ط¨ظˆط¹ ط§ظ„ط­ط§ظ„ظٹ ط£ظˆ ط§ظ„ط³ط§ط¨ظ‚
     if (recurring.recurrencePattern == RecurrencePattern.weekly.value ||
         recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
         recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
       final weekdays = _resolvedWeekdays(recurring, reference);
       if (weekdays.isNotEmpty) {
-        // ابحث عن أقرب يوم مطابق في الماضي (حتى 21 يوم للخلف)
+        // ط§ط¨ط­ط« ط¹ظ† ط£ظ‚ط±ط¨ ظٹظˆظ… ظ…ط·ط§ط¨ظ‚ ظپظٹ ط§ظ„ظ…ط§ط¶ظٹ (ط­طھظ‰ 21 ظٹظˆظ… ظ„ظ„ط®ظ„ظپ)
         for (var offset = 0; offset <= 21; offset++) {
           final day = reference.subtract(Duration(days: offset));
           if (weekdays.contains(day.weekday)) {
@@ -80,7 +80,7 @@ class RecurringScheduleEngine {
       }
     }
 
-    // للأنماط الشهرية: الـ anchor هو يوم الاستحقاق في الشهر الحالي أو السابق
+    // ظ„ظ„ط£ظ†ظ…ط§ط· ط§ظ„ط´ظ‡ط±ظٹط©: ط§ظ„ظ€ anchor ظ‡ظˆ ظٹظˆظ… ط§ظ„ط§ط³طھط­ظ‚ط§ظ‚ ظپظٹ ط§ظ„ط´ظ‡ط± ط§ظ„ط­ط§ظ„ظٹ ط£ظˆ ط§ظ„ط³ط§ط¨ظ‚
     if (recurring.recurrencePattern == RecurrencePattern.monthly.value ||
         recurring.recurrencePattern == RecurrencePattern.every2Months.value ||
         recurring.recurrencePattern == RecurrencePattern.every3Months.value ||
@@ -92,7 +92,7 @@ class RecurringScheduleEngine {
       final thisMonth = DateTime(reference.year, reference.month, thisMonthDay,
           time.hour, time.minute);
       if (!thisMonth.isAfter(reference)) return thisMonth;
-      // لو يوم الاستحقاق لسه ما جاش، رجع للشهر اللي فات
+      // ظ„ظˆ ظٹظˆظ… ط§ظ„ط§ط³طھط­ظ‚ط§ظ‚ ظ„ط³ظ‡ ظ…ط§ ط¬ط§ط´طŒ ط±ط¬ط¹ ظ„ظ„ط´ظ‡ط± ط§ظ„ظ„ظٹ ظپط§طھ
       final prevMonth = DateTime(reference.year, reference.month - 1, 1);
       final prevDay =
           _dayInMonth(prevMonth.year, prevMonth.month, recurring.dayOfMonth);
@@ -100,12 +100,12 @@ class RecurringScheduleEngine {
           prevMonth.year, prevMonth.month, prevDay, time.hour, time.minute);
     }
 
-    // للسنوي: الـ anchor هو تاريخ اليوم لضمان عدم استرجاع استحقاقات من السنة الماضية للمشتريات الجديدة
+    // ظ„ظ„ط³ظ†ظˆظٹ: ط§ظ„ظ€ anchor ظ‡ظˆ طھط§ط±ظٹط® ط§ظ„ظٹظˆظ… ظ„ط¶ظ…ط§ظ† ط¹ط¯ظ… ط§ط³طھط±ط¬ط§ط¹ ط§ط³طھط­ظ‚ط§ظ‚ط§طھ ظ…ظ† ط§ظ„ط³ظ†ط© ط§ظ„ظ…ط§ط¶ظٹط© ظ„ظ„ظ…ط´طھط±ظٹط§طھ ط§ظ„ط¬ط¯ظٹط¯ط©
     if (recurring.recurrencePattern == RecurrencePattern.yearly.value) {
       return reference;
     }
 
-    // fallback: استخدم nextOccurrence
+    // fallback: ط§ط³طھط®ط¯ظ… nextOccurrence
     final exact = nextOccurrence(
           recurring,
           reference.subtract(const Duration(minutes: 1)),
@@ -201,8 +201,11 @@ class RecurringScheduleEngine {
     final hour = time.hour;
     final minute = time.minute;
     final explicitAnchor = _explicitAnchor(recurring, hour, minute);
-    final handledAt = _handledOccurrence(recurring);
-    final hasScheduleHistory = explicitAnchor != null || handledAt != null;
+    final hasScheduleHistory = explicitAnchor != null ||
+        recurring.handledOccurrenceIds.isNotEmpty ||
+        recurring.postponedOccurrenceIds.isNotEmpty ||
+        recurring.skippedOccurrenceIds.isNotEmpty ||
+        (recurring.snoozedUntil != null && recurring.snoozedUntil!.isNotEmpty);
 
     DateTime atDate(DateTime day) => DateTime(
           day.year,
@@ -213,9 +216,16 @@ class RecurringScheduleEngine {
         );
 
     if (recurring.recurrencePattern == RecurrencePattern.daily.value) {
-      final today = atDate(now);
-      if (today.isAfter(now)) return null;
-      return _isOnOrAfterAnchor(today, explicitAnchor) ? today : null;
+      for (var offset = 0; offset <= 366 * 3; offset++) {
+        final day = now.subtract(Duration(days: offset));
+        final candidate = atDate(day);
+        if (candidate.isAfter(now)) continue;
+        if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) break;
+        if (_isOccurrenceActionable(recurring, candidate, now)) {
+          return candidate;
+        }
+      }
+      return null;
     }
 
     if (recurring.recurrencePattern == RecurrencePattern.weekly.value ||
@@ -232,7 +242,9 @@ class RecurringScheduleEngine {
         if (!_weekCycleMatches(anchor, day, intervalWeeks)) continue;
         final candidate = atDate(day);
         if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) return null;
-        if (!candidate.isAfter(now)) return candidate;
+        if (!candidate.isAfter(now) && _isOccurrenceActionable(recurring, candidate, now)) {
+          return candidate;
+        }
       }
       return null;
     }
@@ -242,7 +254,8 @@ class RecurringScheduleEngine {
       final thisYearDay = _dayInMonth(now.year, month, recurring.dayOfMonth);
       final candidate = DateTime(now.year, month, thisYearDay, hour, minute);
       if (!candidate.isAfter(now) &&
-          _isOnOrAfterAnchor(candidate, explicitAnchor)) {
+          _isOnOrAfterAnchor(candidate, explicitAnchor) &&
+        _isOccurrenceActionable(recurring, candidate, now)) {
         return candidate;
       }
       if (!hasScheduleHistory) return null;
@@ -250,30 +263,16 @@ class RecurringScheduleEngine {
           _dayInMonth(now.year - 1, month, recurring.dayOfMonth);
       final previous =
           DateTime(now.year - 1, month, previousYearDay, hour, minute);
-      return _isOnOrAfterAnchor(previous, explicitAnchor) ? previous : null;
+      return _isOnOrAfterAnchor(previous, explicitAnchor) &&
+              _isOccurrenceActionable(recurring, previous, now)
+          ? previous
+          : null;
     }
 
     final intervalMonths = _monthInterval(recurring.recurrencePattern);
     final anchor = _resolvedAnchor(recurring, now, hour, minute);
-    final currentMonthDay = _dayInMonth(
-      now.year,
-      now.month,
-      recurring.dayOfMonth,
-    );
-    final currentCandidate = DateTime(
-      now.year,
-      now.month,
-      currentMonthDay,
-      hour,
-      minute,
-    );
-    if (!hasScheduleHistory) {
-      if (currentCandidate.isAfter(now)) return null;
-      return _isOnOrAfterAnchor(currentCandidate, explicitAnchor)
-          ? currentCandidate
-          : null;
-    }
-    for (var offset = 0; offset <= 120; offset++) {
+    final maxLookBack = hasScheduleHistory ? 12 : 6;
+    for (var offset = 0; offset <= maxLookBack; offset++) {
       final monthDate = DateTime(now.year, now.month - offset, 1);
       final day = _dayInMonth(
         monthDate.year,
@@ -288,8 +287,16 @@ class RecurringScheduleEngine {
         minute,
       );
       if (!_isOnOrAfterAnchor(candidate, explicitAnchor)) return null;
-      if (!_monthCycleMatches(anchor, candidate, intervalMonths)) continue;
-      if (!candidate.isAfter(now)) return candidate;
+      final hasHistory = recurring.handledOccurrenceIds.isNotEmpty ||
+          recurring.skippedOccurrenceIds.isNotEmpty ||
+          recurring.postponedOccurrenceIds.isNotEmpty ||
+          (recurring.snoozedUntil != null && recurring.snoozedUntil!.isNotEmpty);
+      if (hasHistory && !_monthCycleMatches(anchor, candidate, intervalMonths)) {
+        continue;
+      }
+      if (!candidate.isAfter(now) && _isOccurrenceActionable(recurring, candidate, now)) {
+        return candidate;
+      }
     }
     return null;
   }
@@ -308,26 +315,58 @@ class RecurringScheduleEngine {
     RecurringTransactionEntity recurring,
     DateTime occurrence,
   ) {
-    final handled = recurring.lastHandledOccurrenceAt == null
-        ? null
-        : DateTime.tryParse(recurring.lastHandledOccurrenceAt!);
-    if (handled == null) return false;
-    final normalized = DateTime(
-      occurrence.year,
-      occurrence.month,
-      occurrence.day,
-      occurrence.hour,
-      occurrence.minute,
-    );
-    return !handled.isBefore(normalized);
+    final occurrenceId = recurring.occurrenceId(occurrence);
+    if (recurring.handledOccurrenceIds.contains(occurrenceId) ||
+        recurring.skippedOccurrenceIds.contains(occurrenceId) ||
+        recurring.effectiveHandledOccurrenceIds.contains(occurrenceId)) {
+      return true;
+    }
+
+    if (recurring.handledOccurrenceIds.isNotEmpty ||
+        recurring.skippedOccurrenceIds.isNotEmpty ||
+        recurring.effectiveHandledOccurrenceIds.isNotEmpty) {
+      return false;
+    }
+
+    return false;
   }
 
-  static DateTime? _handledOccurrence(RecurringTransactionEntity recurring) {
-    if (recurring.lastHandledOccurrenceAt == null ||
-        recurring.lastHandledOccurrenceAt!.isEmpty) {
-      return null;
+  static bool wasOccurrencePostponed(
+    RecurringTransactionEntity recurring,
+    DateTime occurrence,
+    DateTime now,
+  ) {
+    final occurrenceId = recurring.occurrenceId(occurrence);
+    if (!recurring.postponedOccurrenceIds.contains(occurrenceId)) {
+      return false;
     }
-    return DateTime.tryParse(recurring.lastHandledOccurrenceAt!);
+
+    final snoozedUntil = recurring.snoozedUntil == null ||
+            recurring.snoozedUntil!.isEmpty
+        ? null
+        : DateTime.tryParse(recurring.snoozedUntil!);
+    if (snoozedUntil == null) {
+      return false;
+    }
+
+    return now.isBefore(snoozedUntil);
+  }
+
+  static bool wasOccurrenceSkipped(
+    RecurringTransactionEntity recurring,
+    DateTime occurrence,
+  ) {
+    return recurring.skippedOccurrenceIds.contains(recurring.occurrenceId(occurrence));
+  }
+
+  static bool _isOccurrenceActionable(
+    RecurringTransactionEntity recurring,
+    DateTime occurrence,
+    DateTime now,
+  ) {
+    return !wasOccurrenceHandled(recurring, occurrence) &&
+        !wasOccurrencePostponed(recurring, occurrence, now) &&
+        !wasOccurrenceSkipped(recurring, occurrence);
   }
 
   static RecurringExpensePrompt? expensePrompt(
@@ -346,7 +385,7 @@ class RecurringScheduleEngine {
 
     if (recurring.executionType == AutomationType.auto.value) {
       if (dueOccurrence == null ||
-          wasOccurrenceHandled(recurring, dueOccurrence)) {
+          !_isOccurrenceActionable(recurring, dueOccurrence, now)) {
         return null;
       }
       if (isSameCalendarDay(dueOccurrence, now)) {
@@ -365,12 +404,17 @@ class RecurringScheduleEngine {
     }
 
     if (dueOccurrence != null &&
-        !wasOccurrenceHandled(recurring, dueOccurrence)) {
+        _isOccurrenceActionable(recurring, dueOccurrence, now)) {
       // If it has never been handled (newly created), and the most recent past occurrence is too old,
       // the user probably doesn't want to be nagged about it. We should just wait for the next one.
       bool ignoreDue = false;
-      if (recurring.lastHandledOccurrenceAt == null ||
-          recurring.lastHandledOccurrenceAt!.isEmpty) {
+      final hasAnyOccurrenceState = recurring.handledOccurrenceIds.isNotEmpty ||
+          recurring.postponedOccurrenceIds.isNotEmpty ||
+          recurring.skippedOccurrenceIds.isNotEmpty ||
+          (recurring.snoozedUntil != null && recurring.snoozedUntil!.isNotEmpty) ||
+          (recurring.lastHandledOccurrenceAt != null &&
+              recurring.lastHandledOccurrenceAt!.isNotEmpty);
+      if (!hasAnyOccurrenceState) {
         final ageDays = now.difference(dueOccurrence).inDays;
         if (recurring.recurrencePattern == RecurrencePattern.yearly.value &&
             ageDays > 30) {
@@ -419,9 +463,9 @@ class RecurringScheduleEngine {
     return occurrencesInRange(recurring, start, end) > 0;
   }
 
-  /// عدد مرات الاستحقاق في النطاق.
-  /// [planningMode] = true → نتجاهل الـ anchorDate ونحسب بناءً على الـ weekdays/pattern فقط.
-  /// ده بيُستخدم في حسابات الميزانية عشان نعرف المبلغ المتوقع في الدورة.
+  /// ط¹ط¯ط¯ ظ…ط±ط§طھ ط§ظ„ط§ط³طھط­ظ‚ط§ظ‚ ظپظٹ ط§ظ„ظ†ط·ط§ظ‚.
+  /// [planningMode] = true â†’ ظ†طھط¬ط§ظ‡ظ„ ط§ظ„ظ€ anchorDate ظˆظ†ط­ط³ط¨ ط¨ظ†ط§ط،ظ‹ ط¹ظ„ظ‰ ط§ظ„ظ€ weekdays/pattern ظپظ‚ط·.
+  /// ط¯ظ‡ ط¨ظٹظڈط³طھط®ط¯ظ… ظپظٹ ط­ط³ط§ط¨ط§طھ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ط¹ط´ط§ظ† ظ†ط¹ط±ظپ ط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ظ…طھظˆظ‚ط¹ ظپظٹ ط§ظ„ط¯ظˆط±ط©.
   static int occurrencesInRange(
     RecurringTransactionEntity recurring,
     DateTime start,
@@ -430,7 +474,7 @@ class RecurringScheduleEngine {
   }) {
     if (end.isBefore(start)) return 0;
 
-    // في planning mode: نحسب الأيام المطابقة للجدول مباشرة بدون anchor restriction
+    // ظپظٹ planning mode: ظ†ط­ط³ط¨ ط§ظ„ط£ظٹط§ظ… ط§ظ„ظ…ط·ط§ط¨ظ‚ط© ظ„ظ„ط¬ط¯ظˆظ„ ظ…ط¨ط§ط´ط±ط© ط¨ط¯ظˆظ† anchor restriction
     if (planningMode) {
       return _occurrencesInRangeDirect(recurring, start, end);
     }
@@ -446,7 +490,7 @@ class RecurringScheduleEngine {
     return count;
   }
 
-  /// حساب مباشر بدون anchor restriction — للاستخدام في تخطيط الميزانية
+  /// ط­ط³ط§ط¨ ظ…ط¨ط§ط´ط± ط¨ط¯ظˆظ† anchor restriction â€” ظ„ظ„ط§ط³طھط®ط¯ط§ظ… ظپظٹ طھط®ط·ظٹط· ط§ظ„ظ…ظٹط²ط§ظ†ظٹط©
   static int _occurrencesInRangeDirect(
     RecurringTransactionEntity recurring,
     DateTime start,
@@ -777,7 +821,7 @@ class RecurringScheduleEngine {
     DateTime candidate,
     int intervalWeeks,
   ) {
-    // للأسبوعي العادي (interval=1): كل أسبوع مطابق — مش محتاجين cycle check
+    // ظ„ظ„ط£ط³ط¨ظˆط¹ظٹ ط§ظ„ط¹ط§ط¯ظٹ (interval=1): ظƒظ„ ط£ط³ط¨ظˆط¹ ظ…ط·ط§ط¨ظ‚ â€” ظ…ط´ ظ…ط­طھط§ط¬ظٹظ† cycle check
     if (intervalWeeks == 1) return true;
 
     final anchorWeek = _startOfWeek(anchor);

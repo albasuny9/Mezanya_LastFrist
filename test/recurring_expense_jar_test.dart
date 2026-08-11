@@ -115,8 +115,9 @@ void main() {
     });
 
     test(
-        'idempotency: recordRecurringExpenseOccurrence never runs twice '
-        'for the same occurrence via the manual-post button guard', () async {
+        'idempotency: recordRecurringExpenseOccurrence never creates a duplicate '
+        'transaction for the same occurrence, even when called with a stale recurring entity',
+        () async {
       final recurring = RecurringTransactionEntity(
         id: 'rec-2',
         name: 'Car maintenance',
@@ -146,21 +147,15 @@ void main() {
         logDetails: 'posted',
       );
 
-      // Re-post the SAME occurrence using the latest (post-update) rule, the
-      // way the UI does after refetching from state — the rule's
-      // lastHandledOccurrenceAt now already equals this occurrence.
-      final latest = cubit.state.recurringTransactions.single;
-      expect(
-        latest.lastHandledOccurrenceAt,
-        DateTime(2026, 7, 1).toIso8601String(),
+      final staleRecurring = recurring.copyWith();
+      await cubit.recordRecurringExpenseOccurrence(
+        recurring: staleRecurring,
+        amount: 100,
+        occurrence: DateTime(2026, 7, 1),
+        transactionNotes: 'Car maintenance',
+        logDetails: 'posted duplicate',
       );
 
-      // The screen's `_canPostManually`/`_pendingOccurrence` guard (backed by
-      // RecurringScheduleEngine.wasOccurrenceHandled) is what prevents a
-      // second call from ever being issued for this same occurrence; here we
-      // confirm the ledger only contains a single generated transaction and
-      // the jar was only debited once, which is the effect that guard exists
-      // to protect.
       expect(
         cubit.state.transactions.where((t) => t.walletId == wallet.id).length,
         1,
@@ -168,6 +163,149 @@ void main() {
       final updatedJar = cubit.state.budgetSetup.linkedWallets
           .firstWhere((j) => j.id == jar.id);
       expect(updatedJar.balance, 400);
+
+      await cubit.close();
+    });
+
+    test('duplicate occurrence is recognized after app restart', () async {
+      final recurring = RecurringTransactionEntity(
+        id: 'rec-3',
+        name: 'Car maintenance',
+        type: TransactionType.expense.value,
+        amount: 100,
+        dayOfMonth: 1,
+        executionType: 'manual',
+        walletId: wallet.id,
+        budgetScope: BudgetScope.outsideBudget.value,
+        recurrencePattern: RecurrencePattern.monthly.value,
+        icon: 'category',
+        iconColor: '#c65d2e',
+        targetJarId: jar.id,
+      );
+
+      final repository = _MemoryAppRepository(
+        baseState().copyWith(recurringTransactions: [recurring]),
+      );
+      final cubit = AppCubit(repository, await _prefsStore());
+      await cubit.initialize();
+
+      await cubit.recordRecurringExpenseOccurrence(
+        recurring: recurring,
+        amount: 100,
+        occurrence: DateTime(2026, 7, 1),
+        transactionNotes: 'Car maintenance',
+        logDetails: 'posted',
+      );
+      await cubit.close();
+
+      final restartedRepository = _MemoryAppRepository(repository.state);
+      final restartedCubit = AppCubit(restartedRepository, await _prefsStore());
+      await restartedCubit.initialize();
+
+      await restartedCubit.recordRecurringExpenseOccurrence(
+        recurring: recurring,
+        amount: 100,
+        occurrence: DateTime(2026, 7, 1),
+        transactionNotes: 'Car maintenance',
+        logDetails: 'posted duplicate after restart',
+      );
+
+      expect(
+        restartedCubit.state.transactions.where((t) => t.walletId == wallet.id).length,
+        1,
+      );
+      final restartedJar = restartedCubit.state.budgetSetup.linkedWallets
+          .firstWhere((j) => j.id == jar.id);
+      expect(restartedJar.balance, 400);
+
+      await restartedCubit.close();
+    });
+
+    test('failed recurring execution does not mark occurrence as handled',
+        () async {
+      final recurring = RecurringTransactionEntity(
+        id: 'rec-4',
+        name: 'Car maintenance',
+        type: TransactionType.expense.value,
+        amount: 100,
+        dayOfMonth: 1,
+        executionType: 'manual',
+        walletId: wallet.id,
+        budgetScope: BudgetScope.outsideBudget.value,
+        recurrencePattern: RecurrencePattern.monthly.value,
+        icon: 'category',
+        iconColor: '#c65d2e',
+        targetJarId: jar.id,
+      );
+
+      final repository = _ThrowingSaveAppRepository(
+        baseState().copyWith(recurringTransactions: [recurring]),
+      );
+      final cubit = AppCubit(repository, await _prefsStore());
+      await cubit.initialize();
+
+      expect(
+        () => cubit.recordRecurringExpenseOccurrence(
+          recurring: recurring,
+          amount: 100,
+          occurrence: DateTime(2026, 7, 1),
+          transactionNotes: 'Car maintenance',
+          logDetails: 'posted',
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      expect(cubit.state.transactions, isEmpty);
+      expect(cubit.state.recurringTransactions.single.lastHandledOccurrenceAt,
+          isNull);
+
+      await cubit.close();
+    });
+
+    test('different occurrence is allowed and creates another transaction',
+        () async {
+      final recurring = RecurringTransactionEntity(
+        id: 'rec-5',
+        name: 'Car maintenance',
+        type: TransactionType.expense.value,
+        amount: 100,
+        dayOfMonth: 1,
+        executionType: 'manual',
+        walletId: wallet.id,
+        budgetScope: BudgetScope.outsideBudget.value,
+        recurrencePattern: RecurrencePattern.monthly.value,
+        icon: 'category',
+        iconColor: '#c65d2e',
+        targetJarId: jar.id,
+      );
+
+      final repository = _MemoryAppRepository(
+        baseState().copyWith(recurringTransactions: [recurring]),
+      );
+      final cubit = AppCubit(repository, await _prefsStore());
+      await cubit.initialize();
+
+      await cubit.recordRecurringExpenseOccurrence(
+        recurring: recurring,
+        amount: 100,
+        occurrence: DateTime(2026, 7, 1),
+        transactionNotes: 'Car maintenance',
+        logDetails: 'posted',
+      );
+      await cubit.recordRecurringExpenseOccurrence(
+        recurring: recurring,
+        amount: 100,
+        occurrence: DateTime(2026, 8, 1),
+        transactionNotes: 'Car maintenance',
+        logDetails: 'posted next occurrence',
+      );
+
+      expect(
+        cubit.state.transactions.where((t) => t.walletId == wallet.id).length,
+        2,
+      );
+      expect(cubit.state.recurringTransactions.single.lastHandledOccurrenceAt,
+          DateTime(2026, 8, 1).toIso8601String());
 
       await cubit.close();
     });
@@ -189,6 +327,21 @@ class _MemoryAppRepository implements AppRepository {
 
   @override
   Future<void> saveState(AppStateEntity state) async {
+    this.state = state;
+  }
+}
+
+class _ThrowingSaveAppRepository extends _MemoryAppRepository {
+  _ThrowingSaveAppRepository(super.state);
+
+  int _saveCount = 0;
+
+  @override
+  Future<void> saveState(AppStateEntity state) async {
+    _saveCount += 1;
+    if (_saveCount > 1) {
+      throw Exception('forced save failure');
+    }
     this.state = state;
   }
 }

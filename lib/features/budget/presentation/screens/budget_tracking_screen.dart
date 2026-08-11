@@ -2624,11 +2624,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               .fold<double>(0, (sum, t) => sum + t.amount);
           final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
           if (remaining <= 0) {
-            await widget.cubit.updateRecurringTransaction(
-              recurring.copyWith(
-                lastHandledOccurrenceAt: occurrence.toIso8601String(),
-                snoozedUntil: '',
-              ),
+            await widget.cubit.recordRecurringSkip(
+              recurring: recurring,
+              occurrence: occurrence,
+              logDetails:
+                  'Auto recurring debt skipped: ${debt.name} (no remaining amount)',
+              titleOverride: debt.name,
             );
             continue;
           }
@@ -2642,6 +2643,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 RecurringScheduleEngine.isSameCalendarDay(t.createdAt, now))
             .isNotEmpty;
         if (alreadyPaidThisCycle) {
+          await widget.cubit.recordRecurringSkip(
+            recurring: recurring,
+            occurrence: occurrence,
+            logDetails:
+                'Auto recurring debt skipped: ${debt.name} (already paid this cycle)',
+            titleOverride: debt.name,
+          );
           _handledOccurrenceKeys.add(occKey);
           continue;
         }
@@ -2776,8 +2784,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       source,
     );
     if (recurring != null) {
+      final now = DateTime.now();
+      final occurrence = _dueOccurrenceNow(recurring, now) ??
+          RecurringScheduleEngine.nextOccurrence(recurring, now) ??
+          now;
       await widget.cubit.updateRecurringTransaction(
-        recurring.copyWith(snoozedUntil: ''),
+        recurring.withClearedPostponedOccurrence(occurrence),
       );
       return;
     }
@@ -2811,29 +2823,35 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     if (result == null) return;
 
     if (result == PostponeChoice.skip) {
-      await widget.cubit.updateRecurringTransaction(
-        recurring.copyWith(
-          lastHandledOccurrenceAt: occurrence.toIso8601String(),
-          snoozedUntil: '',
-        ),
-        detailsOverride:
+      await widget.cubit.recordRecurringSkip(
+        recurring: recurring,
+        occurrence: occurrence,
+        logDetails:
             'تخطي هذه المرة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)}',
+        titleOverride: recurring.name,
       );
       return;
     }
 
     if (result is DateTime) {
-      await widget.cubit.updateRecurringTransaction(
-        recurring.copyWith(snoozedUntil: result.toIso8601String()),
-        detailsOverride:
+      await widget.cubit.recordRecurringPostpone(
+        recurring: recurring,
+        snoozedUntil: result,
+        occurrence: occurrence,
+        logDetails:
             'تأجيل معاملة متكررة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(result)}',
+        titleOverride: recurring.name,
       );
     }
   }
 
   Future<void> _clearDebtPostpone(RecurringTransactionEntity recurring) async {
+    final now = DateTime.now();
+    final occurrence = _dueOccurrenceNow(recurring, now) ??
+        RecurringScheduleEngine.nextOccurrence(recurring, now) ??
+        now;
     await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(snoozedUntil: ''),
+      recurring.withClearedPostponedOccurrence(occurrence),
     );
   }
 

@@ -14,8 +14,7 @@ mixin AppCubitRecurringMixin on AppCubitBase {
       }
       final occurrence =
           RecurringScheduleEngine.unhandledDueOccurrence(recurring, reference);
-      if (occurrence == null ||
-          !RecurringScheduleEngine.isSameCalendarDay(occurrence, reference)) {
+      if (occurrence == null || occurrence.isAfter(reference)) {
         continue;
       }
 
@@ -299,14 +298,23 @@ mixin AppCubitRecurringMixin on AppCubitBase {
     required String logDetails,
     String? titleOverride,
   }) async {
-    final jarId = recurring.targetJarId?.trim();
+    final currentRecurring = state.recurringTransactions
+        .where((item) => item.id == recurring.id)
+        .toList();
+    if (currentRecurring.isEmpty) return;
+    final latestRecurring = currentRecurring.single;
+    if (RecurringScheduleEngine.wasOccurrenceHandled(latestRecurring, occurrence)) {
+      return;
+    }
+
+    final jarId = latestRecurring.targetJarId?.trim();
     final hasJarTarget = jarId != null && jarId.isNotEmpty;
-    final incomeSourceId = recurring.incomeSourceId?.trim();
+    final incomeSourceId = latestRecurring.incomeSourceId?.trim();
     final hasBudgetSource = incomeSourceId != null && incomeSourceId.isNotEmpty;
 
     final transaction = TransactionEntity(
       id: _id('txn'),
-      walletId: recurring.walletId,
+      walletId: latestRecurring.walletId,
       toWalletId: hasJarTarget ? jarId : null,
       amount: amount,
       type: TransactionType.income.value,
@@ -316,10 +324,12 @@ mixin AppCubitRecurringMixin on AppCubitBase {
       incomeSourceId: hasBudgetSource ? incomeSourceId : null,
       transferType:
           hasJarTarget ? TransferType.depositWithJarLabel.value : null,
-      categoryId:
-          recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
-      notes:
-          transactionNotes.trim().isEmpty ? recurring.name : transactionNotes,
+      categoryId: latestRecurring.categoryIds.isNotEmpty
+          ? latestRecurring.categoryIds.first
+          : null,
+      notes: transactionNotes.trim().isEmpty
+          ? latestRecurring.name
+          : transactionNotes,
       createdAt: DateTime(
         occurrence.year,
         occurrence.month,
@@ -329,15 +339,12 @@ mixin AppCubitRecurringMixin on AppCubitBase {
       ),
     );
 
-    final updatedRecurring = recurring.copyWith(
-      lastHandledOccurrenceAt: occurrence.toIso8601String(),
-      snoozedUntil: '',
-    );
+    final updatedRecurring = latestRecurring.withHandledOccurrence(occurrence);
 
     await _applyAndLog(
       action: 'add',
       entityType: 'recurring-income-handled',
-      entityId: recurring.id,
+      entityId: latestRecurring.id,
       details: logDetails,
       titleOverride: titleOverride ?? logDetails,
       recordInNotificationHistory: true,
@@ -356,16 +363,26 @@ mixin AppCubitRecurringMixin on AppCubitBase {
     required String logDetails,
     String? titleOverride,
   }) async {
+    final currentRecurring = state.recurringTransactions
+        .where((item) => item.id == recurring.id)
+        .toList();
+    if (currentRecurring.isEmpty) return;
+    final latestRecurring = currentRecurring.single;
+    if (RecurringScheduleEngine.wasOccurrenceHandled(latestRecurring, occurrence)) {
+      return;
+    }
+
     final transaction = TransactionEntity(
       id: _id('txn'),
-      walletId: recurring.walletId,
-      toWalletId: recurring.targetJarId,
+      walletId: latestRecurring.walletId,
+      toWalletId: latestRecurring.targetJarId,
       amount: amount,
       type: TransactionType.expense.value,
-      budgetScope: recurring.budgetScope,
-      allocationId: recurring.allocationId,
-      categoryId:
-          recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
+      budgetScope: latestRecurring.budgetScope,
+      allocationId: latestRecurring.allocationId,
+      categoryId: latestRecurring.categoryIds.isNotEmpty
+          ? latestRecurring.categoryIds.first
+          : null,
       notes: transactionNotes,
       createdAt: DateTime(
         occurrence.year,
@@ -376,15 +393,12 @@ mixin AppCubitRecurringMixin on AppCubitBase {
       ),
     );
 
-    final updatedRecurring = recurring.copyWith(
-      lastHandledOccurrenceAt: occurrence.toIso8601String(),
-      snoozedUntil: '',
-    );
+    final updatedRecurring = latestRecurring.withHandledOccurrence(occurrence);
 
     await _applyAndLog(
       action: 'add',
       entityType: 'recurring-expense-handled',
-      entityId: recurring.id,
+      entityId: latestRecurring.id,
       details: logDetails,
       titleOverride: titleOverride ?? logDetails,
       recordInNotificationHistory: true,
@@ -400,17 +414,31 @@ mixin AppCubitRecurringMixin on AppCubitBase {
   Future<void> recordRecurringPostpone({
     required RecurringTransactionEntity recurring,
     required DateTime snoozedUntil,
+    DateTime? occurrence,
     required String logDetails,
     String? titleOverride,
   }) async {
-    final updatedRecurring = recurring.copyWith(
+    final currentRecurring = state.recurringTransactions
+        .where((item) => item.id == recurring.id)
+        .toList();
+    if (currentRecurring.isEmpty) return;
+    final latestRecurring = currentRecurring.single;
+    final targetOccurrence = occurrence ??
+        RecurringScheduleEngine.dueOccurrenceNow(latestRecurring, DateTime.now());
+    if (targetOccurrence == null) return;
+    if (RecurringScheduleEngine.wasOccurrenceHandled(latestRecurring, targetOccurrence)) {
+      return;
+    }
+
+    final updatedRecurring = latestRecurring.withPostponedOccurrence(
+      targetOccurrence,
       snoozedUntil: snoozedUntil.toIso8601String(),
     );
 
     await _applyAndLog(
       action: 'edit',
       entityType: 'recurring-transaction',
-      entityId: recurring.id,
+      entityId: latestRecurring.id,
       details: logDetails,
       titleOverride: titleOverride ?? logDetails,
       recordInNotificationHistory: true,
@@ -424,15 +452,21 @@ mixin AppCubitRecurringMixin on AppCubitBase {
     required String logDetails,
     String? titleOverride,
   }) async {
-    final updatedRecurring = recurring.copyWith(
-      lastHandledOccurrenceAt: occurrence.toIso8601String(),
-      snoozedUntil: '',
-    );
+    final currentRecurring = state.recurringTransactions
+        .where((item) => item.id == recurring.id)
+        .toList();
+    if (currentRecurring.isEmpty) return;
+    final latestRecurring = currentRecurring.single;
+    if (RecurringScheduleEngine.wasOccurrenceHandled(latestRecurring, occurrence)) {
+      return;
+    }
+
+    final updatedRecurring = latestRecurring.withSkippedOccurrence(occurrence);
 
     await _applyAndLog(
       action: 'skip',
       entityType: 'recurring-transaction',
-      entityId: recurring.id,
+      entityId: latestRecurring.id,
       details: logDetails,
       titleOverride: titleOverride ?? logDetails,
       recordInNotificationHistory: true,

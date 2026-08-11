@@ -30,6 +30,9 @@ class RecurringTransactionEntity {
     this.notes,
     this.snoozedUntil,
     this.lastHandledOccurrenceAt,
+    this.handledOccurrenceIds = const [],
+    this.postponedOccurrenceIds = const [],
+    this.skippedOccurrenceIds = const [],
     this.isActive = true,
     this.isLent = false,
     this.lentPersonName,
@@ -67,6 +70,9 @@ class RecurringTransactionEntity {
   final String? notes;
   final String? snoozedUntil;
   final String? lastHandledOccurrenceAt;
+  final List<String> handledOccurrenceIds;
+  final List<String> postponedOccurrenceIds;
+  final List<String> skippedOccurrenceIds;
   final bool isActive;
   final bool isLent;
   final String? lentPersonName;
@@ -87,6 +93,122 @@ class RecurringTransactionEntity {
 
   /// هل هناك سلفات لم تُسدد؟
   bool get hasOutstandingLent => lentEntries.any((e) => e['isSettled'] != true);
+
+  static DateTime _normalizeOccurrence(DateTime occurrence) {
+    return DateTime(
+      occurrence.year,
+      occurrence.month,
+      occurrence.day,
+      occurrence.hour,
+      occurrence.minute,
+    );
+  }
+
+  /// Returns a deterministic domain identity for a recurring occurrence.
+  ///
+  /// This identity combines the recurring transaction id with a normalized
+  /// occurrence timestamp, making it stable across app restarts and usable
+  /// as an idempotency key.
+  String occurrenceId(DateTime occurrence) {
+    final normalized = _normalizeOccurrence(occurrence);
+    return '$id|${normalized.toIso8601String()}';
+  }
+
+  /// Returns a deterministic domain identity for a recurring occurrence.
+  /// Useful when only the recurring id and occurrence timestamp are available.
+  static String occurrenceIdFor(String recurringId, DateTime occurrence) {
+    final normalized = _normalizeOccurrence(occurrence);
+    return '$recurringId|${normalized.toIso8601String()}';
+  }
+
+  List<String> get effectiveHandledOccurrenceIds {
+    if (handledOccurrenceIds.isNotEmpty) return handledOccurrenceIds;
+    final legacy = _legacyHandledOccurrenceId;
+    return legacy == null ? const <String>[] : [legacy];
+  }
+
+  String? get _legacyHandledOccurrenceId {
+    if (lastHandledOccurrenceAt == null || lastHandledOccurrenceAt!.isEmpty) {
+      return null;
+    }
+    final parsed = DateTime.tryParse(lastHandledOccurrenceAt!);
+    if (parsed == null) return null;
+    return occurrenceIdFor(id, parsed);
+  }
+
+  bool hasHandledOccurrence(DateTime occurrence) {
+    final id = occurrenceId(occurrence);
+    return effectiveHandledOccurrenceIds.contains(id);
+  }
+
+  bool hasPostponedOccurrence(DateTime occurrence) {
+    final id = occurrenceId(occurrence);
+    return postponedOccurrenceIds.contains(id);
+  }
+
+  bool hasSkippedOccurrence(DateTime occurrence) {
+    final id = occurrenceId(occurrence);
+    return skippedOccurrenceIds.contains(id);
+  }
+
+  RecurringTransactionEntity withHandledOccurrence(DateTime occurrence) {
+    final id = occurrenceId(occurrence);
+    final nextHandled = [...handledOccurrenceIds, if (!handledOccurrenceIds.contains(id)) id];
+    final nextPostponed = postponedOccurrenceIds.where((item) => item != id).toList();
+    final nextSkipped = skippedOccurrenceIds.where((item) => item != id).toList();
+    return copyWith(
+      handledOccurrenceIds: nextHandled,
+      postponedOccurrenceIds: nextPostponed,
+      skippedOccurrenceIds: nextSkipped,
+      lastHandledOccurrenceAt: occurrence.toIso8601String(),
+      snoozedUntil: '',
+    );
+  }
+
+  RecurringTransactionEntity withPostponedOccurrence(
+    DateTime occurrence, {
+    required String? snoozedUntil,
+  }) {
+    final id = occurrenceId(occurrence);
+    final nextPostponed = [
+      ...postponedOccurrenceIds.where((item) => item != id),
+      id,
+    ];
+    final nextHandled = handledOccurrenceIds.where((item) => item != id).toList();
+    final nextSkipped = skippedOccurrenceIds.where((item) => item != id).toList();
+    return copyWith(
+      handledOccurrenceIds: nextHandled,
+      postponedOccurrenceIds: nextPostponed,
+      skippedOccurrenceIds: nextSkipped,
+      snoozedUntil: snoozedUntil,
+    );
+  }
+
+  RecurringTransactionEntity withSkippedOccurrence(DateTime occurrence) {
+    final id = occurrenceId(occurrence);
+    final nextSkipped = [
+      ...skippedOccurrenceIds.where((item) => item != id),
+      id,
+    ];
+    final nextHandled = handledOccurrenceIds.where((item) => item != id).toList();
+    final nextPostponed = postponedOccurrenceIds.where((item) => item != id).toList();
+    return copyWith(
+      handledOccurrenceIds: nextHandled,
+      postponedOccurrenceIds: nextPostponed,
+      skippedOccurrenceIds: nextSkipped,
+      lastHandledOccurrenceAt: occurrence.toIso8601String(),
+      snoozedUntil: '',
+    );
+  }
+
+  RecurringTransactionEntity withClearedPostponedOccurrence(DateTime occurrence) {
+    final id = occurrenceId(occurrence);
+    final nextPostponed = postponedOccurrenceIds.where((item) => item != id).toList();
+    return copyWith(
+      postponedOccurrenceIds: nextPostponed,
+      snoozedUntil: '',
+    );
+  }
 
   RecurringTransactionEntity copyWith({
     String? id,
@@ -119,6 +241,9 @@ class RecurringTransactionEntity {
     String? notes,
     String? snoozedUntil,
     String? lastHandledOccurrenceAt,
+    List<String>? handledOccurrenceIds,
+    List<String>? postponedOccurrenceIds,
+    List<String>? skippedOccurrenceIds,
     bool? isActive,
     bool? isLent,
     String? lentPersonName,
@@ -158,6 +283,10 @@ class RecurringTransactionEntity {
       snoozedUntil: snoozedUntil ?? this.snoozedUntil,
       lastHandledOccurrenceAt:
           lastHandledOccurrenceAt ?? this.lastHandledOccurrenceAt,
+      handledOccurrenceIds: handledOccurrenceIds ?? this.handledOccurrenceIds,
+      postponedOccurrenceIds:
+          postponedOccurrenceIds ?? this.postponedOccurrenceIds,
+      skippedOccurrenceIds: skippedOccurrenceIds ?? this.skippedOccurrenceIds,
       isActive: isActive ?? this.isActive,
       isLent: isLent ?? this.isLent,
       lentPersonName: lentPersonName ?? this.lentPersonName,
@@ -198,6 +327,9 @@ class RecurringTransactionEntity {
       'notes': notes,
       'snoozedUntil': snoozedUntil,
       'lastHandledOccurrenceAt': lastHandledOccurrenceAt,
+      'handledOccurrenceIds': handledOccurrenceIds,
+      'postponedOccurrenceIds': postponedOccurrenceIds,
+      'skippedOccurrenceIds': skippedOccurrenceIds,
       'isActive': isActive,
       'isLent': isLent,
       'lentPersonName': lentPersonName,
@@ -207,6 +339,21 @@ class RecurringTransactionEntity {
   }
 
   factory RecurringTransactionEntity.fromMap(Map<String, dynamic> map) {
+    final handledOccurrenceIds = (map['handledOccurrenceIds'] as List<dynamic>? ?? const <dynamic>[])
+        .map((item) => item as String)
+        .toList();
+    final legacyHandledAt = map['lastHandledOccurrenceAt'] as String?;
+    final normalizedHandledOccurrenceIds = handledOccurrenceIds.isEmpty &&
+            legacyHandledAt != null &&
+            legacyHandledAt.isNotEmpty
+        ? [
+            RecurringTransactionEntity.occurrenceIdFor(
+              map['id'] as String? ?? '',
+              DateTime.parse(legacyHandledAt),
+            ),
+          ]
+        : handledOccurrenceIds;
+
     return RecurringTransactionEntity(
       id: map['id'] as String? ?? '',
       name: map['name'] as String? ?? '',
@@ -238,11 +385,18 @@ class RecurringTransactionEntity {
       expensePlanKind: map['expensePlanKind'] as String?,
       debtPrincipalTotal: (map['debtPrincipalTotal'] as num?)?.toDouble(),
       installmentCount: map['installmentCount'] as int?,
-      installmentDownPayment:
-          (map['installmentDownPayment'] as num?)?.toDouble(),
+      installmentDownPayment: (map['installmentDownPayment'] as num?)
+          ?.toDouble(),
       notes: map['notes'] as String?,
       snoozedUntil: map['snoozedUntil'] as String?,
-      lastHandledOccurrenceAt: map['lastHandledOccurrenceAt'] as String?,
+      lastHandledOccurrenceAt: legacyHandledAt,
+      handledOccurrenceIds: normalizedHandledOccurrenceIds,
+      postponedOccurrenceIds: (map['postponedOccurrenceIds'] as List<dynamic>? ?? const <dynamic>[])
+          .map((item) => item as String)
+          .toList(),
+      skippedOccurrenceIds: (map['skippedOccurrenceIds'] as List<dynamic>? ?? const <dynamic>[])
+          .map((item) => item as String)
+          .toList(),
       isActive: map['isActive'] as bool? ?? true,
       isLent: map['isLent'] as bool? ?? false,
       lentPersonName: map['lentPersonName'] as String?,

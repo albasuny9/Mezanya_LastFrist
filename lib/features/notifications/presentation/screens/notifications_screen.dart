@@ -9,6 +9,7 @@ import '../../../logs/application/audit_facade.dart';
 import '../../../recovery/domain/entities/recovery_entry.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../domain/entities/notification_entity.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -361,17 +362,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (!canEarly && !isDueOrLate) {
       return null;
     }
-    final snoozedUntil =
-        recurring?.snoozedUntil == null || recurring!.snoozedUntil!.isEmpty
-            ? null
-            : DateTime.tryParse(recurring.snoozedUntil!);
-    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
-      return <String, dynamic>{
-        'pending': false,
-        'status':
-            'Snoozed until ${DateFormat('d/M HH:mm').format(snoozedUntil)}',
-      };
+
+    if (recurring != null) {
+      final snoozedUntil = recurring.snoozedUntil == null ||
+              recurring.snoozedUntil!.isEmpty
+          ? null
+          : DateTime.tryParse(recurring.snoozedUntil!);
+      if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+        return <String, dynamic>{
+          'pending': false,
+          'status':
+              'Snoozed until ${DateFormat('d/M HH:mm').format(snoozedUntil)}',
+        };
+      }
+      if (isDueOrLate &&
+          RecurringScheduleEngine.unhandledDueOccurrence(recurring, now) == null) {
+        return null;
+      }
+      if (!isDueOrLate &&
+          RecurringScheduleEngine.nextOccurrence(recurring, now) == null) {
+        return null;
+      }
     }
+
     final dateLabel = '${dueDate.day}/${dueDate.month}';
     final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
         ? recurring!.scheduledTime!
@@ -409,20 +422,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return null;
     }
     final now = DateTime.now();
-    final dueNow = _dueOccurrenceNow(recurring, now);
-    final occurrence = dueNow ?? _nextRecurringOccurrence(recurring, now);
-    if (occurrence == null) {
-      return null;
-    }
-    if (_occurrenceWasHandled(recurring, occurrence)) {
-      return null;
-    }
-    final snoozedUntil =
-        recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
-            ? null
-            : DateTime.tryParse(recurring.snoozedUntil!);
-    final reminderAt = _notificationMoment(recurring, occurrence);
+    final snoozedUntil = recurring.snoozedUntil == null ||
+            recurring.snoozedUntil!.isEmpty
+        ? null
+        : DateTime.tryParse(recurring.snoozedUntil!);
     if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+      final occurrence = RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
+          RecurringScheduleEngine.nextOccurrence(recurring, now);
+      if (occurrence == null) return null;
       return <String, dynamic>{
         'pending': false,
         'status':
@@ -430,8 +437,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'occurrence': occurrence,
       };
     }
-    if (now.isBefore(reminderAt)) {
+    final dueOccurrence =
+        RecurringScheduleEngine.unhandledDueOccurrence(recurring, now);
+    final occurrence = dueOccurrence ??
+        RecurringScheduleEngine.nextOccurrence(recurring, now);
+    if (occurrence == null) {
       return null;
+    }
+    if (dueOccurrence == null) {
+      final reminderAt = occurrence.subtract(
+        RecurringScheduleEngine.reminderDuration(recurring),
+      );
+      if (now.isBefore(reminderAt)) {
+        return null;
+      }
     }
     return <String, dynamic>{
       'pending': true,
@@ -442,25 +461,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     };
   }
 
-  bool _occurrenceWasHandled(
-    RecurringTransactionEntity recurring,
-    DateTime occurrence,
-  ) {
-    final handled = recurring.lastHandledOccurrenceAt == null
-        ? null
-        : DateTime.tryParse(recurring.lastHandledOccurrenceAt!);
-    if (handled == null) {
-      return false;
-    }
-    final normalized = DateTime(
-      occurrence.year,
-      occurrence.month,
-      occurrence.day,
-      occurrence.hour,
-      occurrence.minute,
-    );
-    return !handled.isBefore(normalized);
-  }
 
   DateTime? _dueOccurrenceNow(
     RecurringTransactionEntity recurring,
@@ -514,20 +514,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final lastDay = DateTime(month.year, month.month + 1, 0).day;
     final day = source.date.clamp(1, lastDay);
     return DateTime(month.year, month.month, day);
-  }
-
-  DateTime _notificationMoment(
-    RecurringTransactionEntity recurring,
-    DateTime occurrence,
-  ) {
-    final lead = recurring.reminderLeadDays ?? 0;
-    if (recurring.recurrencePattern == RecurrencePattern.daily.value ||
-        recurring.recurrencePattern == RecurrencePattern.weekly.value ||
-        recurring.recurrencePattern == RecurrencePattern.biweekly.value ||
-        recurring.recurrencePattern == RecurrencePattern.every3Weeks.value) {
-      return occurrence.subtract(Duration(hours: lead));
-    }
-    return occurrence.subtract(Duration(days: lead));
   }
 
   DateTime? _parseRecurringTime(String? value) {
